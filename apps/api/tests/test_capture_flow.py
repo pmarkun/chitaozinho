@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 import subprocess
+from datetime import UTC
 from pathlib import Path
 
 import pytest
 from chitaozinho_api.config import Settings
 from chitaozinho_api.main import create_app
-from chitaozinho_api.models import Incident, TimestampAttempt
+from chitaozinho_api.models import AuditEvent, Incident, Job, TimestampAttempt
 from chitaozinho_protocol import (
     DOMAINS,
     base64url_encode,
@@ -325,7 +326,10 @@ def test_session_event_part_finalize_and_idempotency(
     assert replayed_finalize.status_code == 200
     assert replayed_finalize.json() == result
 
-    timestamped = client.post(f"/v1/sessions/{session_id}/timestamp")
+    timestamped = client.post(
+        f"/v1/sessions/{session_id}/timestamp",
+        headers={"Idempotency-Key": "timestamp-primary"},
+    )
     assert timestamped.status_code == 200
     timestamp_attestation = timestamped.json()
     assert timestamp_attestation["document"]["manifest_hash"] == result["manifest_hash"]
@@ -338,6 +342,12 @@ def test_session_event_part_finalize_and_idempotency(
     )
     retried_timestamp = client.post(f"/v1/sessions/{session_id}/timestamp")
     assert retried_timestamp.status_code == 200
+    replayed_timestamp = client.post(
+        f"/v1/sessions/{session_id}/timestamp",
+        headers={"Idempotency-Key": "timestamp-primary"},
+    )
+    assert replayed_timestamp.status_code == 200
+    assert replayed_timestamp.json() == timestamp_attestation
     with client.app.state.session_factory() as database:
         attempts = list(
             database.scalars(
@@ -350,6 +360,15 @@ def test_session_event_part_finalize_and_idempotency(
         assert {attempt.manifest_hash for attempt in attempts} == {
             result["manifest_hash"]
         }
+        jobs = list(
+            database.scalars(
+                select(Job)
+                .where(Job.subject_id == session_id)
+                .order_by(Job.created_at)
+            )
+        )
+        assert len(jobs) == 2
+        assert all(job.status == "completed" and job.attempts == 1 for job in jobs)
 
     def fake_stamp(
         root_hash: str,
@@ -444,6 +463,36 @@ def test_session_event_part_finalize_and_idempotency(
     assert current.json()["package_status"] == "available"
     assert current.json()["timestamp_status"] == "pending"
     assert current.json()["blockchain_status"] == "confirmed"
+
+    with client.app.state.session_factory() as database:
+        audit_events = list(
+            database.scalars(select(AuditEvent).order_by(AuditEvent.sequence))
+        )
+        assert [event.sequence for event in audit_events] == list(
+            range(len(audit_events))
+        )
+        previous_hash = None
+        for audit_event in audit_events:
+            created_at = audit_event.created_at
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=UTC)
+            document = {
+                "schema_version": "0.1.0",
+                "sequence": audit_event.sequence,
+                "previous_event_hash": previous_hash,
+                "event_type": audit_event.event_type,
+                "subject_id": audit_event.subject_id,
+                "details": audit_event.details,
+                "created_at": created_at.isoformat().replace("+00:00", "Z"),
+            }
+            assert audit_event.previous_event_hash == previous_hash
+            assert audit_event.event_hash == sha256_identifier(canonical_bytes(document))
+            previous_hash = audit_event.event_hash
+
+        audit_events[0].details = {"tampered": True}
+        with pytest.raises(ValueError, match="append-only"):
+            database.commit()
+        database.rollback()
 
 
 def test_artifact_identifier_cannot_escape_storage(client: TestClient) -> None:

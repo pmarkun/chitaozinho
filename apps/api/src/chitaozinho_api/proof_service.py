@@ -10,6 +10,7 @@ from chitaozinho_protocol import DOMAINS, canonical_bytes, sha256_identifier
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .audit import append_audit_event
 from .config import Settings
 from .models import (
     Attestation,
@@ -123,6 +124,16 @@ def timestamp_capture(
         capture_session,
         timestamp=details,
     )
+    append_audit_event(
+        database,
+        "timestamp_attempt_recorded",
+        subject_id=capture_session.id,
+        details={
+            "attempt_number": attempt_number,
+            "manifest_hash": capture_session.manifest_hash,
+            "status": status,
+        },
+    )
     database.commit()
     return attestation
 
@@ -203,6 +214,16 @@ def create_merkle_batch(
                 "checked_at": rfc3339(datetime.now(UTC)),
             },
         )
+    append_audit_event(
+        database,
+        "merkle_batch_created",
+        subject_id=batch.id,
+        details={
+            "root_hash": batch.root_hash,
+            "session_count": len(typed_sessions),
+            "status": status,
+        },
+    )
     database.commit()
     return batch
 
@@ -271,6 +292,16 @@ def upgrade_merkle_batch(
                 "checked_at": rfc3339(datetime.now(UTC)),
             },
         )
+    append_audit_event(
+        database,
+        "ots_complement_created",
+        subject_id=batch.id,
+        details={
+            "proof_hash": proof_hash,
+            "status": proof_status,
+            "sequence": sequence,
+        },
+    )
     database.commit()
     return complement
 

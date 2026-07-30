@@ -11,8 +11,9 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 
 class Base(DeclarativeBase):
@@ -224,3 +225,47 @@ class Attestation(Base):
     document_hash: Mapped[str] = mapped_column(String(71), nullable=False)
     signature_hex: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AuditEvent(Base):
+    __tablename__ = "audit_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
+    previous_event_hash: Mapped[str | None] = mapped_column(String(71))
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    subject_id: Mapped[str | None] = mapped_column(String(128), index=True)
+    details: Mapped[dict] = mapped_column(JSON, nullable=False)
+    event_hash: Mapped[str] = mapped_column(String(71), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class Job(Base):
+    __tablename__ = "jobs"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(64), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    subject_id: Mapped[str | None] = mapped_column(String(128), index=True)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    result: Mapped[dict | None] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_error: Mapped[str | None] = mapped_column(Text)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+@event.listens_for(Session, "before_flush")
+def reject_audit_event_mutation(
+    session: Session,
+    _flush_context: object,
+    _instances: object,
+) -> None:
+    if any(isinstance(value, AuditEvent) for value in session.dirty):
+        raise ValueError("audit events are append-only")
+    if any(isinstance(value, AuditEvent) for value in session.deleted):
+        raise ValueError("audit events are append-only")

@@ -23,8 +23,15 @@ from sqlalchemy import Engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
+from .audit import append_audit_event
 from .config import Settings
 from .database import create_database_engine, session_dependency
+from .jobs import (
+    get_or_create_job,
+    mark_job_completed,
+    mark_job_failed,
+    mark_job_running,
+)
 from .models import (
     Artifact,
     ArtifactPart,
@@ -33,6 +40,7 @@ from .models import (
     CaptureSession,
     ChainEntry,
     Incident,
+    Job,
     MerkleBatch,
     OtsComplement,
     Receipt,
@@ -116,6 +124,12 @@ def create_app(
             updated_at=now,
         )
         database.add(capture_session)
+        append_audit_event(
+            database,
+            "capture_session_created",
+            subject_id=capture_session.id,
+            details={},
+        )
         database.commit()
         return CreateSessionResponse(
             session_id=capture_session.id,
@@ -152,6 +166,12 @@ def create_app(
         capture_session.client_public_key = public_key
         capture_session.status = "key_registered"
         capture_session.updated_at = datetime.now(UTC)
+        append_audit_event(
+            database,
+            "capture_key_registered",
+            subject_id=session_id,
+            details={"key_id": body.key_id},
+        )
         database.commit()
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -208,6 +228,16 @@ def create_app(
         capture_session.next_sequence += 1
         capture_session.status = "capturing"
         capture_session.updated_at = datetime.now(UTC)
+        append_audit_event(
+            database,
+            "capture_event_recorded",
+            subject_id=session_id,
+            details={
+                "sequence": entry.sequence,
+                "entry_hash": entry.entry_hash,
+                "entry_type": entry.entry_type,
+            },
+        )
         try:
             database.commit()
         except IntegrityError as error:
@@ -390,6 +420,16 @@ def create_app(
         capture_session.last_receipt_hash = receipt_hash
         capture_session.status = "uploading"
         capture_session.updated_at = datetime.now(UTC)
+        append_audit_event(
+            database,
+            "artifact_part_persisted",
+            subject_id=session_id,
+            details={
+                "artifact_id": artifact_id,
+                "part_number": part_number,
+                "part_hash": expected_part_hash,
+            },
+        )
         try:
             database.commit()
         except IntegrityError as error:
@@ -499,6 +539,15 @@ def create_app(
         capture_session.next_sequence += 1
         capture_session.status = "capturing"
         capture_session.updated_at = datetime.now(UTC)
+        append_audit_event(
+            database,
+            "artifact_completed",
+            subject_id=session_id,
+            details={
+                "artifact_id": artifact_id,
+                "artifact_hash": body.artifact_hash,
+            },
+        )
         try:
             database.commit()
         except IntegrityError as error:
@@ -580,6 +629,15 @@ def create_app(
         capture_session.status = capture_status
         capture_session.ended_at = now
         capture_session.updated_at = now
+        append_audit_event(
+            database,
+            "capture_session_finalized",
+            subject_id=session_id,
+            details={
+                "manifest_hash": manifest_hash,
+                "capture_status": capture_status,
+            },
+        )
         database.commit()
         return finalize_response(capture_session)
 
@@ -620,6 +678,7 @@ def create_app(
     )
     def timestamp_session(
         session_id: str,
+        idempotency_key: str | None = Header(default=None, max_length=128),
         database: Session = Depends(get_session),
     ) -> AttestationResponse:
         active_signer = require_signer(signer)
@@ -629,12 +688,42 @@ def create_app(
                 status.HTTP_409_CONFLICT,
                 "session must be finalized before timestamping",
             )
-        attestation = timestamp_capture(
+        job, _created = get_or_create_job(
             database,
-            settings,
-            active_signer,
-            capture_session,
+            kind="rfc3161_timestamp",
+            idempotency_key=(
+                idempotency_key or f"timestamp:{session_id}:{uuid.uuid4().hex}"
+            ),
+            subject_id=session_id,
+            payload={"manifest_hash": capture_session.manifest_hash},
         )
+        if job.status == "completed" and job.result is not None:
+            attestation = database.get(Attestation, job.result["attestation_id"])
+            if attestation is None:
+                raise HTTPException(
+                    status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    "completed timestamp job lost its attestation",
+                )
+            return attestation_response(attestation)
+        mark_job_running(database, job)
+        try:
+            attestation = timestamp_capture(
+                database,
+                settings,
+                active_signer,
+                capture_session,
+            )
+            mark_job_completed(
+                database,
+                job,
+                {"attestation_id": attestation.id},
+            )
+        except Exception as error:
+            database.rollback()
+            current_job = database.get(Job, job.id)
+            if current_job is not None:
+                mark_job_failed(database, current_job, error)
+            raise
         return attestation_response(attestation)
 
     @app.post(
@@ -755,6 +844,12 @@ def record_incident(
             details=details,
             created_at=datetime.now(UTC),
         )
+    )
+    append_audit_event(
+        database,
+        "incident_recorded",
+        subject_id=session_id,
+        details={"kind": kind, **details},
     )
     database.commit()
 

@@ -13,6 +13,7 @@ from chitaozinho_protocol import DOMAINS, canonical_bytes, sha256_identifier
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .audit import append_audit_event
 from .models import Artifact, ArtifactPart, CaptureSession, ChainEntry, Receipt
 from .security import ServerSigner
 from .storage import DurableStorage
@@ -73,6 +74,12 @@ def ensure_package(
         write_once(hash_target, hash_content.encode("ascii"))
         fsync_directory(target.parent)
         capture_session.package_status = "available"
+        append_audit_event(
+            database,
+            "evidence_package_generated",
+            subject_id=capture_session.id,
+            details={"package_hash": package_hash},
+        )
         database.commit()
         return target, package_hash
     finally:

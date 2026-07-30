@@ -133,8 +133,8 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Gerar e assinar manifesto de captura imutável.
 - [x] Gerar pacote e hash externo.
 - [x] Disponibilizar pacote sem permitir enumeração de sessões.
-- [ ] Eventos de auditoria são append-only e encadeados.
-- [ ] PostgreSQL é a fonte persistente de metadados e jobs.
+- [x] Eventos de auditoria são append-only e encadeados.
+- [x] PostgreSQL é a fonte persistente de metadados e jobs.
 - [x] Garage preserva bytes e versões no ambiente local.
 
 ### Experiência e relatório
