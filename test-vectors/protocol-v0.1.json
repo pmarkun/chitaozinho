@@ -1,0 +1,21 @@
+{
+  "entry": {
+    "protocol_version": "0.1.0",
+    "entry_type": "artifact_part",
+    "session_id": "01K1CHITAOZINHO",
+    "sequence": 1,
+    "artifact_id": "recording",
+    "part_number": 0,
+    "part_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "previous_entry_hash": null,
+    "client_clock_id": "clock-1",
+    "client_monotonic_time": 123456,
+    "client_wall_time": "2026-07-30T15:00:00-03:00",
+    "server_challenge": "AQIDBA"
+  },
+  "canonical_json": "{\"artifact_id\":\"recording\",\"client_clock_id\":\"clock-1\",\"client_monotonic_time\":123456,\"client_wall_time\":\"2026-07-30T15:00:00-03:00\",\"entry_type\":\"artifact_part\",\"part_hash\":\"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\"part_number\":0,\"previous_entry_hash\":null,\"protocol_version\":\"0.1.0\",\"sequence\":1,\"server_challenge\":\"AQIDBA\",\"session_id\":\"01K1CHITAOZINHO\"}",
+  "sha256": "sha256:d66623e58159116417d36bab84b6efc10f07564cfe1263bf76c6e4ebac1f8ff7",
+  "private_seed_hex": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+  "public_key_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+  "signature_hex": "e48a78262607ea6efbafdf23865a40f3fff074beee44f7b27016801dedece887b89de6500ad79ac3b55c56ba66f935a91b13f61014d22f1f30b79603c7153607"
+}

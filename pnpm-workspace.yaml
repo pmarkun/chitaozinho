@@ -1,0 +1,6 @@
+packages:
+  - "apps/extension"
+  - "packages/protocol-ts"
+
+onlyBuiltDependencies:
+  - esbuild

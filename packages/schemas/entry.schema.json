@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chitaozinho.dev/schemas/0.1.0/entry.schema.json",
+  "title": "Chitaozinho chain entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "entry_type",
+    "session_id",
+    "sequence",
+    "previous_entry_hash",
+    "client_clock_id",
+    "client_monotonic_time",
+    "client_wall_time",
+    "server_challenge"
+  ],
+  "properties": {
+    "protocol_version": { "const": "0.1.0" },
+    "entry_type": {
+      "enum": [
+        "capture_started",
+        "artifact_part",
+        "artifact_completed",
+        "navigation",
+        "scroll",
+        "marker",
+        "clock_restarted",
+        "capture_finished"
+      ]
+    },
+    "session_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "sequence": { "type": "integer", "minimum": 0 },
+    "artifact_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "part_number": { "type": "integer", "minimum": 0 },
+    "part_hash": { "$ref": "#/$defs/sha256" },
+    "artifact_hash": { "$ref": "#/$defs/sha256" },
+    "previous_entry_hash": {
+      "oneOf": [
+        { "$ref": "#/$defs/sha256" },
+        { "type": "null" }
+      ]
+    },
+    "client_clock_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "client_monotonic_time": { "type": "integer", "minimum": 0 },
+    "client_wall_time": { "type": "string", "format": "date-time" },
+    "server_challenge": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "event_data": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "entry_type": { "const": "artifact_part" } } },
+      "then": {
+        "required": ["artifact_id", "part_number", "part_hash"]
+      }
+    },
+    {
+      "if": { "properties": { "entry_type": { "const": "artifact_completed" } } },
+      "then": {
+        "required": ["artifact_id", "artifact_hash"]
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

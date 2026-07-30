@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chitaozinho.dev/schemas/0.1.0/manifest.schema.json",
+  "title": "Chitaozinho capture manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "session_id",
+    "status",
+    "capture",
+    "artifacts",
+    "chain",
+    "capture_close",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": { "const": "0.1.0" },
+    "session_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "status": { "enum": ["complete", "incomplete"] },
+    "capture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "started_at_client",
+        "ended_at_client",
+        "started_at_server",
+        "ended_at_server",
+        "software"
+      ],
+      "properties": {
+        "started_at_client": { "type": "string", "format": "date-time" },
+        "ended_at_client": { "type": "string", "format": "date-time" },
+        "started_at_server": { "type": "string", "format": "date-time" },
+        "ended_at_server": { "type": "string", "format": "date-time" },
+        "software": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "version", "commit", "build_hash"],
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "version": { "type": "string", "minLength": 1 },
+            "commit": { "type": "string", "minLength": 1 },
+            "build_hash": { "$ref": "#/$defs/sha256" }
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/artifact" }
+    },
+    "chain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["first_hash", "last_hash", "entry_count", "root_hash"],
+      "properties": {
+        "first_hash": { "$ref": "#/$defs/sha256" },
+        "last_hash": { "$ref": "#/$defs/sha256" },
+        "entry_count": { "type": "integer", "minimum": 1 },
+        "root_hash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "capture_close": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "client_signature_path"],
+      "properties": {
+        "path": { "const": "chain/capture-close.json" },
+        "client_signature_path": {
+          "const": "signatures/capture-close.client.sig"
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 2,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_id",
+        "path",
+        "size",
+        "media_type",
+        "status",
+        "method",
+        "provenance"
+      ],
+      "properties": {
+        "artifact_id": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "size": { "type": "integer", "minimum": 0 },
+        "media_type": { "type": "string", "minLength": 1 },
+        "status": {
+          "enum": ["captured", "unavailable", "failed", "not_requested"]
+        },
+        "method": { "type": "string", "minLength": 1 },
+        "provenance": {
+          "enum": ["client_reported", "server_observed", "externally_attested"]
+        },
+        "artifact_hash": { "$ref": "#/$defs/sha256" },
+        "reason": { "type": "string" }
+      }
+    }
+  }
+}

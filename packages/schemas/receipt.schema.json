@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chitaozinho.dev/schemas/0.1.0/receipt.schema.json",
+  "title": "Chitaozinho durable receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "session_id",
+    "sequence",
+    "entry_hash",
+    "artifact_id",
+    "part_number",
+    "part_hash",
+    "previous_receipt_hash",
+    "server_time",
+    "persistence_state"
+  ],
+  "properties": {
+    "protocol_version": { "const": "0.1.0" },
+    "session_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "sequence": { "type": "integer", "minimum": 0 },
+    "entry_hash": { "$ref": "#/$defs/sha256" },
+    "artifact_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "part_number": { "type": "integer", "minimum": 0 },
+    "part_hash": { "$ref": "#/$defs/sha256" },
+    "previous_receipt_hash": {
+      "oneOf": [
+        { "$ref": "#/$defs/sha256" },
+        { "type": "null" }
+      ]
+    },
+    "server_time": { "type": "string", "format": "date-time" },
+    "persistence_state": {
+      "enum": ["durable_staging", "stored", "locked"]
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

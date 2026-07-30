@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chitaozinho.dev/schemas/0.1.0/attestation.schema.json",
+  "title": "Chitaozinho external attestation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "attestation_id",
+    "manifest_hash",
+    "created_at",
+    "issuer_key_id",
+    "timestamp_status",
+    "blockchain_status"
+  ],
+  "properties": {
+    "schema_version": { "const": "0.1.0" },
+    "attestation_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "previous_attestation_hash": {
+      "oneOf": [
+        { "$ref": "#/$defs/sha256" },
+        { "type": "null" }
+      ]
+    },
+    "manifest_hash": { "$ref": "#/$defs/sha256" },
+    "package_hash": { "$ref": "#/$defs/sha256" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "issuer_key_id": { "type": "string", "minLength": 1 },
+    "timestamp_status": {
+      "enum": ["not_requested", "pending", "valid", "invalid", "failed"]
+    },
+    "timestamp": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "request_path": { "type": "string" },
+        "response_path": { "type": "string" },
+        "chain_path": { "type": "string" },
+        "gen_time": { "type": "string", "format": "date-time" }
+      }
+    },
+    "blockchain_status": {
+      "enum": [
+        "not_submitted",
+        "submitted",
+        "pending_confirmation",
+        "confirmed",
+        "verification_failed"
+      ]
+    },
+    "blockchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "merkle_proof_path": { "type": "string" },
+        "ots_proof_path": { "type": "string" },
+        "checked_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

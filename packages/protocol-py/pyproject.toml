@@ -1,0 +1,22 @@
+[project]
+name = "chitaozinho-protocol"
+version = "0.1.0"
+requires-python = ">=3.13"
+license = "Apache-2.0"
+dependencies = [
+  "cryptography>=45.0.6",
+  "rfc8785>=0.1.4",
+]
+
+[dependency-groups]
+dev = [
+  "jsonschema[format]>=4.25.0",
+  "pytest>=8.4.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/chitaozinho_protocol"]

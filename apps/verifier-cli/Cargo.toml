@@ -1,0 +1,16 @@
+[package]
+name = "chitaozinho-verifier"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "chitaozinho-verify"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+chitaozinho-protocol = { path = "../../packages/protocol-rs" }
+clap.workspace = true
+serde_json.workspace = true

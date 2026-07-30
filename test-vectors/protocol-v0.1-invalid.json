@@ -1,0 +1,30 @@
+{
+  "altered_sequence": {
+    "protocol_version": "0.1.0",
+    "entry_type": "artifact_part",
+    "session_id": "01K1CHITAOZINHO",
+    "sequence": 2,
+    "artifact_id": "recording",
+    "part_number": 0,
+    "part_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "previous_entry_hash": null,
+    "client_clock_id": "clock-1",
+    "client_monotonic_time": 123456,
+    "client_wall_time": "2026-07-30T15:00:00-03:00",
+    "server_challenge": "AQIDBA"
+  },
+  "invalid_hash_format": {
+    "protocol_version": "0.1.0",
+    "entry_type": "artifact_part",
+    "session_id": "01K1CHITAOZINHO",
+    "sequence": 1,
+    "artifact_id": "recording",
+    "part_number": 0,
+    "part_hash": "SHA256:INVALID",
+    "previous_entry_hash": null,
+    "client_clock_id": "clock-1",
+    "client_monotonic_time": 123456,
+    "client_wall_time": "2026-07-30T15:00:00-03:00",
+    "server_challenge": "AQIDBA"
+  }
+}

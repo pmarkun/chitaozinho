@@ -1,0 +1,21 @@
+[project]
+name = "chitaozinho-workspace"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = []
+
+[tool.uv.workspace]
+members = [
+  "apps/api",
+  "packages/protocol-py",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["apps/api/tests", "packages/protocol-py/tests"]

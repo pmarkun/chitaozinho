@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chitaozinho.dev/schemas/0.1.0/capture-close.schema.json",
+  "title": "Chitaozinho capture close statement",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "session_id",
+    "session_root",
+    "last_entry_hash",
+    "entry_count",
+    "artifacts",
+    "known_gaps",
+    "client_key_id",
+    "client_public_key"
+  ],
+  "properties": {
+    "protocol_version": { "const": "0.1.0" },
+    "session_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "session_root": { "$ref": "#/$defs/sha256" },
+    "last_entry_hash": { "$ref": "#/$defs/sha256" },
+    "entry_count": { "type": "integer", "minimum": 1 },
+    "artifacts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/artifact" }
+    },
+    "known_gaps": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "client_key_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "client_public_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]+$"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact_id", "path", "size", "status"],
+      "properties": {
+        "artifact_id": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "size": { "type": "integer", "minimum": 0 },
+        "status": {
+          "enum": ["captured", "unavailable", "failed", "not_requested"]
+        },
+        "artifact_hash": { "$ref": "#/$defs/sha256" },
+        "reason": { "type": "string" }
+      }
+    }
+  }
+}
