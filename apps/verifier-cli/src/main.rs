@@ -33,6 +33,12 @@ enum Command {
     Verify {
         package: PathBuf,
         #[arg(long)]
+        proof_bundle: Option<PathBuf>,
+        #[arg(long, requires = "proof_bundle")]
+        tsa_ca_bundle: Option<PathBuf>,
+        #[arg(long, requires = "tsa_ca_bundle")]
+        tsa_crl_bundle: Option<PathBuf>,
+        #[arg(long)]
         trusted_server_key_hex: String,
         #[arg(long)]
         json: bool,
@@ -61,12 +67,24 @@ fn main() -> Result<()> {
         }
         Command::Verify {
             package,
+            proof_bundle,
+            tsa_ca_bundle,
+            tsa_crl_bundle,
             trusted_server_key_hex,
             json,
             html_report,
         } => {
             let key = package::decode_array::<32>(&trusted_server_key_hex, "trusted server key")?;
-            let report = package::verify(&package, &key)?;
+            let report = match proof_bundle {
+                Some(bundle) => package::verify_with_proof_bundle_and_trust(
+                    &package,
+                    &bundle,
+                    &key,
+                    tsa_ca_bundle.as_deref(),
+                    tsa_crl_bundle.as_deref(),
+                )?,
+                None => package::verify(&package, &key)?,
+            };
             if let Some(path) = html_report {
                 package::write_html_report(&report, &path)?;
             }
@@ -76,6 +94,8 @@ fn main() -> Result<()> {
                 println!("result={}", report.result);
                 println!("session_id={}", report.session_id);
                 println!("members={}", report.members_verified);
+                println!("temporal_proof={}", report.temporal_proof);
+                println!("attestations={}", report.attestations_verified);
                 for check in report.checks {
                     println!("check={} status=valid", check);
                 }

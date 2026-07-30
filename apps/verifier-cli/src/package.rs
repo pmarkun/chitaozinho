@@ -2,11 +2,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, BufWriter, Read, Write};
 use std::path::{Component, Path, PathBuf};
+use std::process::Command;
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use chitaozinho_protocol::{
-    CAPTURE_CLOSE_DOMAIN, ENTRY_DOMAIN, MANIFEST_DOMAIN, PACKAGE_INDEX_DOMAIN, RECEIPT_DOMAIN,
-    canonical_bytes, sha256_identifier, sign_canonical, verify_canonical,
+    ATTESTATION_DOMAIN, CAPTURE_CLOSE_DOMAIN, ENTRY_DOMAIN, MANIFEST_DOMAIN, PACKAGE_INDEX_DOMAIN,
+    PROOF_BUNDLE_INDEX_DOMAIN, RECEIPT_DOMAIN, canonical_bytes, sha256_identifier, sign_canonical,
+    verify_canonical,
 };
 use chrono::{SecondsFormat, Utc};
 use ed25519_dalek::SigningKey;
@@ -24,6 +26,9 @@ const MANIFEST_SIGNATURE_PATH: &str = "signatures/capture-manifest.server.sig";
 const PUBLIC_KEYS_PATH: &str = "signatures/public-keys.json";
 const ENTRIES_PATH: &str = "chain/entries.jsonl";
 const RECEIPTS_PATH: &str = "chain/receipts.jsonl";
+const PROOF_BUNDLE_INDEX_PATH: &str = "proof-bundle-index.json";
+const PROOF_BUNDLE_INDEX_SIGNATURE_PATH: &str = "signatures/proof-bundle-index.server.sig";
+const ATTESTATIONS_PATH: &str = "attestations.jsonl";
 const MAX_ENTRIES: usize = 10_000;
 const MAX_FILE_SIZE: u64 = 2 * 1024 * 1024 * 1024;
 const MAX_TOTAL_SIZE: u64 = 5 * 1024 * 1024 * 1024;
@@ -43,6 +48,8 @@ pub struct VerificationReport {
     pub session_id: String,
     pub members_verified: usize,
     pub checks: Vec<&'static str>,
+    pub temporal_proof: &'static str,
+    pub attestations_verified: usize,
 }
 
 pub fn write_html_report(report: &VerificationReport, path: &Path) -> Result<()> {
@@ -58,7 +65,9 @@ pub fn write_html_report(report: &VerificationReport, path: &Path) -> Result<()>
             "<h1>Relatório de verificação</h1>",
             "<dl><dt>Resultado</dt><dd>{}</dd>",
             "<dt>Sessão</dt><dd><code>{}</code></dd>",
-            "<dt>Membros verificados</dt><dd>{}</dd></dl>",
+            "<dt>Membros verificados</dt><dd>{}</dd>",
+            "<dt>Prova temporal</dt><dd>{}</dd>",
+            "<dt>Attestations verificadas</dt><dd>{}</dd></dl>",
             "<h2>Verificações</h2><ul>{}</ul>",
             "<h2>Limitações</h2>",
             "<p>Este pacote demonstra a integridade e a rastreabilidade técnica ",
@@ -66,9 +75,11 @@ pub fn write_html_report(report: &VerificationReport, path: &Path) -> Result<()>
             "<p>O relatório não comprova autoria, veracidade material ou validade jurídica definitiva.</p>",
             "</html>"
         ),
-        escape_html(report.result),
+        escape_html(result_label(report.result)),
         escape_html(&report.session_id),
         report.members_verified,
+        escape_html(report.temporal_proof),
+        report.attestations_verified,
         checks
     );
     if let Some(parent) = path.parent().filter(|value| !value.as_os_str().is_empty()) {
@@ -76,6 +87,15 @@ pub fn write_html_report(report: &VerificationReport, path: &Path) -> Result<()>
     }
     fs::write(path, html)?;
     Ok(())
+}
+
+fn result_label(result: &str) -> &str {
+    match result {
+        "integral" => "íntegro",
+        "integral_but_incomplete" => "íntegro, mas incompleto",
+        "invalid" => "inválido",
+        _ => "não verificável",
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -166,6 +186,50 @@ struct ReceiptRecord {
     signature_hex: String,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ProofBundleIndex {
+    schema_version: String,
+    session_id: String,
+    manifest_hash: String,
+    created_at: String,
+    members: Vec<ProofBundleMember>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ProofBundleMember {
+    path: String,
+    size: u64,
+    sha256: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AttestationRecord {
+    document: serde_json::Value,
+    document_hash: String,
+    signature_hex: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MerkleProofDocument {
+    schema_version: String,
+    algorithm: String,
+    manifest_hash: String,
+    salt_hex: String,
+    root_hash: String,
+    steps: Vec<MerkleProofStep>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MerkleProofStep {
+    side: String,
+    hash: String,
+}
+
 pub fn pack(source: &Path, output: &Path, server_seed: &[u8; 32]) -> Result<PackResult> {
     ensure!(source.is_dir(), "source is not a directory");
     ensure!(
@@ -245,6 +309,34 @@ pub fn pack(source: &Path, output: &Path, server_seed: &[u8; 32]) -> Result<Pack
 }
 
 pub fn verify(package_path: &Path, trusted_server_key: &[u8; 32]) -> Result<VerificationReport> {
+    verify_internal(package_path, None, trusted_server_key)
+}
+
+pub fn verify_with_proof_bundle_and_trust(
+    package_path: &Path,
+    proof_bundle_path: &Path,
+    trusted_server_key: &[u8; 32],
+    tsa_ca_bundle: Option<&Path>,
+    tsa_crl_bundle: Option<&Path>,
+) -> Result<VerificationReport> {
+    verify_internal(
+        package_path,
+        Some((
+            proof_bundle_path,
+            TimestampTrust {
+                ca_bundle: tsa_ca_bundle,
+                crl_bundle: tsa_crl_bundle,
+            },
+        )),
+        trusted_server_key,
+    )
+}
+
+fn verify_internal(
+    package_path: &Path,
+    proof_bundle: Option<(&Path, TimestampTrust<'_>)>,
+    trusted_server_key: &[u8; 32],
+) -> Result<VerificationReport> {
     ensure!(package_path.is_file(), "package does not exist");
     let extracted = extract_safely(package_path)?;
 
@@ -296,6 +388,18 @@ pub fn verify(package_path: &Path, trusted_server_key: &[u8; 32]) -> Result<Veri
     let entries = verify_chain(extracted.path(), &manifest, &public_keys)?;
     verify_receipts(extracted.path(), &entries, &public_keys)?;
     verify_capture_close(extracted.path(), &manifest, &public_keys)?;
+    let manifest_hash = sha256_identifier(&canonical_bytes(&manifest_value)?);
+    let proof_result = proof_bundle
+        .map(|(path, trust)| {
+            verify_proof_bundle(
+                path,
+                &manifest.session_id,
+                &manifest_hash,
+                trusted_server_key,
+                trust,
+            )
+        })
+        .transpose()?;
 
     Ok(VerificationReport {
         result: if manifest.status == "complete" {
@@ -305,6 +409,12 @@ pub fn verify(package_path: &Path, trusted_server_key: &[u8; 32]) -> Result<Veri
         },
         session_id: manifest.session_id,
         members_verified: package_index.members.len(),
+        temporal_proof: proof_result
+            .as_ref()
+            .map_or("not_provided", |result| result.temporal_status),
+        attestations_verified: proof_result
+            .as_ref()
+            .map_or(0, |result| result.attestations_verified),
         checks: vec![
             "safe_zip_structure",
             "package_index_signature",
@@ -314,7 +424,99 @@ pub fn verify(package_path: &Path, trusted_server_key: &[u8; 32]) -> Result<Veri
             "entry_chain",
             "receipt_chain",
             "capture_close_signature",
+            if proof_result.is_some() {
+                "external_proof_bundle"
+            } else {
+                "external_proofs_not_provided"
+            },
         ],
+    })
+}
+
+struct ProofVerification {
+    temporal_status: &'static str,
+    attestations_verified: usize,
+}
+
+#[derive(Clone, Copy)]
+struct TimestampTrust<'a> {
+    ca_bundle: Option<&'a Path>,
+    crl_bundle: Option<&'a Path>,
+}
+
+fn verify_proof_bundle(
+    bundle_path: &Path,
+    expected_session_id: &str,
+    expected_manifest_hash: &str,
+    trusted_server_key: &[u8; 32],
+    timestamp_trust: TimestampTrust<'_>,
+) -> Result<ProofVerification> {
+    ensure!(bundle_path.is_file(), "proof bundle does not exist");
+    let extracted = extract_safely(bundle_path)?;
+    let index: ProofBundleIndex = read_json(&extracted.path().join(PROOF_BUNDLE_INDEX_PATH))?;
+    ensure!(
+        index.schema_version == "0.1.0",
+        "unsupported proof bundle schema"
+    );
+    ensure!(
+        index.session_id == expected_session_id,
+        "proof bundle session id mismatch"
+    );
+    ensure!(
+        index.manifest_hash == expected_manifest_hash,
+        "proof bundle manifest hash mismatch"
+    );
+    ensure!(
+        !index.created_at.is_empty(),
+        "proof bundle created_at is empty"
+    );
+    let signature =
+        read_hex_array::<64>(&extracted.path().join(PROOF_BUNDLE_INDEX_SIGNATURE_PATH))?;
+    verify_canonical(
+        PROOF_BUNDLE_INDEX_DOMAIN,
+        &index,
+        &signature,
+        trusted_server_key,
+    )
+    .context("invalid proof bundle index signature")?;
+    verify_proof_bundle_members(extracted.path(), &index)?;
+
+    let records: Vec<AttestationRecord> =
+        read_json_lines(&extracted.path().join(ATTESTATIONS_PATH))?;
+    ensure!(!records.is_empty(), "proof bundle has no attestations");
+    let mut previous: Option<String> = None;
+    let mut temporal_status = "not_requested";
+    for (sequence, record) in records.iter().enumerate() {
+        ensure!(
+            json_string(&record.document, "manifest_hash")? == expected_manifest_hash,
+            "attestation manifest hash mismatch at sequence {sequence}"
+        );
+        match (&previous, record.document.get("previous_attestation_hash")) {
+            (None, Some(serde_json::Value::Null)) => {}
+            (Some(expected), Some(serde_json::Value::String(actual))) if expected == actual => {}
+            _ => bail!("attestation chain mismatch at sequence {sequence}"),
+        }
+        let actual_hash = sha256_identifier(&canonical_bytes(&record.document)?);
+        ensure!(
+            record.document_hash == actual_hash,
+            "attestation hash mismatch at sequence {sequence}"
+        );
+        let attestation_signature =
+            decode_array::<64>(&record.signature_hex, "attestation signature")?;
+        verify_canonical(
+            ATTESTATION_DOMAIN,
+            &record.document,
+            &attestation_signature,
+            trusted_server_key,
+        )
+        .with_context(|| format!("invalid attestation signature at sequence {sequence}"))?;
+        verify_attestation_proofs(extracted.path(), &record.document, timestamp_trust)?;
+        temporal_status = merge_temporal_status(temporal_status, &record.document)?;
+        previous = Some(record.document_hash.clone());
+    }
+    Ok(ProofVerification {
+        temporal_status,
+        attestations_verified: records.len(),
     })
 }
 
@@ -516,6 +718,311 @@ fn verify_members(root: &Path, index: &PackageIndex) -> Result<()> {
         ensure!(!member.media_type.is_empty(), "member media type is empty");
     }
     Ok(())
+}
+
+fn verify_proof_bundle_members(root: &Path, index: &ProofBundleIndex) -> Result<()> {
+    let mut expected = BTreeMap::new();
+    for member in &index.members {
+        ensure!(
+            expected.insert(member.path.as_str(), member).is_none(),
+            "duplicate proof bundle member: {}",
+            member.path
+        );
+    }
+    let actual = collect_relative_files(root)?
+        .into_iter()
+        .filter(|path| path != PROOF_BUNDLE_INDEX_PATH && path != PROOF_BUNDLE_INDEX_SIGNATURE_PATH)
+        .collect::<BTreeSet<_>>();
+    let expected_paths = expected
+        .keys()
+        .map(|path| (*path).to_owned())
+        .collect::<BTreeSet<_>>();
+    ensure!(
+        actual == expected_paths,
+        "proof bundle members differ from signed index"
+    );
+    for (path, member) in expected {
+        let full_path = checked_join(root, path)?;
+        ensure!(
+            fs::metadata(&full_path)?.len() == member.size,
+            "proof member size mismatch: {path}"
+        );
+        ensure!(
+            hash_file(&full_path)? == member.sha256,
+            "proof member hash mismatch: {path}"
+        );
+    }
+    Ok(())
+}
+
+fn verify_attestation_proofs(
+    root: &Path,
+    document: &serde_json::Value,
+    timestamp_trust: TimestampTrust<'_>,
+) -> Result<()> {
+    if let Some(timestamp) = document.get("timestamp") {
+        let request_path = json_string(timestamp, "request_path")?;
+        verify_timestamp_query(
+            &checked_join(root, request_path)?,
+            json_string(document, "manifest_hash")?,
+        )?;
+        if json_string(document, "timestamp_status")? == "valid" {
+            verify_timestamp_response(root, timestamp, timestamp_trust)?;
+        }
+    }
+    if let Some(blockchain) = document.get("blockchain") {
+        let merkle_path = json_string(blockchain, "merkle_proof_path")?;
+        let proof: MerkleProofDocument = read_json(&checked_join(root, merkle_path)?)?;
+        verify_merkle_document(&proof, json_string(document, "manifest_hash")?)?;
+        if let Some(complement_path) = blockchain
+            .get("ots_complement_path")
+            .and_then(serde_json::Value::as_str)
+        {
+            let complement = checked_join(root, complement_path)?;
+            ensure!(
+                hash_file(&complement)? == json_string(blockchain, "ots_complement_hash")?,
+                "OpenTimestamps complement hash mismatch"
+            );
+        }
+        if let Some(ots_path) = blockchain
+            .get("ots_proof_path")
+            .and_then(serde_json::Value::as_str)
+        {
+            let original = checked_join(root, ots_path)?;
+            let selected = blockchain
+                .get("ots_complement_path")
+                .and_then(serde_json::Value::as_str)
+                .map(|path| checked_join(root, path))
+                .transpose()?
+                .unwrap_or(original);
+            verify_ots_document(
+                &proof.root_hash,
+                &selected,
+                json_string(document, "blockchain_status")?,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn verify_timestamp_response(
+    root: &Path,
+    timestamp: &serde_json::Value,
+    trust: TimestampTrust<'_>,
+) -> Result<()> {
+    let request = checked_join(root, json_string(timestamp, "request_path")?)?;
+    let response = checked_join(root, json_string(timestamp, "response_path")?)?;
+    let chain = checked_join(root, json_string(timestamp, "chain_path")?)?;
+    let gen_time = json_string(timestamp, "gen_time")?;
+    let policy = json_string(timestamp, "policy")?;
+    let ca_bundle = trust
+        .ca_bundle
+        .ok_or_else(|| anyhow!("valid RFC 3161 proof requires --tsa-ca-bundle"))?;
+    let crl_bundle = trust
+        .crl_bundle
+        .ok_or_else(|| anyhow!("valid RFC 3161 proof requires --tsa-crl-bundle"))?;
+    let temporary = tempfile::tempdir().context("create RFC 3161 trust directory")?;
+    let combined_trust = temporary.path().join("trust.pem");
+    let mut trust_bytes = fs::read(ca_bundle).context("read TSA CA bundle")?;
+    trust_bytes.push(b'\n');
+    trust_bytes.extend(fs::read(crl_bundle).context("read TSA CRL bundle")?);
+    fs::write(&combined_trust, trust_bytes)?;
+    let verification = Command::new("openssl")
+        .args(["ts", "-verify", "-queryfile"])
+        .arg(&request)
+        .args(["-in"])
+        .arg(&response)
+        .args(["-CAfile"])
+        .arg(&combined_trust)
+        .args(["-untrusted"])
+        .arg(&chain)
+        .args(["-purpose", "timestampsign", "-crl_check_all"])
+        .output()
+        .context("run RFC 3161 response verification")?;
+    ensure!(
+        verification.status.success(),
+        "RFC 3161 response verification failed: {}",
+        String::from_utf8_lossy(&verification.stderr)
+    );
+    let inspection = Command::new("openssl")
+        .args(["ts", "-reply", "-in"])
+        .arg(&response)
+        .arg("-text")
+        .output()
+        .context("inspect RFC 3161 response")?;
+    ensure!(inspection.status.success(), "invalid RFC 3161 response");
+    let text = String::from_utf8_lossy(&inspection.stdout);
+    ensure!(
+        text.lines()
+            .any(|line| line.trim() == format!("Policy OID: {policy}")),
+        "RFC 3161 policy differs from attestation"
+    );
+    let parsed_time = chrono::DateTime::parse_from_rfc3339(gen_time)
+        .context("attested RFC 3161 genTime is invalid")?
+        .with_timezone(&Utc)
+        .format("%b %e %H:%M:%S %Y GMT")
+        .to_string();
+    ensure!(
+        text.lines()
+            .any(|line| line.trim() == format!("Time stamp: {parsed_time}")),
+        "RFC 3161 genTime differs from attestation"
+    );
+    Ok(())
+}
+
+fn verify_ots_document(root_hash: &str, proof_path: &Path, status: &str) -> Result<()> {
+    let root_digest = decode_sha256_identifier(root_hash)?;
+    let temporary = tempfile::tempdir().context("create OpenTimestamps verification directory")?;
+    let root_file = temporary.path().join("root.bin");
+    fs::write(&root_file, root_digest)?;
+    match status {
+        "pending_confirmation" | "submitted" => {
+            let output = Command::new("ots")
+                .arg("info")
+                .arg(proof_path)
+                .output()
+                .context("run OpenTimestamps proof inspection")?;
+            ensure!(
+                output.status.success(),
+                "invalid OpenTimestamps proof: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let text = format!(
+                "{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            ensure!(
+                text.contains("PendingAttestation")
+                    || text.contains("BitcoinBlockHeaderAttestation"),
+                "OpenTimestamps proof has no recognized attestation"
+            );
+        }
+        "confirmed" => {
+            let output = Command::new("ots")
+                .args(["verify", "-f"])
+                .arg(&root_file)
+                .arg(proof_path)
+                .output()
+                .context("run OpenTimestamps verification")?;
+            ensure!(
+                output.status.success(),
+                "OpenTimestamps confirmation is invalid: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        "not_submitted" => {}
+        "verification_failed" => bail!("attestation records an invalid OpenTimestamps proof"),
+        other => bail!("unsupported blockchain status: {other}"),
+    }
+    Ok(())
+}
+
+fn verify_timestamp_query(path: &Path, expected_manifest_hash: &str) -> Result<()> {
+    let output = Command::new("openssl")
+        .args(["ts", "-query", "-in"])
+        .arg(path)
+        .arg("-text")
+        .output()
+        .context("run openssl timestamp query inspection")?;
+    ensure!(
+        output.status.success(),
+        "invalid RFC 3161 timestamp query: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let normalized = String::from_utf8_lossy(&output.stdout)
+        .chars()
+        .filter(|character| character.is_ascii_hexdigit())
+        .collect::<String>()
+        .to_lowercase();
+    ensure!(
+        normalized.contains(expected_manifest_hash.trim_start_matches("sha256:")),
+        "RFC 3161 query digest differs from manifest"
+    );
+    Ok(())
+}
+
+fn verify_merkle_document(proof: &MerkleProofDocument, expected_manifest_hash: &str) -> Result<()> {
+    ensure!(
+        proof.schema_version == "0.1.0" && proof.algorithm == "sha256-domain-separated-v1",
+        "unsupported Merkle proof"
+    );
+    ensure!(
+        proof.manifest_hash == expected_manifest_hash,
+        "Merkle proof manifest hash mismatch"
+    );
+    let salt = decode_array::<32>(&proof.salt_hex, "Merkle salt")?;
+    let manifest_digest = decode_sha256_identifier(&proof.manifest_hash)?;
+    let mut leaf_hasher = Sha256::new();
+    leaf_hasher.update([0_u8]);
+    leaf_hasher.update(salt);
+    leaf_hasher.update(manifest_digest);
+    let mut current: [u8; 32] = leaf_hasher.finalize().into();
+    for step in &proof.steps {
+        let sibling = decode_sha256_identifier(&step.hash)?;
+        let mut branch_hasher = Sha256::new();
+        branch_hasher.update([1_u8]);
+        match step.side.as_str() {
+            "left" => {
+                branch_hasher.update(sibling);
+                branch_hasher.update(current);
+            }
+            "right" => {
+                branch_hasher.update(current);
+                branch_hasher.update(sibling);
+            }
+            _ => bail!("invalid Merkle proof side"),
+        }
+        current = branch_hasher.finalize().into();
+    }
+    ensure!(
+        format!("sha256:{}", hex::encode(current)) == proof.root_hash,
+        "Merkle proof root mismatch"
+    );
+    Ok(())
+}
+
+fn decode_sha256_identifier(value: &str) -> Result<[u8; 32]> {
+    let digest = value
+        .strip_prefix("sha256:")
+        .ok_or_else(|| anyhow!("invalid SHA-256 identifier"))?;
+    decode_array::<32>(digest, "SHA-256 digest")
+}
+
+fn merge_temporal_status(
+    current: &'static str,
+    document: &serde_json::Value,
+) -> Result<&'static str> {
+    let timestamp = json_string(document, "timestamp_status")?;
+    let blockchain = json_string(document, "blockchain_status")?;
+    if timestamp == "invalid" || blockchain == "verification_failed" {
+        bail!("attestation records an invalid external proof");
+    }
+    if timestamp == "failed" {
+        return Ok(if current == "not_requested" {
+            "external_service_failed"
+        } else {
+            current
+        });
+    }
+    if blockchain == "confirmed" {
+        return Ok("confirmed");
+    }
+    if timestamp == "valid" {
+        return Ok(if current == "confirmed" {
+            "confirmed"
+        } else {
+            "timestamp_valid"
+        });
+    }
+    if timestamp == "pending" || blockchain == "pending_confirmation" {
+        return Ok(match current {
+            "confirmed" => "confirmed",
+            "timestamp_valid" => "timestamp_valid",
+            _ => "pending",
+        });
+    }
+    Ok(current)
 }
 
 fn extract_safely(package_path: &Path) -> Result<TempDir> {
@@ -815,11 +1322,14 @@ mod tests {
             session_id: "<script>alert(1)</script>".to_owned(),
             members_verified: 1,
             checks: vec!["member_hashes"],
+            temporal_proof: "not_provided",
+            attestations_verified: 0,
         };
         write_html_report(&report, &report_path).unwrap();
         let html = fs::read_to_string(report_path).unwrap();
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;"));
+        assert!(html.contains("íntegro"));
         assert!(html.contains("não comprova autoria"));
     }
 
@@ -842,6 +1352,55 @@ mod tests {
         assert_eq!(report.result, "integral");
         assert_eq!(report.session_id, "session-test");
         assert!(report.members_verified >= 5);
+    }
+
+    #[test]
+    fn verifies_signed_attestation_chain_and_merkle_proof_bundle() {
+        let temporary = tempfile::tempdir().unwrap();
+        let source = temporary.path().join("source");
+        let package_path = temporary.path().join("evidence.zip");
+        let proof_bundle_path = temporary.path().join("proofs.zip");
+        let seed = [17_u8; 32];
+        let public_key = SigningKey::from_bytes(&seed).verifying_key().to_bytes();
+        create_fixture(&source, &seed, &public_key);
+        pack(&source, &package_path, &seed).unwrap();
+        create_proof_bundle_fixture(&source, &proof_bundle_path, &seed, false);
+
+        let report = verify_with_proof_bundle_and_trust(
+            &package_path,
+            &proof_bundle_path,
+            &public_key,
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(report.attestations_verified, 1);
+        assert_eq!(report.temporal_proof, "not_requested");
+        assert!(report.checks.contains(&"external_proof_bundle"));
+    }
+
+    #[test]
+    fn rejects_invalid_merkle_proof_in_signed_bundle() {
+        let temporary = tempfile::tempdir().unwrap();
+        let source = temporary.path().join("source");
+        let package_path = temporary.path().join("evidence.zip");
+        let proof_bundle_path = temporary.path().join("proofs.zip");
+        let seed = [18_u8; 32];
+        let public_key = SigningKey::from_bytes(&seed).verifying_key().to_bytes();
+        create_fixture(&source, &seed, &public_key);
+        pack(&source, &package_path, &seed).unwrap();
+        create_proof_bundle_fixture(&source, &proof_bundle_path, &seed, true);
+
+        let error = verify_with_proof_bundle_and_trust(
+            &package_path,
+            &proof_bundle_path,
+            &public_key,
+            None,
+            None,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("Merkle proof root mismatch"), "{error}");
     }
 
     #[test]
@@ -1086,6 +1645,98 @@ mod tests {
             canonical_bytes(&manifest).unwrap(),
         )
         .unwrap();
+    }
+
+    fn create_proof_bundle_fixture(
+        source: &Path,
+        output: &Path,
+        seed: &[u8; 32],
+        invalid_root: bool,
+    ) {
+        let staging = tempfile::tempdir().unwrap();
+        let manifest: serde_json::Value = read_json(&source.join(MANIFEST_PATH)).unwrap();
+        let manifest_hash = sha256_identifier(&canonical_bytes(&manifest).unwrap());
+        let salt = [23_u8; 32];
+        let manifest_digest = decode_sha256_identifier(&manifest_hash).unwrap();
+        let mut hasher = Sha256::new();
+        hasher.update([0_u8]);
+        hasher.update(salt);
+        hasher.update(manifest_digest);
+        let calculated_root: [u8; 32] = hasher.finalize().into();
+        let root_hash = if invalid_root {
+            format!("sha256:{}", "ff".repeat(32))
+        } else {
+            format!("sha256:{}", hex::encode(calculated_root))
+        };
+        let merkle_path = "merkle/session-test.proof.json";
+        let proof = json!({
+            "schema_version": "0.1.0",
+            "algorithm": "sha256-domain-separated-v1",
+            "manifest_hash": manifest_hash,
+            "salt_hex": hex::encode(salt),
+            "root_hash": root_hash,
+            "steps": []
+        });
+        let proof_target = staging.path().join(merkle_path);
+        fs::create_dir_all(proof_target.parent().unwrap()).unwrap();
+        fs::write(&proof_target, canonical_bytes(&proof).unwrap()).unwrap();
+
+        let document = json!({
+            "schema_version": "0.1.0",
+            "attestation_id": "session-test-0001",
+            "previous_attestation_hash": null,
+            "manifest_hash": manifest_hash,
+            "created_at": "2026-07-30T18:02:00Z",
+            "issuer_key_id": "server-test",
+            "timestamp_status": "not_requested",
+            "blockchain_status": "not_submitted",
+            "blockchain": {
+                "merkle_proof_path": merkle_path,
+                "checked_at": "2026-07-30T18:02:00Z"
+            }
+        });
+        let record = json!({
+            "document_hash": sha256_identifier(&canonical_bytes(&document).unwrap()),
+            "signature_hex": hex::encode(
+                sign_canonical(ATTESTATION_DOMAIN, &document, seed).unwrap()
+            ),
+            "document": document
+        });
+        fs::write(
+            staging.path().join(ATTESTATIONS_PATH),
+            [canonical_bytes(&record).unwrap(), b"\n".to_vec()].concat(),
+        )
+        .unwrap();
+
+        let members = [ATTESTATIONS_PATH, merkle_path]
+            .into_iter()
+            .map(|path| {
+                let full_path = staging.path().join(path);
+                ProofBundleMember {
+                    path: path.to_owned(),
+                    size: fs::metadata(&full_path).unwrap().len(),
+                    sha256: hash_file(&full_path).unwrap(),
+                }
+            })
+            .collect();
+        let index = ProofBundleIndex {
+            schema_version: "0.1.0".to_owned(),
+            session_id: "session-test".to_owned(),
+            manifest_hash,
+            created_at: "2026-07-30T18:02:00Z".to_owned(),
+            members,
+        };
+        fs::write(
+            staging.path().join(PROOF_BUNDLE_INDEX_PATH),
+            canonical_bytes(&index).unwrap(),
+        )
+        .unwrap();
+        write_hex_file(
+            &staging.path().join(PROOF_BUNDLE_INDEX_SIGNATURE_PATH),
+            &sign_canonical(PROOF_BUNDLE_INDEX_DOMAIN, &index, seed).unwrap(),
+        )
+        .unwrap();
+        create_zip(staging.path(), output).unwrap();
     }
 
     fn rewrite_zip(source: &Path, target: &Path, altered_path: Option<&str>) {

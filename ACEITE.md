@@ -92,7 +92,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] CLI verifica pacote sem backend e sem autenticação.
 - [x] CLI recalcula todos os hashes e cadeias.
 - [x] CLI informa erro localizado e código de saída não zero.
-- [ ] Relatório diferencia integridade, completude e prova temporal.
+- [x] Relatório diferencia integridade, completude e prova temporal.
 - [x] Verificador rejeita path traversal, links simbólicos e nomes duplicados.
 - [x] Verificador limita quantidade, tamanho, expansão, profundidade e memória.
 - [x] Verificador rejeita schema e algoritmo desconhecidos de forma segura.

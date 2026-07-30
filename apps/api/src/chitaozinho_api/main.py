@@ -46,6 +46,7 @@ from .models import (
     Receipt,
 )
 from .packaging import ensure_package
+from .proof_bundle import ensure_proof_bundle
 from .proof_service import create_merkle_batch, timestamp_capture, upgrade_merkle_batch
 from .schemas import (
     ArtifactCompleteRequest,
@@ -96,7 +97,11 @@ def create_app(
             "X-Entry-Hash",
             "X-Entry-Signature",
         ],
-        expose_headers=["X-Package-SHA256", "Content-Disposition"],
+        expose_headers=[
+            "X-Package-SHA256",
+            "X-Proof-Bundle-SHA256",
+            "Content-Disposition",
+        ],
         max_age=600,
     )
     app.state.session_factory = factory
@@ -875,6 +880,32 @@ def create_app(
             .order_by(Attestation.sequence)
         )
         return [attestation_response(value) for value in attestations]
+
+    @app.get("/v1/sessions/{session_id}/proof-bundle")
+    def download_proof_bundle(
+        session_id: str,
+        database: Session = Depends(get_session),
+    ) -> FileResponse:
+        active_signer = require_signer(signer)
+        capture_session = require_capture_session(database, session_id)
+        try:
+            bundle_path, bundle_hash = ensure_proof_bundle(
+                database,
+                settings,
+                active_signer,
+                capture_session,
+            )
+        except ValueError as error:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                str(error),
+            ) from error
+        return FileResponse(
+            bundle_path,
+            media_type="application/zip",
+            filename=f"chitaozinho-proofs-{session_id}.zip",
+            headers={"X-Proof-Bundle-SHA256": bundle_hash},
+        )
 
     @app.get(
         "/v1/sessions/{session_id}",

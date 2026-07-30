@@ -18,6 +18,7 @@ DOMAINS = {
     "manifest": b"CHITAOZINHO/MANIFEST/v1",
     "package_index": b"CHITAOZINHO/PACKAGE_INDEX/v1",
     "attestation": b"CHITAOZINHO/ATTESTATION/v1",
+    "proof_bundle_index": b"CHITAOZINHO/PROOF_BUNDLE_INDEX/v1",
 }
 
 

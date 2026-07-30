@@ -9,6 +9,7 @@ pub const CAPTURE_CLOSE_DOMAIN: &[u8] = b"CHITAOZINHO/CAPTURE_CLOSE/v1";
 pub const MANIFEST_DOMAIN: &[u8] = b"CHITAOZINHO/MANIFEST/v1";
 pub const PACKAGE_INDEX_DOMAIN: &[u8] = b"CHITAOZINHO/PACKAGE_INDEX/v1";
 pub const ATTESTATION_DOMAIN: &[u8] = b"CHITAOZINHO/ATTESTATION/v1";
+pub const PROOF_BUNDLE_INDEX_DOMAIN: &[u8] = b"CHITAOZINHO/PROOF_BUNDLE_INDEX/v1";
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProtocolError {

@@ -12,6 +12,7 @@ export const DOMAINS = {
   manifest: "CHITAOZINHO/MANIFEST/v1",
   packageIndex: "CHITAOZINHO/PACKAGE_INDEX/v1",
   attestation: "CHITAOZINHO/ATTESTATION/v1",
+  proofBundleIndex: "CHITAOZINHO/PROOF_BUNDLE_INDEX/v1",
 } as const;
 
 export function canonicalBytes(value: unknown): Uint8Array {

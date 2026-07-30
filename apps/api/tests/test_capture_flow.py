@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import subprocess
 from datetime import UTC
+from io import BytesIO
 from pathlib import Path
+from zipfile import ZipFile
 
 import pytest
 from chitaozinho_api.config import Settings
@@ -428,6 +430,36 @@ def test_session_event_part_finalize_and_idempotency(
             bytes.fromhex(attestation["signature_hex"]),
             public_key(SERVER_SEED),
         )
+
+    proof_bundle = client.get(f"/v1/sessions/{session_id}/proof-bundle")
+    assert proof_bundle.status_code == 200
+    assert proof_bundle.headers["X-Proof-Bundle-SHA256"] == sha256_identifier(
+        proof_bundle.content
+    )
+    with ZipFile(BytesIO(proof_bundle.content)) as archive:
+        names = set(archive.namelist())
+        assert {
+            "attestations.jsonl",
+            "proof-bundle-index.json",
+            "signatures/proof-bundle-index.server.sig",
+        }.issubset(names)
+        proof_index = json.loads(archive.read("proof-bundle-index.json"))
+        proof_index_signature = bytes.fromhex(
+            archive.read("signatures/proof-bundle-index.server.sig")
+            .decode()
+            .strip()
+        )
+        assert proof_index["manifest_hash"] == result["manifest_hash"]
+        assert verify_canonical(
+            DOMAINS["proof_bundle_index"],
+            proof_index,
+            proof_index_signature,
+            public_key(SERVER_SEED),
+        )
+        assert {member["path"] for member in proof_index["members"]} == names - {
+            "proof-bundle-index.json",
+            "signatures/proof-bundle-index.server.sig",
+        }
 
     package = client.get(f"/v1/sessions/{session_id}/package")
     assert package.status_code == 200
