@@ -1056,6 +1056,23 @@ def validate_entry(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "the genesis entry must be capture_started",
         )
+    if entry["entry_type"] == "capture_started":
+        software = entry.get("event_data", {}).get("software")
+        if software is not None and (
+            not isinstance(software, dict)
+            or set(software) != {"name", "version", "commit", "build_hash"}
+            or any(
+                not isinstance(software.get(field), str) or not software[field]
+                for field in ("name", "version", "commit")
+            )
+            or not isinstance(software.get("build_hash"), str)
+            or not software["build_hash"].startswith("sha256:")
+            or len(software["build_hash"]) != 71
+        ):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "capture software identity is invalid",
+            )
     if entry.get("server_challenge") != capture_session.server_challenge:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "server challenge mismatch")
     try:
@@ -1286,6 +1303,17 @@ def build_manifest(
     capture_status: str,
     ended_at: datetime,
 ) -> dict:
+    client_software = entries[0].payload.get("event_data", {}).get("software")
+    software = (
+        client_software
+        if client_software is not None
+        else {
+            "name": settings.software_name,
+            "version": settings.software_version,
+            "commit": settings.software_commit,
+            "build_hash": settings.software_build_hash,
+        }
+    )
     return {
         "schema_version": "0.1.0",
         "session_id": capture_session.id,
@@ -1295,12 +1323,7 @@ def build_manifest(
             "ended_at_client": entries[-1].payload["client_wall_time"],
             "started_at_server": rfc3339(capture_session.created_at),
             "ended_at_server": rfc3339(ended_at),
-            "software": {
-                "name": settings.software_name,
-                "version": settings.software_version,
-                "commit": settings.software_commit,
-                "build_hash": settings.software_build_hash,
-            },
+            "software": software,
         },
         "artifacts": [
             {

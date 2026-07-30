@@ -172,6 +172,7 @@ async function startCapture(): Promise<SessionRecord> {
     consent: true,
     url: tab.url ?? null,
     title: tab.title ?? null,
+    software: __CHITAOZINHO_BUILD__,
   });
   await captureInitialArtifacts(session, tab);
   session = (await getSession(session.id)) ?? session;

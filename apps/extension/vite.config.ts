@@ -1,9 +1,44 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
-import { resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { relative, resolve } from "node:path";
+
+const extensionRoot = import.meta.dirname;
+const repositoryRoot = resolve(extensionRoot, "../..");
+const packageMetadata = JSON.parse(
+  readFileSync(resolve(extensionRoot, "package.json"), "utf8"),
+) as { version: string };
+const commit = git(["rev-parse", "HEAD"]);
+const dirty = git([
+  "status",
+  "--porcelain",
+  "--",
+  "apps/extension",
+  "packages/protocol-ts",
+  "pnpm-lock.yaml",
+]);
+const buildIdentity = {
+  name: "Chitãozinho Chromium Extension",
+  version: packageMetadata.version,
+  commit: dirty ? `${commit}-dirty` : commit,
+  build_hash: sourceHash([
+    resolve(extensionRoot, "src"),
+    resolve(extensionRoot, "public"),
+    resolve(extensionRoot, "offscreen.html"),
+    resolve(extensionRoot, "popup.html"),
+    resolve(extensionRoot, "package.json"),
+    resolve(repositoryRoot, "packages/protocol-ts/src"),
+    resolve(repositoryRoot, "pnpm-lock.yaml"),
+  ]),
+};
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __CHITAOZINHO_BUILD__: JSON.stringify(buildIdentity),
+  },
   resolve: {
     alias: {
       "@chitaozinho/protocol": resolve(
@@ -29,3 +64,29 @@ export default defineConfig({
     },
   },
 });
+
+function git(arguments_: string[]): string {
+  return execFileSync("git", arguments_, {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+  }).trim();
+}
+
+function sourceHash(roots: string[]): string {
+  const files = roots.flatMap(filesUnder).sort();
+  const digest = createHash("sha256");
+  for (const file of files) {
+    digest.update(relative(repositoryRoot, file));
+    digest.update("\0");
+    digest.update(readFileSync(file));
+    digest.update("\0");
+  }
+  return `sha256:${digest.digest("hex")}`;
+}
+
+function filesUnder(path: string): string[] {
+  if (!statSync(path).isDirectory()) return [path];
+  return readdirSync(path, { withFileTypes: true }).flatMap((entry) =>
+    filesUnder(resolve(path, entry.name)),
+  );
+}

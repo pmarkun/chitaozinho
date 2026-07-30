@@ -6,6 +6,7 @@ pnpm -r lint
 pnpm -r typecheck
 pnpm -r test
 pnpm -r build
+./scripts/check-extension-reproducibility
 
 uv run ruff check .
 uv run pytest

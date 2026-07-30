@@ -219,7 +219,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ### Integridade e assinaturas
 
-- [ ] Alterar um byte do vídeo.
+- [x] Alterar um byte do vídeo.
 - [ ] Substituir screenshot.
 - [ ] Alterar manifesto.
 - [ ] Remover, inserir, duplicar e reordenar entrada.
@@ -228,8 +228,8 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 ### Rede e recuperação
 
 - [ ] Queda e retomada de conexão.
-- [ ] Duplicação e retry idempotente.
-- [ ] Mesma sequência com bytes divergentes.
+- [x] Duplicação e retry idempotente.
+- [x] Mesma sequência com bytes divergentes.
 - [ ] Encerramento com partes ausentes.
 - [ ] Reinício do cliente com buffer local.
 - [ ] Reinício do servidor durante finalização.
@@ -284,29 +284,29 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 - [ ] RF-001 — iniciar sessão pela extensão.
 - [ ] RF-002 — registrar consentimento.
-- [ ] RF-003 — calcular SHA-256 no cliente.
-- [ ] RF-004 — encadear eventos.
-- [ ] RF-005 — emitir recibos assinados.
-- [ ] RF-006 — detectar lacunas, duplicações e reordenações.
-- [ ] RF-007 — preservar originais.
-- [ ] RF-008 — vincular `capture_close` e manifesto assinado.
-- [ ] RF-009 — solicitar timestamp RFC 3161.
-- [ ] RF-010 — gerar prova Merkle.
-- [ ] RF-011 — ancorar via OpenTimestamps.
+- [x] RF-003 — calcular SHA-256 no cliente.
+- [x] RF-004 — encadear eventos.
+- [x] RF-005 — emitir recibos assinados.
+- [x] RF-006 — detectar lacunas, duplicações e reordenações.
+- [x] RF-007 — preservar originais.
+- [x] RF-008 — vincular `capture_close` e manifesto assinado.
+- [x] RF-009 — solicitar timestamp RFC 3161.
+- [x] RF-010 — gerar prova Merkle.
+- [x] RF-011 — ancorar via OpenTimestamps.
 - [ ] RF-012 — armazenar artefatos finais em WORM.
-- [ ] RF-013 — gerar ZIP autocontido.
-- [ ] RF-014 — recalcular hashes localmente.
-- [ ] RF-015 — verificar offline e sem autenticação.
-- [ ] RF-016 — diferenciar integridade, tempo e autenticidade material.
-- [ ] RF-017 — registrar versões exatas dos componentes.
-- [ ] RF-018 — representar captura incompleta.
-- [ ] RF-019 — disponibilizar pacote e chaves.
+- [x] RF-013 — gerar ZIP autocontido.
+- [x] RF-014 — recalcular hashes localmente.
+- [x] RF-015 — verificar offline e sem autenticação.
+- [x] RF-016 — diferenciar integridade, tempo e autenticidade material.
+- [x] RF-017 — registrar versões exatas dos componentes.
+- [x] RF-018 — representar captura incompleta.
+- [x] RF-019 — disponibilizar pacote e chaves.
 - [ ] RF-020 — preservar chaves históricas e rotação.
-- [ ] RF-021 — registrar método, procedência e completude.
-- [ ] RF-022 — garantir idempotência e detectar divergência.
-- [ ] RF-023 — manter estados independentes.
-- [ ] RF-024 — gerar attestations append-only.
-- [ ] RF-025 — limitar recursos e rejeitar pacotes inseguros.
+- [x] RF-021 — registrar método, procedência e completude.
+- [x] RF-022 — garantir idempotência e detectar divergência.
+- [x] RF-023 — manter estados independentes.
+- [x] RF-024 — gerar attestations append-only.
+- [x] RF-025 — limitar recursos e rejeitar pacotes inseguros.
 
 ### Requisitos não funcionais
 

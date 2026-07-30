@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+output="${1:-${project_root}/artifacts/chitaozinho-extension.zip}"
+
+if [[ -e "${output}" ]]; then
+  echo "output already exists: ${output}" >&2
+  exit 1
+fi
+
+pnpm --dir "${project_root}" --filter @chitaozinho/extension build
+find "${project_root}/apps/extension/dist" -type f \
+  -exec touch --date="@${SOURCE_DATE_EPOCH:-315532800}" {} +
+mkdir -p "$(dirname "${output}")"
+temporary="$(mktemp --tmpdir="$(dirname "${output}")" .extension-XXXXXX.zip)"
+trap 'rm -f "${temporary}"' EXIT
+rm -f "${temporary}"
+(
+  cd "${project_root}/apps/extension/dist"
+  find . -type f -print | LC_ALL=C sort | zip -X -q "${temporary}" -@
+)
+mv "${temporary}" "${output}"
+sha256sum "${output}" >"${output}.sha256"

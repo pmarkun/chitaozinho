@@ -586,7 +586,20 @@ def test_unavailable_artifact_produces_verifiable_incomplete_package(
             **fields,
         }
 
-    started = signed_entry(entry("capture_started", 0, None))
+    software_identity = {
+        "name": "Chitãozinho Chromium Extension",
+        "version": "0.1.0",
+        "commit": "test-commit",
+        "build_hash": "sha256:" + ("ab" * 32),
+    }
+    started = signed_entry(
+        entry(
+            "capture_started",
+            0,
+            None,
+            event_data={"software": software_identity},
+        )
+    )
     assert (
         client.post(
             f"/v1/sessions/{session_id}/events",
@@ -664,6 +677,7 @@ def test_unavailable_artifact_produces_verifiable_incomplete_package(
     )
     assert finalized.status_code == 200
     assert finalized.json()["status"] == "incomplete"
+    assert finalized.json()["manifest"]["capture"]["software"] == software_identity
     assert finalized.json()["manifest"]["artifacts"][0]["reason"] == reason
     assert "artifact_hash" not in finalized.json()["manifest"]["artifacts"][0]
 

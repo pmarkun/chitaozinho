@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+temporary_root="$(mktemp -d)"
+trap 'rm -rf "${temporary_root}"' EXIT
+
+"${project_root}/scripts/package-extension" "${temporary_root}/first.zip"
+"${project_root}/scripts/package-extension" "${temporary_root}/second.zip"
+cmp "${temporary_root}/first.zip" "${temporary_root}/second.zip"
