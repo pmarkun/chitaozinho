@@ -104,10 +104,19 @@ async function handleMessage(message: ExtensionMessage): Promise<unknown> {
       if (
         !latest ||
         !["error", "interrupted"].includes(latest.status) ||
-        latest.captureFinished ||
-        latest.recordingActive
+        latest.captureFinished
       ) {
         throw new Error("capture cannot be discarded in its current state");
+      }
+      if (latest.recordingActive || (await chrome.offscreen.hasDocument())) {
+        await chrome.runtime
+          .sendMessage({
+            type: "RECORDER_STOP",
+          } satisfies ExtensionMessage)
+          .catch(() => undefined);
+        if (await chrome.offscreen.hasDocument()) {
+          await chrome.offscreen.closeDocument();
+        }
       }
       await deleteLocalSession(latest.id);
       await chrome.storage.local.set({ dismissedSessionId: latest.id });
