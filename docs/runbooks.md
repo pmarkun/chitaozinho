@@ -1,0 +1,70 @@
+# Runbooks operacionais
+
+Use staging e conteúdo sintético em todo ensaio. Restore, rotação de chave,
+rollback de deploy e qualquer ação em produção exigem autorização explícita.
+
+## Triagem inicial
+
+1. Consulte `/healthz`; falha indica processo indisponível.
+2. Consulte `/readyz`; `503` indica PostgreSQL ou storage indisponível.
+3. Correlacione pelo `job_id` ou `session_id`, nunca por e-mail, token ou
+   conteúdo capturado.
+4. Preserve logs, audit events e objetos existentes antes de intervir.
+
+## TSA RFC 3161
+
+- Confirme URL, CA e CRL configuradas e valide o `.tsq` preservado.
+- Não gere outro hash: retries reutilizam o `manifest_hash` e criam nova
+  tentativa auditada.
+- Reinicie o worker apenas após verificar banco e conectividade da TSA.
+- Uma TSA indisponível mantém a captura verificável com estado temporal
+  pendente ou falho; nunca altere o manifesto.
+
+## OpenTimestamps
+
+- Preserve o `.ots` inicial e consulte o job pelo mesmo idempotency key.
+- Uma confirmação gera complemento e attestation novos, sem substituir a prova
+  anterior.
+- Se calendários estiverem indisponíveis, mantenha `pending_confirmation` e
+  reprocesse pelo worker; não publique hashes de sessão individuais.
+
+## Storage
+
+- Verifique bucket, versionamento, Object Lock, modo `COMPLIANCE`, retenção,
+  version ID, criptografia e metadado SHA-256.
+- Nunca tente remover ou reduzir a retenção de um objeto bloqueado.
+- Se a proteção final falhar, mantenha `retention_failed`; não promova o estado
+  para `locked`.
+- Garage é somente desenvolvimento. Evidência de staging/produção permanece no
+  S3 externo, não em volume Railway.
+
+Em falta de disco local, interrompa novos testes, preserve `data/` e confirme o
+filesystem afetado antes de liberar espaço recuperável. Nunca apague partes,
+pacotes, provas, banco ou audit trail para recuperar capacidade.
+
+## PostgreSQL, backup e restore
+
+- Antes de migração, registre `alembic current` e produza backup consistente.
+- Valide o backup restaurando em uma instância isolada, executando
+  `alembic upgrade head` e o smoke test de leitura.
+- Aponte staging para o restore somente após comparar contagens, audit chain e
+  jobs. Nunca restaure por cima da instância original.
+- Migrações são revertidas uma revisão por vez em staging; dados append-only não
+  são reescritos.
+
+## Rotação e revogação de chaves
+
+- Gere raiz offline e certificado operacional com `scripts/key-management`.
+- Publique certificado e snapshot cumulativo de revogação assinados antes de
+  ativar a nova chave operacional.
+- Verifique um pacote sintético com a raiz offline e com a lista de revogação
+  mais recente.
+- Chave comprometida é revogada; não é apagada do histórico verificável.
+
+## Railway e rollback
+
+- Faça deploy primeiro em staging e aguarde `/readyz`.
+- Execute migração e smoke funcional antes de promover a mesma imagem.
+- Em falha de aplicação, restaure a versão anterior da imagem; em falha de
+  dados, use apenas o restore isolado validado.
+- Railway executa API e worker. Evidências finais continuam no S3 externo.

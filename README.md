@@ -28,3 +28,6 @@ set +a
 
 As credenciais geradas ficam no arquivo ignorado `.env.local-services`. Encerre
 os serviços com `nix develop --command ./scripts/local-services stop`.
+
+Operação e recuperação estão documentadas em
+[`docs/runbooks.md`](docs/runbooks.md).
