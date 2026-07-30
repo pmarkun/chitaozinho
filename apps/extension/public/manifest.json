@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "Chitãozinho",
-  "description": "Captura e preservação verificável de evidências digitais.",
+  "name": "__MSG_appName__",
+  "description": "__MSG_appDescription__",
+  "default_locale": "pt_BR",
   "version": "0.1.0",
   "minimum_chrome_version": "116",
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Chitãozinho"
+    "default_title": "__MSG_appName__"
   },
   "background": {
     "service_worker": "assets/background.js",

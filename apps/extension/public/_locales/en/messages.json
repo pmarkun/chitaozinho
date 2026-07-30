@@ -1,0 +1,54 @@
+{
+  "appName": { "message": "Chitãozinho" },
+  "appDescription": {
+    "message": "Verifiable capture and preservation of digital evidence."
+  },
+  "appTagline": { "message": "verifiable capture" },
+  "loginTitle": { "message": "Sign in" },
+  "loginBody": {
+    "message": "Enter your email. We will send a single-use link; no code or token is included in capture logs."
+  },
+  "emailLabel": { "message": "Email" },
+  "sendAccessLink": { "message": "Send access link" },
+  "accessLinkSent": {
+    "message": "Check your email, open the link, and return here. This screen will detect access automatically."
+  },
+  "newCaptureTitle": { "message": "New capture" },
+  "newCaptureBody": {
+    "message": "Collects tab video, screenshots, DOM, visible text, and browser-reported metadata. It does not prove authorship or truthfulness."
+  },
+  "sensitiveDataNotice": {
+    "message": "Do not use for children's data, health or financial data, or trade secrets. Browse with context and respect third-party rights."
+  },
+  "captureConsent": {
+    "message": "I understand the data collected, limitations, and risks."
+  },
+  "startCapture": { "message": "Start tab capture" },
+  "uploadedParts": { "message": "Uploaded parts" },
+  "connection": { "message": "Connection" },
+  "active": { "message": "active" },
+  "session": { "message": "Session" },
+  "unavailable": { "message": "Unavailable" },
+  "partialCapture": {
+    "message": "This capture is partial. The package will record each unavailable item and its reason."
+  },
+  "screenshot": { "message": "Screenshot" },
+  "marker": { "message": "Marker" },
+  "manualMarker": { "message": "Manual marker" },
+  "finishAndDownload": { "message": "Finish and download" },
+  "resumeCapture": { "message": "Resume in this tab" },
+  "retryFinalization": { "message": "Retry finalization" },
+  "captureComplete": {
+    "message": "Capture complete. The package was sent to your downloads folder."
+  },
+  "newCapture": { "message": "New capture" },
+  "legalDisclaimer": {
+    "message": "Technical integrity does not guarantee definitive legal validity."
+  },
+  "statusStarting": { "message": "Preparing" },
+  "statusRecording": { "message": "Recording" },
+  "statusFinalizing": { "message": "Finalizing" },
+  "statusComplete": { "message": "Complete" },
+  "statusInterrupted": { "message": "Interrupted" },
+  "statusError": { "message": "Error" }
+}

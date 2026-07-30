@@ -1,0 +1,54 @@
+{
+  "appName": { "message": "Chitãozinho" },
+  "appDescription": {
+    "message": "Captura e preservação verificável de evidências digitais."
+  },
+  "appTagline": { "message": "captura verificável" },
+  "loginTitle": { "message": "Entrar" },
+  "loginBody": {
+    "message": "Informe seu e-mail. Enviaremos um link de uso único; nenhum código ou token é exibido nos logs da captura."
+  },
+  "emailLabel": { "message": "E-mail" },
+  "sendAccessLink": { "message": "Enviar link de acesso" },
+  "accessLinkSent": {
+    "message": "Confira seu e-mail, abra o link e volte aqui. Esta tela detectará o acesso automaticamente."
+  },
+  "newCaptureTitle": { "message": "Nova captura" },
+  "newCaptureBody": {
+    "message": "Coleta vídeo da aba, screenshots, DOM, texto visível e metadados declarados pelo navegador. Não prova autoria nem veracidade do conteúdo."
+  },
+  "sensitiveDataNotice": {
+    "message": "Não use para dados de crianças, saúde, finanças ou segredos empresariais. Navegue mostrando contexto e respeite direitos de terceiros."
+  },
+  "captureConsent": {
+    "message": "Entendi os dados coletados, limites e riscos."
+  },
+  "startCapture": { "message": "Iniciar captura da aba" },
+  "uploadedParts": { "message": "Partes enviadas" },
+  "connection": { "message": "Conexão" },
+  "active": { "message": "ativa" },
+  "session": { "message": "Sessão" },
+  "unavailable": { "message": "Indisponíveis" },
+  "partialCapture": {
+    "message": "A captura está parcial. O pacote registrará cada item indisponível e o respectivo motivo."
+  },
+  "screenshot": { "message": "Screenshot" },
+  "marker": { "message": "Marcador" },
+  "manualMarker": { "message": "Marcador manual" },
+  "finishAndDownload": { "message": "Finalizar e baixar" },
+  "resumeCapture": { "message": "Retomar nesta aba" },
+  "retryFinalization": { "message": "Tentar finalizar novamente" },
+  "captureComplete": {
+    "message": "Captura finalizada. O pacote foi enviado para a pasta de downloads."
+  },
+  "newCapture": { "message": "Nova captura" },
+  "legalDisclaimer": {
+    "message": "Integridade técnica não equivale a validade jurídica definitiva."
+  },
+  "statusStarting": { "message": "Preparando" },
+  "statusRecording": { "message": "Gravando" },
+  "statusFinalizing": { "message": "Finalizando" },
+  "statusComplete": { "message": "Concluída" },
+  "statusInterrupted": { "message": "Interrompida" },
+  "statusError": { "message": "Erro" }
+}

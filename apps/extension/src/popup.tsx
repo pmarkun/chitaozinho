@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { authStatus, requestMagicLink } from "./api";
+import { t } from "./i18n";
 import type { ExtensionMessage } from "./types";
 import "./popup.css";
 
@@ -62,20 +63,17 @@ function App() {
           C
         </span>
         <div>
-          <strong>Chitãozinho</strong>
-          <small>captura verificável</small>
+          <strong>{t("appName")}</strong>
+          <small>{t("appTagline")}</small>
         </div>
       </header>
 
       {authenticated === false && (
         <section>
-          <h1>Entrar</h1>
-          <p>
-            Informe seu e-mail. Enviaremos um link de uso único; nenhum código
-            ou token é exibido nos logs da captura.
-          </p>
+          <h1>{t("loginTitle")}</h1>
+          <p>{t("loginBody")}</p>
           <label>
-            E-mail
+            {t("emailLabel")}
             <input
               type="email"
               autoComplete="email"
@@ -94,43 +92,30 @@ function App() {
                 .finally(() => setBusy(false));
             }}
           >
-            Enviar link de acesso
+            {t("sendAccessLink")}
           </button>
-          {linkSent && (
-            <p className="success">
-              Confira seu e-mail, abra o link e volte aqui. Esta tela detectará
-              o acesso automaticamente.
-            </p>
-          )}
+          {linkSent && <p className="success">{t("accessLinkSent")}</p>}
         </section>
       )}
 
       {authenticated && !capture && (
         <section>
-          <h1>Nova captura</h1>
-          <p>
-            Coleta vídeo da aba, screenshots, DOM, texto visível e metadados
-            declarados pelo navegador. Não prova autoria nem veracidade do
-            conteúdo.
-          </p>
-          <p className="notice">
-            Não use para dados de crianças, saúde, finanças ou segredos
-            empresariais. Navegue mostrando contexto e respeite direitos de
-            terceiros.
-          </p>
+          <h1>{t("newCaptureTitle")}</h1>
+          <p>{t("newCaptureBody")}</p>
+          <p className="notice">{t("sensitiveDataNotice")}</p>
           <label className="consent">
             <input
               type="checkbox"
               checked={consent}
               onChange={(event) => setConsent(event.target.checked)}
             />
-            Entendi os dados coletados, limites e riscos.
+            {t("captureConsent")}
           </label>
           <button
             disabled={!consent || busy}
             onClick={() => void act({ type: "START_CAPTURE", consent })}
           >
-            Iniciar captura da aba
+            {t("startCapture")}
           </button>
         </section>
       )}
@@ -144,27 +129,24 @@ function App() {
           </div>
           <dl>
             <div>
-              <dt>Partes enviadas</dt>
+              <dt>{t("uploadedParts")}</dt>
               <dd>{capture.uploadedParts}</dd>
             </div>
             <div>
-              <dt>Conexão</dt>
-              <dd>ativa</dd>
+              <dt>{t("connection")}</dt>
+              <dd>{t("active")}</dd>
             </div>
             <div>
-              <dt>Sessão</dt>
+              <dt>{t("session")}</dt>
               <dd title={capture.id}>{capture.id.slice(0, 12)}…</dd>
             </div>
             <div>
-              <dt>Indisponíveis</dt>
+              <dt>{t("unavailable")}</dt>
               <dd>{capture.unavailableArtifacts}</dd>
             </div>
           </dl>
           {capture.unavailableArtifacts > 0 && (
-            <p className="notice">
-              A captura está parcial. O pacote registrará cada item indisponível
-              e o respectivo motivo.
-            </p>
+            <p className="notice">{t("partialCapture")}</p>
           )}
           {recording && (
             <div className="actions">
@@ -173,23 +155,23 @@ function App() {
                 disabled={busy}
                 onClick={() => void act({ type: "ADD_SCREENSHOT" })}
               >
-                Screenshot
+                {t("screenshot")}
               </button>
               <button
                 className="secondary"
                 disabled={busy}
                 onClick={() =>
-                  void act({ type: "ADD_MARKER", note: "Marcador manual" })
+                  void act({ type: "ADD_MARKER", note: t("manualMarker") })
                 }
               >
-                Marcador
+                {t("marker")}
               </button>
               <button
                 className="danger"
                 disabled={busy}
                 onClick={() => void act({ type: "STOP_CAPTURE" })}
               >
-                Finalizar e baixar
+                {t("finishAndDownload")}
               </button>
             </div>
           )}
@@ -199,7 +181,7 @@ function App() {
                 disabled={busy}
                 onClick={() => void act({ type: "RESUME_CAPTURE" })}
               >
-                Retomar nesta aba
+                {t("resumeCapture")}
               </button>
             )}
           {capture.status === "error" && capture.captureFinished && (
@@ -207,20 +189,17 @@ function App() {
               disabled={busy}
               onClick={() => void act({ type: "STOP_CAPTURE" })}
             >
-              Tentar finalizar novamente
+              {t("retryFinalization")}
             </button>
           )}
           {capture.status === "complete" && (
             <>
-              <p className="success">
-                Captura finalizada. O pacote foi enviado para a pasta de
-                downloads.
-              </p>
+              <p className="success">{t("captureComplete")}</p>
               <button
                 className="secondary"
                 onClick={() => void act({ type: "DISMISS_RESULT" })}
               >
-                Nova captura
+                {t("newCapture")}
               </button>
             </>
           )}
@@ -231,9 +210,7 @@ function App() {
           {error ?? capture?.error}
         </p>
       )}
-      <footer>
-        Integridade técnica não equivale a validade jurídica definitiva.
-      </footer>
+      <footer>{t("legalDisclaimer")}</footer>
     </main>
   );
 }
@@ -254,12 +231,12 @@ function formatDuration(milliseconds: number): string {
 function statusLabel(status: string): string {
   return (
     {
-      starting: "Preparando",
-      recording: "Gravando",
-      finalizing: "Finalizando",
-      complete: "Concluída",
-      interrupted: "Interrompida",
-      error: "Erro",
+      starting: t("statusStarting"),
+      recording: t("statusRecording"),
+      finalizing: t("statusFinalizing"),
+      complete: t("statusComplete"),
+      interrupted: t("statusInterrupted"),
+      error: t("statusError"),
     }[status] ?? status
   );
 }

@@ -1,0 +1,38 @@
+export type MessageKey =
+  | "accessLinkSent"
+  | "active"
+  | "appName"
+  | "appTagline"
+  | "captureComplete"
+  | "captureConsent"
+  | "connection"
+  | "emailLabel"
+  | "finishAndDownload"
+  | "legalDisclaimer"
+  | "loginBody"
+  | "loginTitle"
+  | "manualMarker"
+  | "marker"
+  | "newCapture"
+  | "newCaptureBody"
+  | "newCaptureTitle"
+  | "partialCapture"
+  | "resumeCapture"
+  | "retryFinalization"
+  | "screenshot"
+  | "sendAccessLink"
+  | "sensitiveDataNotice"
+  | "session"
+  | "startCapture"
+  | "statusComplete"
+  | "statusError"
+  | "statusFinalizing"
+  | "statusInterrupted"
+  | "statusRecording"
+  | "statusStarting"
+  | "unavailable"
+  | "uploadedParts";
+
+export function t(key: MessageKey): string {
+  return chrome.i18n.getMessage(key) || key;
+}

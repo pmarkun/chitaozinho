@@ -11,3 +11,6 @@ nix develop --command pnpm --filter @chitaozinho/extension build
 For the POC, open `chrome://extensions`, enable developer mode, choose
 **Load unpacked**, and select `apps/extension/dist`. Start the API on
 `http://127.0.0.1:8000` before beginning a capture.
+
+The popup and manifest use Chrome's native locale selection, with pt-BR as the
+default and an equivalent English catalog.
