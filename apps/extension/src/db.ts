@@ -29,6 +29,10 @@ const database = openDB<ChitaozinhoDatabase>("chitaozinho", 1, {
   },
 });
 
+export async function closeDatabase(): Promise<void> {
+  (await database).close();
+}
+
 export async function saveSession(session: SessionRecord): Promise<void> {
   await (await database).put("sessions", session);
 }
