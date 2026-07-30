@@ -15,7 +15,13 @@ class Settings(BaseSettings):
 
     env: str = "development"
     database_url: str = "sqlite:///data/chitaozinho.db"
+    storage_backend: str = "local"
     storage_path: Path = Path("data/artifacts")
+    s3_endpoint_url: str | None = None
+    s3_region: str = "garage"
+    s3_bucket: str = "chitaozinho"
+    s3_access_key_id: str | None = None
+    s3_secret_access_key: str | None = None
     server_key_id: str = "server-unconfigured"
     server_seed_hex: str | None = Field(default=None, min_length=64, max_length=64)
     public_base_url: str = "http://127.0.0.1:8000"

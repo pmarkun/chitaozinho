@@ -126,16 +126,16 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Recalcular hash a partir dos bytes recebidos.
 - [x] Persistir parte antes de emitir recibo.
 - [x] Reenvio idêntico retorna o mesmo resultado lógico.
-- [ ] Reenvio divergente retorna conflito e registra incidente.
+- [x] Reenvio divergente retorna conflito e registra incidente.
 - [x] Finalizar artefato recalculando o hash completo.
 - [x] Finalizar sessão apenas sem lacunas não declaradas.
 - [x] Validar assinatura de `capture_close`.
 - [x] Gerar e assinar manifesto de captura imutável.
-- [ ] Gerar pacote e hash externo.
-- [ ] Disponibilizar pacote sem permitir enumeração de sessões.
+- [x] Gerar pacote e hash externo.
+- [x] Disponibilizar pacote sem permitir enumeração de sessões.
 - [ ] Eventos de auditoria são append-only e encadeados.
 - [ ] PostgreSQL é a fonte persistente de metadados e jobs.
-- [ ] Garage preserva bytes e versões no ambiente local.
+- [x] Garage preserva bytes e versões no ambiente local.
 
 ### Experiência e relatório
 

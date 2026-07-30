@@ -17,13 +17,15 @@ from chitaozinho_protocol import (
     verify_canonical,
 )
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
+from fastapi.responses import FileResponse
 from sqlalchemy import Engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from .config import Settings
 from .database import create_database_engine, session_dependency
-from .models import Artifact, ArtifactPart, Base, CaptureSession, ChainEntry, Receipt
+from .models import Artifact, ArtifactPart, Base, CaptureSession, ChainEntry, Incident, Receipt
+from .packaging import ensure_package
 from .schemas import (
     ArtifactCompleteRequest,
     ArtifactCompleteResponse,
@@ -37,25 +39,26 @@ from .schemas import (
     SessionStatusResponse,
 )
 from .security import ServerSigner
-from .storage import LocalDurableStorage
+from .storage import DurableStorage, create_storage
 
 
 def create_app(
     settings: Settings | None = None,
     *,
     engine: Engine | None = None,
-    storage: LocalDurableStorage | None = None,
+    storage: DurableStorage | None = None,
     create_tables: bool = False,
 ) -> FastAPI:
     settings = settings or Settings()
     engine = engine or create_database_engine(settings)
-    storage = storage or LocalDurableStorage(settings.storage_path)
+    storage = storage or create_storage(settings)
     signer = ServerSigner.from_settings(settings)
     factory = sessionmaker(engine, expire_on_commit=False)
     if create_tables:
         Base.metadata.create_all(engine)
 
     app = FastAPI(title="Chitãozinho API", version="0.1.0")
+    app.state.session_factory = factory
     get_session = partial(session_dependency, factory)
 
     @app.get("/healthz")
@@ -145,6 +148,12 @@ def create_app(
                 or existing.payload != body.entry
                 or existing.signature_hex != body.signature_hex
             ):
+                record_incident(
+                    database,
+                    session_id,
+                    "event_idempotency_conflict",
+                    {"idempotency_key": idempotency_key},
+                )
                 raise HTTPException(
                     status.HTTP_409_CONFLICT,
                     "idempotency key reused with divergent content",
@@ -251,6 +260,16 @@ def create_app(
                 or x_entry_signature != original_entry.signature_hex
                 or receipt is None
             ):
+                record_incident(
+                    database,
+                    session_id,
+                    "part_idempotency_conflict",
+                    {
+                        "idempotency_key": idempotency_key,
+                        "artifact_id": artifact_id,
+                        "part_number": part_number,
+                    },
+                )
                 raise HTTPException(
                     status.HTTP_409_CONFLICT,
                     "idempotency key reused with divergent content",
@@ -284,6 +303,12 @@ def create_app(
         try:
             storage_key = storage.put_part(session_id, artifact_id, part_number, data)
         except FileExistsError as error:
+            record_incident(
+                database,
+                session_id,
+                "part_storage_conflict",
+                {"artifact_id": artifact_id, "part_number": part_number},
+            )
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
                 "part number already contains different bytes",
@@ -362,6 +387,12 @@ def create_app(
         )
         if existing is not None:
             if not artifact_matches_request(existing, body):
+                record_incident(
+                    database,
+                    session_id,
+                    "artifact_completion_conflict",
+                    {"artifact_id": artifact_id},
+                )
                 raise HTTPException(
                     status.HTTP_409_CONFLICT,
                     "artifact completion conflicts with immutable result",
@@ -462,6 +493,12 @@ def create_app(
                 capture_session.capture_close != body.capture_close
                 or capture_session.capture_close_signature_hex != body.signature_hex
             ):
+                record_incident(
+                    database,
+                    session_id,
+                    "finalization_conflict",
+                    {"manifest_hash": capture_session.manifest_hash},
+                )
                 raise HTTPException(
                     status.HTTP_409_CONFLICT,
                     "session already finalized with different declaration",
@@ -514,6 +551,37 @@ def create_app(
         database.commit()
         return finalize_response(capture_session)
 
+    @app.get("/v1/sessions/{session_id}/package")
+    def download_package(
+        session_id: str,
+        database: Session = Depends(get_session),
+    ) -> FileResponse:
+        active_signer = require_signer(signer)
+        capture_session = require_capture_session(database, session_id)
+        if capture_session.manifest is None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "session must be finalized before packaging",
+            )
+        try:
+            package_path, package_hash = ensure_package(
+                database,
+                storage,
+                active_signer,
+                capture_session,
+            )
+        except (OSError, ValueError) as error:
+            raise HTTPException(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                "package generation failed",
+            ) from error
+        return FileResponse(
+            package_path,
+            media_type="application/zip",
+            filename=f"chitaozinho-{session_id}.zip",
+            headers={"X-Package-SHA256": package_hash},
+        )
+
     @app.get(
         "/v1/sessions/{session_id}",
         response_model=SessionStatusResponse,
@@ -523,10 +591,11 @@ def create_app(
         database: Session = Depends(get_session),
     ) -> SessionStatusResponse:
         capture_session = require_capture_session(database, session_id)
+        package_available = storage.package_path(session_id).exists()
         return SessionStatusResponse(
             session_id=session_id,
             capture_status=capture_session.status,
-            package_status="not_generated",
+            package_status="available" if package_available else "not_generated",
             timestamp_status="not_requested",
             blockchain_status="not_submitted",
             storage_status="staging",
@@ -544,6 +613,23 @@ def require_signer(signer: ServerSigner | None) -> ServerSigner:
             "server signing key is not configured",
         )
     return signer
+
+
+def record_incident(
+    database: Session,
+    session_id: str,
+    kind: str,
+    details: dict,
+) -> None:
+    database.add(
+        Incident(
+            session_id=session_id,
+            kind=kind,
+            details=details,
+            created_at=datetime.now(UTC),
+        )
+    )
+    database.commit()
 
 
 def require_capture_session(database: Session, session_id: str) -> CaptureSession:

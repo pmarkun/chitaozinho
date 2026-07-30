@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+service_root="${project_root}/data/local-services"
+postgres_data="${service_root}/postgres"
+postgres_socket="${service_root}/postgres-run"
+garage_data="${service_root}/garage"
+garage_config="${garage_data}/garage.toml"
+garage_pid_file="${garage_data}/garage.pid"
+environment_file="${project_root}/.env.local-services"
+
+garage_command() {
+  garage -c "${garage_config}" "$@"
+}
+
+wait_for_garage() {
+  for _attempt in $(seq 1 50); do
+    if garage_command status >/dev/null 2>&1; then
+      return
+    fi
+    sleep 0.1
+  done
+  echo "Garage did not become ready; inspect ${garage_data}/garage.log" >&2
+  exit 1
+}
+
+start_postgres() {
+  mkdir -p "${postgres_socket}"
+  if [[ ! -f "${postgres_data}/PG_VERSION" ]]; then
+    initdb --auth=trust --username=chitaozinho --pgdata="${postgres_data}" >/dev/null
+  fi
+  if ! pg_ctl --pgdata="${postgres_data}" status >/dev/null 2>&1; then
+    pg_ctl \
+      --pgdata="${postgres_data}" \
+      --log="${postgres_data}/postgres.log" \
+      --options="-p 55432 -k ${postgres_socket}" \
+      start >/dev/null
+  fi
+  if ! PGHOST="${postgres_socket}" PGPORT=55432 psql \
+    --username=chitaozinho --dbname=postgres --tuples-only \
+    --command="SELECT 1 FROM pg_database WHERE datname = 'chitaozinho'" |
+    grep -q 1; then
+    PGHOST="${postgres_socket}" PGPORT=55432 createdb \
+      --username=chitaozinho chitaozinho
+  fi
+}
+
+start_garage() {
+  mkdir -p "${garage_data}/metadata" "${garage_data}/objects"
+  sed \
+    -e "s|@METADATA_DIR@|${garage_data}/metadata|g" \
+    -e "s|@OBJECT_DATA_DIR@|${garage_data}/objects|g" \
+    "${project_root}/infra/local/garage.toml.in" >"${garage_config}"
+  if [[ -f "${garage_pid_file}" ]] &&
+    kill -0 "$(cat "${garage_pid_file}")" 2>/dev/null; then
+    wait_for_garage
+  else
+    nohup garage -c "${garage_config}" server >"${garage_data}/garage.log" 2>&1 &
+    echo "$!" >"${garage_pid_file}"
+    wait_for_garage
+  fi
+
+  if garage_command status | grep -q "NO ROLE ASSIGNED"; then
+    node_id="$(garage_command node id --quiet 2>/dev/null || true)"
+    node_id="${node_id%%@*}"
+    if [[ -z "${node_id}" ]]; then
+      node_id="$(garage_command status | awk '/^[[:space:]]*[0-9a-f]{16,}/ {print $1; exit}')"
+    fi
+    garage_command layout assign --zone dc1 --capacity 1G "${node_id}" >/dev/null
+    garage_command layout apply --version 1 >/dev/null
+  fi
+}
+
+ensure_garage_credentials() {
+  if [[ -f "${environment_file}" ]]; then
+    return
+  fi
+  garage_command bucket create chitaozinho >/dev/null
+  key_output="$(garage_command key create chitaozinho-api)"
+  access_key="$(awk -F': ' '/Key ID:/ {print $2}' <<<"${key_output}")"
+  secret_key="$(awk -F': ' '/Secret key:/ {print $2}' <<<"${key_output}")"
+  garage_command bucket allow \
+    --read --write --owner chitaozinho --key chitaozinho-api >/dev/null
+  umask 077
+  {
+    printf 'CHITAOZINHO_DATABASE_URL=postgresql+psycopg://chitaozinho@127.0.0.1:55432/chitaozinho\n'
+    printf 'CHITAOZINHO_STORAGE_BACKEND=s3\n'
+    printf 'CHITAOZINHO_STORAGE_PATH=data/artifacts\n'
+    printf 'CHITAOZINHO_S3_ENDPOINT_URL=http://127.0.0.1:3900\n'
+    printf 'CHITAOZINHO_S3_REGION=garage\n'
+    printf 'CHITAOZINHO_S3_BUCKET=chitaozinho\n'
+    printf 'CHITAOZINHO_S3_ACCESS_KEY_ID=%s\n' "${access_key}"
+    printf 'CHITAOZINHO_S3_SECRET_ACCESS_KEY=%s\n' "${secret_key}"
+  } >"${environment_file}"
+}
+
+start_services() {
+  mkdir -p "${service_root}"
+  start_postgres
+  start_garage
+  ensure_garage_credentials
+  echo "PostgreSQL: 127.0.0.1:55432/chitaozinho"
+  echo "Garage S3: http://127.0.0.1:3900 (bucket chitaozinho)"
+  echo "Environment: ${environment_file}"
+}
+
+stop_services() {
+  if [[ -f "${garage_pid_file}" ]]; then
+    garage_pid="$(cat "${garage_pid_file}")"
+    if kill -0 "${garage_pid}" 2>/dev/null; then
+      kill "${garage_pid}"
+      wait "${garage_pid}" 2>/dev/null || true
+    fi
+    rm -f "${garage_pid_file}"
+  fi
+  if [[ -f "${postgres_data}/PG_VERSION" ]] &&
+    pg_ctl --pgdata="${postgres_data}" status >/dev/null 2>&1; then
+    pg_ctl --pgdata="${postgres_data}" stop --mode=fast >/dev/null
+  fi
+}
+
+status_services() {
+  pg_ctl --pgdata="${postgres_data}" status || true
+  garage_command status || true
+}
+
+case "${1:-}" in
+start) start_services ;;
+stop) stop_services ;;
+restart)
+  stop_services
+  start_services
+  ;;
+status) status_services ;;
+*)
+  echo "usage: scripts/local-services {start|stop|restart|status}" >&2
+  exit 2
+  ;;
+esac

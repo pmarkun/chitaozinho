@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
 from chitaozinho_api.config import Settings
 from chitaozinho_api.main import create_app
+from chitaozinho_api.models import Incident
 from chitaozinho_protocol import (
     DOMAINS,
     base64url_encode,
@@ -18,6 +20,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi.testclient import TestClient
 from jsonschema import Draft202012Validator, FormatChecker
+from sqlalchemy import select
 
 SERVER_SEED = bytes([11]) * 32
 CLIENT_SEED = bytes([12]) * 32
@@ -54,7 +57,10 @@ def signed_entry(entry: dict) -> dict:
     }
 
 
-def test_session_event_part_finalize_and_idempotency(client: TestClient) -> None:
+def test_session_event_part_finalize_and_idempotency(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
     created = client.post("/v1/sessions")
     assert created.status_code == 201
     session = created.json()
@@ -103,6 +109,13 @@ def test_session_event_part_finalize_and_idempotency(client: TestClient) -> None
         json={**start_body, "entry_hash": "sha256:" + "0" * 64},
     )
     assert divergent.status_code == 409
+    with client.app.state.session_factory() as database:
+        assert database.scalar(
+            select(Incident).where(
+                Incident.session_id == session_id,
+                Incident.kind == "event_idempotency_conflict",
+            )
+        )
 
     part_data = b"first video part"
     part_hash = sha256_identifier(part_data)
@@ -275,11 +288,38 @@ def test_session_event_part_finalize_and_idempotency(client: TestClient) -> None
     assert replayed_finalize.status_code == 200
     assert replayed_finalize.json() == result
 
+    package = client.get(f"/v1/sessions/{session_id}/package")
+    assert package.status_code == 200
+    assert package.headers["content-type"] == "application/zip"
+    package_path = tmp_path / "capture.zip"
+    package_path.write_bytes(package.content)
+    verified = subprocess.run(
+        [
+            "cargo",
+            "run",
+            "--quiet",
+            "--bin",
+            "chitaozinho-verify",
+            "--",
+            "verify",
+            str(package_path),
+            "--trusted-server-key-hex",
+            public_key(SERVER_SEED).hex(),
+            "--json",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert verified.returncode == 0, verified.stderr
+    assert json.loads(verified.stdout)["result"] == "integral"
+
     current = client.get(f"/v1/sessions/{session_id}")
     assert current.status_code == 200
     assert current.json()["next_sequence"] == 4
     assert current.json()["capture_status"] == "complete"
     assert current.json()["manifest_hash"] == result["manifest_hash"]
+    assert current.json()["package_status"] == "available"
 
 
 def test_artifact_identifier_cannot_escape_storage(client: TestClient) -> None:

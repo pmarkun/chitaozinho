@@ -120,3 +120,17 @@ class Receipt(Base):
     receipt_hash: Mapped[str] = mapped_column(String(71), nullable=False)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     signature_hex: Mapped[str] = mapped_column(String(128), nullable=False)
+
+
+class Incident(Base):
+    __tablename__ = "incidents"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("capture_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    kind: Mapped[str] = mapped_column(String(64), nullable=False)
+    details: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

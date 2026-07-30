@@ -42,6 +42,7 @@
             };
 
             shellHook = ''
+              unset LD_LIBRARY_PATH
               echo "Chitaozinho dev shell"
               echo "Node $(node --version) | Python $(python --version) | Rust $(rustc --version)"
             '';
