@@ -277,7 +277,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
   - [ ] Monitor externo e alertas estão conectados aos ambientes publicados.
 - [x] Jobs são idempotentes e recuperáveis.
 - [x] Runbooks cobrem TSA, OpenTimestamps, storage, banco e rotação de chaves.
-- [ ] SBOM e assinatura de builds são gerados por release.
+- [x] SBOM e assinatura de builds são gerados por release.
 - [ ] Política de retenção e exclusão foi revisada juridicamente.
 - [ ] Teste de restauração e rollback foi concluído.
 - [ ] Revisão de segurança foi concluída.

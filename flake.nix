@@ -22,6 +22,7 @@
               actionlint
               cargo
               clippy
+              cosign
               docker-client
               garage
               jq
@@ -35,6 +36,7 @@
               ruff
               rustc
               rustfmt
+              syft
               unzip
               uv
               zip

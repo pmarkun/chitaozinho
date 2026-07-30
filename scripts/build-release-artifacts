@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+output_dir="${1:-}"
+if [[ -z "${output_dir}" ]]; then
+  echo "usage: $0 <empty-output-directory>" >&2
+  exit 2
+fi
+mkdir -p "${output_dir}"
+output_dir="$(cd "${output_dir}" && pwd)"
+if find "${output_dir}" -mindepth 1 -print -quit | grep -q .; then
+  echo "release output directory must be empty: ${output_dir}" >&2
+  exit 2
+fi
+if [[ "${CHITAOZINHO_ALLOW_DIRTY_RELEASE:-0}" != "1" ]] &&
+  [[ -n "$(git -C "${project_root}" status --porcelain)" ]]; then
+  echo "release artifacts require a clean Git worktree" >&2
+  exit 1
+fi
+if ! docker info >/dev/null 2>&1; then
+  echo "Docker daemon unavailable; cannot build the release OCI archive" >&2
+  exit 1
+fi
+
+workspace_version="$(
+  awk -F' *= *' '/^version = / {gsub(/"/, "", $2); print $2; exit}' \
+    "${project_root}/Cargo.toml"
+)"
+python_version="$(
+  awk -F' *= *' '/^version = / {gsub(/"/, "", $2); print $2; exit}' \
+    "${project_root}/pyproject.toml"
+)"
+extension_version="$(jq -r .version "${project_root}/apps/extension/package.json")"
+if [[ "${workspace_version}" != "${python_version}" ]] ||
+  [[ "${workspace_version}" != "${extension_version}" ]]; then
+  echo "release versions differ across Rust, Python and extension packages" >&2
+  exit 1
+fi
+if [[ -n "${GITHUB_REF_NAME:-}" ]] &&
+  [[ "${GITHUB_REF_NAME}" != "v${workspace_version}" ]]; then
+  echo "tag ${GITHUB_REF_NAME} does not match version ${workspace_version}" >&2
+  exit 1
+fi
+
+source_date_epoch="$(git -C "${project_root}" log -1 --format=%ct)"
+vcs_ref="$(git -C "${project_root}" rev-parse HEAD)"
+temporary="$(mktemp -d)"
+builder_name="chitaozinho-release-$$"
+cleanup() {
+  docker buildx rm "${builder_name}" >/dev/null 2>&1 || true
+  rm -rf "${temporary}"
+}
+trap cleanup EXIT
+export CARGO_INCREMENTAL=0
+export SOURCE_DATE_EPOCH="${source_date_epoch}"
+export TZ=UTC
+
+CARGO_TARGET_DIR="${temporary}/cargo" \
+RUSTFLAGS="--remap-path-prefix=${project_root}=/src -C strip=symbols" \
+  cargo build \
+    --manifest-path "${project_root}/Cargo.toml" \
+    --locked \
+    --release \
+    --bin chitaozinho-verify
+install -m 0755 \
+  "${temporary}/cargo/release/chitaozinho-verify" \
+  "${output_dir}/chitaozinho-verify-${workspace_version}-linux-amd64"
+
+pnpm --dir "${project_root}" --filter @chitaozinho/extension build
+find "${project_root}/apps/extension/dist" -type f \
+  -exec touch --date="@${source_date_epoch}" {} +
+(
+  cd "${project_root}/apps/extension/dist"
+  find . -type f -print | LC_ALL=C sort |
+    zip -X -q "${output_dir}/chitaozinho-extension-${workspace_version}.zip" -@
+)
+
+buildkit_image="moby/buildkit:buildx-stable-1@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec"
+docker buildx create \
+  --driver docker-container \
+  --driver-opt "image=${buildkit_image}" \
+  --name "${builder_name}" >/dev/null
+docker buildx build \
+  --builder "${builder_name}" \
+  --platform linux/amd64 \
+  --provenance=false \
+  --sbom=false \
+  --build-arg "SOURCE_DATE_EPOCH=${source_date_epoch}" \
+  --build-arg "VCS_REF=${vcs_ref}" \
+  --output \
+  "type=oci,dest=${output_dir}/chitaozinho-api-${workspace_version}.oci.tar,rewrite-timestamp=true" \
+  "${project_root}"
+
+syft scan \
+  "file:${output_dir}/chitaozinho-verify-${workspace_version}-linux-amd64" \
+  -o "spdx-json=${output_dir}/chitaozinho-verifier-${workspace_version}.spdx.json"
+syft scan \
+  "dir:${project_root}/apps/extension/dist" \
+  -o "spdx-json=${output_dir}/chitaozinho-extension-${workspace_version}.spdx.json"
+syft scan \
+  "oci-archive:${output_dir}/chitaozinho-api-${workspace_version}.oci.tar" \
+  -o "spdx-json=${output_dir}/chitaozinho-api-${workspace_version}.spdx.json"
+syft scan \
+  "dir:${project_root}" \
+  --source-name chitaozinho-source \
+  --source-version "${workspace_version}" \
+  --exclude './.git/**' \
+  --exclude './.pytest_cache/**' \
+  --exclude './.ruff_cache/**' \
+  --exclude './.venv/**' \
+  --exclude './apps/extension/dist/**' \
+  --exclude './data/**' \
+  --exclude './node_modules/**' \
+  --exclude './target/**' \
+  -o "spdx-json=${output_dir}/chitaozinho-source-${workspace_version}.spdx.json"
+
+(
+  cd "${output_dir}"
+  find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\n' |
+    LC_ALL=C sort |
+    xargs sha256sum >SHA256SUMS
+)
+
+printf 'release_version=%s commit=%s output=%s\n' \
+  "${workspace_version}" "${vcs_ref}" "${output_dir}"

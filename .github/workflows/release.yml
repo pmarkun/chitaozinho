@@ -1,0 +1,45 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31.10.6
+      - name: Build release artifacts and SPDX SBOMs
+        run: nix develop --command ./scripts/build-release-artifacts dist/release
+      - name: Sign every release artifact with GitHub OIDC
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t assets < <(
+            find dist/release -maxdepth 1 -type f \
+              ! -name '*.sigstore.json' -print | sort
+          )
+          for asset in "${assets[@]}"; do
+            nix develop --command cosign sign-blob \
+              --yes \
+              --bundle "${asset}.sigstore.json" \
+              "${asset}"
+          done
+      - name: Publish immutable tag assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --verify-tag \
+            --generate-notes \
+            --title "Chitãozinho ${GITHUB_REF_NAME}" \
+            dist/release/*

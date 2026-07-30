@@ -72,3 +72,15 @@ This run proves the short functional flow. It does not satisfy the separate
   the separately recorded server start/end times stay anchored to the actual
   request time. The client clock is preserved as a declaration, not trusted as
   temporal proof.
+
+## 2026-07-30 — Release supply chain
+
+- The local release harness generated the verifier, extension ZIP and OCI API
+  archive plus artifact and source SPDX 2.3 SBOMs.
+- The source SBOM catalogued 833 package/manifests across the locked Rust,
+  Python, npm, Terraform and workflow dependency graph.
+- Every entry in `SHA256SUMS` verified. Its SHA-256 was
+  `d38ecee8cc7b2993e1be400a40eae25c403d7fb1cbef91df65cdbed0769c2db2`.
+- An ephemeral local Cosign key signed the checksum file into a Sigstore bundle
+  and `cosign verify-blob` returned `Verified OK`. Tagged releases use GitHub
+  OIDC instead of a stored signing key.
