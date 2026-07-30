@@ -47,3 +47,14 @@ jobs:
       - uses: cachix/install-nix-action@v31.10.6
       - name: Build the production image reproducibly
         run: nix develop --command ./scripts/check-oci-reproducibility
+
+  verifier-reproducibility:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: cachix/install-nix-action@v31.10.6
+      - name: Build the verifier twice reproducibly
+        run: nix develop --command ./scripts/check-verifier-reproducibility

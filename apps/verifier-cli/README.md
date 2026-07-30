@@ -31,3 +31,10 @@ For an RFC 3161 attestation marked valid, pass explicit CA and CRL bundles.
 The verifier fails closed if either is absent. Confirmed OpenTimestamps proofs
 are checked with the `ots` client; pending proofs are parsed and reported as
 pending.
+
+Reproducibility is checked by building the release binary twice in isolated
+target directories:
+
+```sh
+nix develop --command ./scripts/check-verifier-reproducibility
+```
