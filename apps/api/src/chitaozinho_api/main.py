@@ -23,7 +23,7 @@ from chitaozinho_protocol import (
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
-from sqlalchemy import Engine, func, select
+from sqlalchemy import Engine, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -233,6 +233,19 @@ def create_app(
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/readyz")
+    def readyz() -> Response:
+        try:
+            with engine.connect() as connection:
+                connection.execute(text("SELECT 1"))
+            storage.check_ready()
+        except Exception:
+            return JSONResponse(
+                {"status": "unavailable"},
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        return JSONResponse({"status": "ready"})
 
     @app.get("/v1/auth/consume", response_class=HTMLResponse)
     def consume_magic_link_page() -> HTMLResponse:

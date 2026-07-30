@@ -32,6 +32,11 @@ class FinalStorageResult:
 class LocalDurableStorage:
     def __init__(self, root: Path) -> None:
         self.root = root
+        self.root.mkdir(parents=True, exist_ok=True)
+
+    def check_ready(self) -> None:
+        if not self.root.is_dir() or not os.access(self.root, os.R_OK | os.W_OK):
+            raise RuntimeError("local storage is unavailable")
 
     def put_part(
         self,
@@ -119,6 +124,9 @@ class S3DurableStorage:
             aws_access_key_id=settings.s3_access_key_id,
             aws_secret_access_key=settings.s3_secret_access_key,
         )
+
+    def check_ready(self) -> None:
+        self.client.head_bucket(Bucket=self.bucket)
 
     def put_part(
         self,

@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 from chitaozinho_api.config import Settings
 from chitaozinho_api.main import app, create_app
+from chitaozinho_api.storage import LocalDurableStorage
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
@@ -11,6 +12,31 @@ def test_healthz() -> None:
     response = TestClient(app).get("/healthz")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+def test_readyz_checks_database_and_storage(tmp_path: Path) -> None:
+    settings = Settings(
+        database_url=f"sqlite:///{tmp_path / 'ready.db'}",
+        storage_path=tmp_path / "artifacts",
+        server_seed_hex="11" * 32,
+    )
+    client = TestClient(create_app(settings, create_tables=True))
+    response = client.get("/readyz")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready"}
+
+    class UnavailableStorage(LocalDurableStorage):
+        def check_ready(self) -> None:
+            raise RuntimeError("synthetic storage failure")
+
+    unavailable = TestClient(
+        create_app(
+            settings,
+            storage=UnavailableStorage(tmp_path / "unavailable"),
+            create_tables=True,
+        )
+    ).get("/readyz")
+    assert unavailable.status_code == 503
+    assert unavailable.json() == {"status": "unavailable"}
 
 
 def test_extension_cors_preflight() -> None:
