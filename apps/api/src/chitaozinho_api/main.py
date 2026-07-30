@@ -59,6 +59,11 @@ from .models import (
     OtsComplement,
     Receipt,
 )
+from .observability import (
+    METRICS_CONTENT_TYPE,
+    RequestMetrics,
+    emit_request_log,
+)
 from .packaging import ensure_package
 from .proof_bundle import ensure_proof_bundle
 from .proof_service import create_merkle_batch, timestamp_capture, upgrade_merkle_batch
@@ -129,6 +134,7 @@ def create_app(
     app.state.session_factory = factory
     get_session = partial(session_dependency, factory)
     request_times: dict[str, deque[float]] = defaultdict(deque)
+    request_metrics = RequestMetrics()
     allowed_extension_origin = re.compile(settings.cors_origin_regex)
     public_url = urlsplit(settings.public_base_url)
     public_origin = f"{public_url.scheme}://{public_url.netloc}"
@@ -230,9 +236,43 @@ def create_app(
             times.append(now)
         return await call_next(request)
 
+    @app.middleware("http")
+    async def observe_requests(request: Request, call_next):
+        request_id = secrets.token_hex(8)
+        started_at = time.monotonic()
+        status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            response.headers["X-Request-ID"] = request_id
+            return response
+        finally:
+            duration_seconds = time.monotonic() - started_at
+            route = getattr(request.scope.get("route"), "path", "unmatched")
+            request_metrics.observe(
+                method=request.method,
+                route=route,
+                status_code=status_code,
+                duration_seconds=duration_seconds,
+            )
+            emit_request_log(
+                request_id=request_id,
+                method=request.method,
+                route=route,
+                status_code=status_code,
+                duration_seconds=duration_seconds,
+            )
+
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/metrics")
+    def metrics() -> Response:
+        return Response(
+            request_metrics.render(),
+            media_type=METRICS_CONTENT_TYPE,
+        )
 
     @app.get("/readyz")
     def readyz() -> Response:

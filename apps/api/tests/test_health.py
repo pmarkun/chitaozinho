@@ -1,3 +1,5 @@
+import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -12,6 +14,44 @@ def test_healthz() -> None:
     response = TestClient(app).get("/healthz")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_metrics_and_logs_use_route_templates_without_sensitive_data(
+    caplog: pytest.LogCaptureFixture,
+    tmp_path: Path,
+) -> None:
+    caplog.set_level(logging.INFO, logger="chitaozinho.request")
+    settings = Settings(
+        database_url=f"sqlite:///{tmp_path / 'observability.db'}",
+        storage_path=tmp_path / "artifacts",
+        server_seed_hex="11" * 32,
+    )
+    client = TestClient(create_app(settings, create_tables=True))
+    response = client.get(
+        "/v1/sessions/private-session?token=top-secret&email=user@example.test"
+    )
+    assert response.headers["X-Request-ID"]
+
+    metrics = client.get("/metrics")
+    assert metrics.status_code == 200
+    assert 'route="/v1/sessions/{session_id}"' in metrics.text
+    assert "private-session" not in metrics.text
+    assert "top-secret" not in metrics.text
+    assert "user@example.test" not in metrics.text
+
+    records = [
+        json.loads(record.message)
+        for record in caplog.records
+        if record.name == "chitaozinho.request"
+    ]
+    assert any(
+        record["route"] == "/v1/sessions/{session_id}" for record in records
+    )
+    serialized = json.dumps(records)
+    assert "private-session" not in serialized
+    assert "top-secret" not in serialized
+    assert "user@example.test" not in serialized
+
 
 def test_readyz_checks_database_and_storage(tmp_path: Path) -> None:
     settings = Settings(
