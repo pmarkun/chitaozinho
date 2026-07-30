@@ -1797,6 +1797,10 @@ def finalize_response(capture_session: CaptureSession) -> FinalizeResponse:
         manifest_hash=capture_session.manifest_hash or "",
         manifest_signature_hex=capture_session.manifest_signature_hex or "",
         server_key_id=capture_session.server_key_id or "",
+        package_status=capture_session.package_status,
+        timestamp_status=capture_session.timestamp_status,
+        blockchain_status=capture_session.blockchain_status,
+        storage_status=capture_session.storage_status,
         manifest=capture_session.manifest or {},
     )
 

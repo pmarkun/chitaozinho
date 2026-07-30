@@ -151,6 +151,18 @@ export function packageHashUrl(sessionId: string): string {
   return `${API_BASE_URL}/v1/sessions/${sessionId}/package.sha256`;
 }
 
+export async function preparePackage(sessionId: string): Promise<{
+  packageHash: string;
+  storageStatus: string;
+}> {
+  const response = await checked(await apiFetch(packageHashUrl(sessionId)));
+  const digest = (await response.text()).trim().split(/\s+/, 1)[0];
+  return {
+    packageHash: digest.startsWith("sha256:") ? digest : `sha256:${digest}`,
+    storageStatus: response.headers.get("X-Storage-Status") ?? "unknown",
+  };
+}
+
 export async function authStatus(): Promise<boolean> {
   const response = await checked(
     await apiFetch(`${API_BASE_URL}/v1/auth/session`),

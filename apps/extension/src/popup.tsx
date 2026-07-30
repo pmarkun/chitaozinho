@@ -1,3 +1,5 @@
+import { sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex } from "@chitaozinho/protocol";
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -13,10 +15,16 @@ interface PublicState {
   uploadedParts: number;
   durationMs: number;
   packageHash?: string;
+  integrityStatus?: string;
+  timestampStatus?: string;
+  blockchainStatus?: string;
+  storageStatus?: string;
   error?: string;
   unavailableArtifacts: number;
   captureFinished: boolean;
 }
+
+type Screen = "home" | "new" | "captures" | "verify" | "settings";
 
 function App() {
   const [capture, setCapture] = useState<PublicState | null>(null);
@@ -26,6 +34,9 @@ function App() {
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [screen, setScreen] = useState<Screen>("home");
+  const [sessions, setSessions] = useState<PublicState[]>([]);
+  const [verificationHash, setVerificationHash] = useState<string>();
 
   useEffect(() => {
     void refresh();
@@ -47,7 +58,59 @@ function App() {
     try {
       const response = await send(message);
       if (!response.ok) throw new Error(String(response.error));
-      setCapture(response.result as PublicState | null);
+      const result = response.result as PublicState | null;
+      setCapture(result);
+      if (!result) setScreen("home");
+    } catch (caught) {
+      setError(String(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openCaptures() {
+    setBusy(true);
+    setError(undefined);
+    try {
+      const response = await send({ type: "LIST_SESSIONS" });
+      if (!response.ok) throw new Error(String(response.error));
+      setSessions(response.result as PublicState[]);
+      setScreen("captures");
+    } catch (caught) {
+      setError(String(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function hashPackage(file: File) {
+    setBusy(true);
+    setError(undefined);
+    setVerificationHash(undefined);
+    try {
+      const hasher = sha256.create();
+      const chunkSize = 4 * 1024 * 1024;
+      for (let offset = 0; offset < file.size; offset += chunkSize) {
+        hasher.update(
+          new Uint8Array(
+            await file.slice(offset, offset + chunkSize).arrayBuffer(),
+          ),
+        );
+      }
+      setVerificationHash(`sha256:${bytesToHex(hasher.digest())}`);
+    } catch (caught) {
+      setError(String(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function downloadCapture(sessionId: string) {
+    setBusy(true);
+    setError(undefined);
+    try {
+      const response = await send({ type: "DOWNLOAD_PACKAGE", sessionId });
+      if (!response.ok) throw new Error(String(response.error));
     } catch (caught) {
       setError(String(caught));
     } finally {
@@ -98,8 +161,27 @@ function App() {
         </section>
       )}
 
-      {authenticated && !capture && (
+      {authenticated && !capture && screen === "home" && (
         <section>
+          <h1>{t("homeTitle")}</h1>
+          <div className="menu-grid">
+            <button onClick={() => setScreen("new")}>{t("newCapture")}</button>
+            <button className="secondary" onClick={() => void openCaptures()}>
+              {t("myCaptures")}
+            </button>
+            <button className="secondary" onClick={() => setScreen("verify")}>
+              {t("verifyPackage")}
+            </button>
+            <button className="secondary" onClick={() => setScreen("settings")}>
+              {t("settings")}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {authenticated && !capture && screen === "new" && (
+        <section>
+          <BackButton onClick={() => setScreen("home")} />
           <h1>{t("newCaptureTitle")}</h1>
           <p>{t("newCaptureBody")}</p>
           <p className="notice">{t("sensitiveDataNotice")}</p>
@@ -117,6 +199,85 @@ function App() {
           >
             {t("startCapture")}
           </button>
+        </section>
+      )}
+
+      {authenticated && !capture && screen === "captures" && (
+        <section>
+          <BackButton onClick={() => setScreen("home")} />
+          <h1>{t("myCaptures")}</h1>
+          {sessions.length === 0 ? (
+            <p>{t("noCaptures")}</p>
+          ) : (
+            <ul className="capture-list">
+              {sessions.map((session) => (
+                <li key={session.id}>
+                  <div>
+                    <strong>{statusLabel(session.status)}</strong>
+                    <small>
+                      {new Date(session.startedAt).toLocaleString()}
+                    </small>
+                    <code title={session.id}>{session.id.slice(0, 12)}…</code>
+                  </div>
+                  {session.status === "complete" && (
+                    <button
+                      className="secondary compact"
+                      disabled={busy}
+                      onClick={() => void downloadCapture(session.id)}
+                    >
+                      {t("downloadAgain")}
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {authenticated && !capture && screen === "verify" && (
+        <section>
+          <BackButton onClick={() => setScreen("home")} />
+          <h1>{t("verifyPackage")}</h1>
+          <p>{t("verifyPackageBody")}</p>
+          <label>
+            {t("selectPackage")}
+            <input
+              type="file"
+              accept=".zip,application/zip"
+              disabled={busy}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void hashPackage(file);
+              }}
+            />
+          </label>
+          {verificationHash && (
+            <output className="hash-output">{verificationHash}</output>
+          )}
+          <p className="notice">{t("fullVerificationNotice")}</p>
+        </section>
+      )}
+
+      {authenticated && !capture && screen === "settings" && (
+        <section>
+          <BackButton onClick={() => setScreen("home")} />
+          <h1>{t("settings")}</h1>
+          <dl>
+            <div>
+              <dt>{t("language")}</dt>
+              <dd>{chrome.i18n.getUILanguage()}</dd>
+            </div>
+            <div>
+              <dt>{t("apiEnvironment")}</dt>
+              <dd>{t("localDevelopment")}</dd>
+            </div>
+            <div>
+              <dt>{t("version")}</dt>
+              <dd>{__CHITAOZINHO_BUILD__.version}</dd>
+            </div>
+          </dl>
+          <p>{t("settingsBody")}</p>
         </section>
       )}
 
@@ -209,6 +370,38 @@ function App() {
           {capture.status === "complete" && (
             <>
               <p className="success">{t("captureComplete")}</p>
+              <dl className="result-list">
+                <Result
+                  label={t("integrity")}
+                  value={formatResult(capture.integrityStatus)}
+                />
+                <Result
+                  label={t("timestamp")}
+                  value={formatResult(capture.timestampStatus)}
+                />
+                <Result
+                  label={t("blockchain")}
+                  value={formatResult(capture.blockchainStatus)}
+                />
+                <Result
+                  label={t("retention")}
+                  value={formatResult(capture.storageStatus)}
+                />
+              </dl>
+              {capture.packageHash && (
+                <>
+                  <strong>{t("packageHash")}</strong>
+                  <output className="hash-output">{capture.packageHash}</output>
+                </>
+              )}
+              <button
+                className="secondary"
+                disabled={busy}
+                onClick={() => void downloadCapture(capture.id)}
+              >
+                {t("downloadAgain")}
+              </button>
+              <p className="notice">{t("fullVerificationNotice")}</p>
               <button
                 className="secondary"
                 onClick={() => void act({ type: "DISMISS_RESULT" })}
@@ -226,6 +419,23 @@ function App() {
       )}
       <footer>{t("legalDisclaimer")}</footer>
     </main>
+  );
+}
+
+function BackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button className="back-button" onClick={onClick}>
+      ← {t("back")}
+    </button>
+  );
+}
+
+function Result({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
   );
 }
 
@@ -251,6 +461,30 @@ function statusLabel(status: string): string {
       complete: t("statusComplete"),
       interrupted: t("statusInterrupted"),
       error: t("statusError"),
+    }[status] ?? status
+  );
+}
+
+function formatResult(status?: string): string {
+  if (!status) return t("unknown");
+  return (
+    {
+      complete: t("integral"),
+      incomplete: t("incomplete"),
+      pending: t("pending"),
+      confirmed: t("confirmed"),
+      not_requested: t("notRequested"),
+      not_submitted: t("notSubmitted"),
+      submitted: t("submitted"),
+      pending_confirmation: t("pendingConfirmation"),
+      valid: t("valid"),
+      invalid: t("invalid"),
+      verification_failed: t("verificationFailed"),
+      staging: t("staging"),
+      stored: t("stored"),
+      locked: t("locked"),
+      retention_failed: t("retentionFailed"),
+      unknown: t("unknown"),
     }[status] ?? status
   );
 }

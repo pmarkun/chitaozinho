@@ -51,7 +51,7 @@ export async function latestSession(): Promise<SessionRecord | undefined> {
   return (await allSessions())[0];
 }
 
-async function allSessions(): Promise<SessionRecord[]> {
+export async function allSessions(): Promise<SessionRecord[]> {
   const sessions = await (await database).getAll("sessions");
   return sessions.sort((left, right) =>
     right.startedAt.localeCompare(left.startedAt),

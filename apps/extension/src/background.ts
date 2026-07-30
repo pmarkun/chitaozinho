@@ -13,12 +13,14 @@ import {
   finalizeSession,
   packageHashUrl,
   packageUrl,
+  preparePackage,
   registerKey,
   sendEvent,
   uploadPart,
 } from "./api";
 import { advanceSession, nextEntry, signedEntry } from "./chain";
 import {
+  allSessions,
   currentSession,
   deleteLocalSession,
   getSession,
@@ -98,6 +100,26 @@ async function handleMessage(message: ExtensionMessage): Promise<unknown> {
         await chrome.storage.local.set({ dismissedSessionId: latest.id });
       }
       return null;
+    }
+    case "LIST_SESSIONS":
+      return Promise.all((await allSessions()).map(publicState));
+    case "DOWNLOAD_PACKAGE": {
+      if (!message.sessionId) throw new Error("session id is required");
+      const stored = await getSession(message.sessionId);
+      if (!stored || stored.status !== "complete") {
+        throw new Error("completed capture not found");
+      }
+      await chrome.downloads.download({
+        url: packageUrl(stored.id),
+        filename: `chitaozinho-${stored.id}.zip`,
+        saveAs: true,
+      });
+      await chrome.downloads.download({
+        url: packageHashUrl(stored.id),
+        filename: `chitaozinho-${stored.id}.zip.sha256`,
+        saveAs: false,
+      });
+      return publicState(stored);
     }
     case "DISCARD_FAILED_CAPTURE": {
       const latest = await currentSession();
@@ -616,10 +638,15 @@ async function stopCapture(
     ),
   );
   const result = await finalizeSession(session.id, captureClose, signatureHex);
+  const packageInfo = await preparePackage(session.id);
   session.status = "complete";
   session.privateKey = null;
   session.durationMs = Date.now() - new Date(session.startedAt).getTime();
-  void result;
+  session.integrityStatus = String(result.status);
+  session.timestampStatus = String(result.timestamp_status);
+  session.blockchainStatus = String(result.blockchain_status);
+  session.storageStatus = packageInfo.storageStatus;
+  session.packageHash = packageInfo.packageHash;
   await saveSession(session);
   await chrome.downloads.download({
     url: packageUrl(session.id),
@@ -733,6 +760,10 @@ function publicState(
         ? Date.now() - new Date(session.startedAt).getTime()
         : session.durationMs,
     packageHash: session.packageHash,
+    integrityStatus: session.integrityStatus,
+    timestampStatus: session.timestampStatus,
+    blockchainStatus: session.blockchainStatus,
+    storageStatus: session.storageStatus,
     error: session.error,
     captureFinished: session.captureFinished,
     unavailableArtifacts: session.artifacts.filter(

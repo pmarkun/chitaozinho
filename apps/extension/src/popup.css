@@ -75,9 +75,16 @@ input[type="email"] {
   color: inherit;
   background: white;
 }
+input[type="file"] {
+  display: block;
+  width: 100%;
+  margin: 8px 0 14px;
+  color: #4d5b53;
+}
 input[type="email"]:focus-visible,
 button:focus-visible,
-input[type="checkbox"]:focus-visible {
+input[type="checkbox"]:focus-visible,
+input[type="file"]:focus-visible {
   outline: 3px solid #8ab9ff;
   outline-offset: 2px;
 }
@@ -95,6 +102,67 @@ button:disabled {
 .actions {
   display: grid;
   gap: 8px;
+}
+.menu-grid {
+  display: grid;
+  gap: 9px;
+}
+.back-button {
+  width: auto;
+  margin: -5px 0 14px;
+  padding: 5px 0;
+  color: #185c3a;
+  background: transparent;
+}
+.capture-list {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.capture-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 10px;
+  background: white;
+  border: 1px solid #dbe3dc;
+  border-radius: 8px;
+}
+.capture-list li div {
+  display: grid;
+  min-width: 0;
+}
+.capture-list small,
+.capture-list code {
+  color: #637069;
+  font-size: 11px;
+}
+.compact {
+  width: auto;
+  padding: 8px;
+  font-size: 12px;
+}
+.hash-output {
+  display: block;
+  margin: 8px 0 14px;
+  padding: 9px;
+  overflow-wrap: anywhere;
+  color: #33443a;
+  background: white;
+  border: 1px solid #dbe3dc;
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.result-list {
+  padding: 10px;
+  background: white;
+  border: 1px solid #dbe3dc;
+  border-radius: 8px;
 }
 .status-row {
   display: flex;

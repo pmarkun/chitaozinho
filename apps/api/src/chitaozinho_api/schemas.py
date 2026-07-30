@@ -103,6 +103,10 @@ class FinalizeResponse(StrictModel):
     manifest_hash: str
     manifest_signature_hex: str
     server_key_id: str
+    package_status: str
+    timestamp_status: str
+    blockchain_status: str
+    storage_status: str
     manifest: dict[str, Any]
 
 

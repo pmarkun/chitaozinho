@@ -4,6 +4,27 @@
     "message": "Verifiable capture and preservation of digital evidence."
   },
   "appTagline": { "message": "verifiable capture" },
+  "homeTitle": { "message": "What would you like to do?" },
+  "myCaptures": { "message": "My captures" },
+  "verifyPackage": { "message": "Verify package" },
+  "settings": { "message": "Settings" },
+  "back": { "message": "Back" },
+  "noCaptures": { "message": "No local captures found." },
+  "downloadAgain": { "message": "Download again" },
+  "verifyPackageBody": {
+    "message": "Select a ZIP to calculate its SHA-256 locally without uploading the file."
+  },
+  "selectPackage": { "message": "ZIP package" },
+  "fullVerificationNotice": {
+    "message": "Complete signature, chain, and receipt validation is performed by the offline verifier included in the project."
+  },
+  "language": { "message": "Language" },
+  "apiEnvironment": { "message": "API" },
+  "localDevelopment": { "message": "local development" },
+  "version": { "message": "Version" },
+  "settingsBody": {
+    "message": "The language follows Chrome. Endpoints and retention are defined by the deployed environment."
+  },
   "loginTitle": { "message": "Sign in" },
   "loginBody": {
     "message": "Enter your email. We will send a single-use link; no code or token is included in capture logs."
@@ -45,6 +66,27 @@
   "captureComplete": {
     "message": "Capture complete. The package was sent to your downloads folder."
   },
+  "integrity": { "message": "Integrity" },
+  "timestamp": { "message": "Timestamp" },
+  "blockchain": { "message": "Blockchain" },
+  "retention": { "message": "Retention" },
+  "packageHash": { "message": "External package hash" },
+  "integral": { "message": "integral" },
+  "incomplete": { "message": "integral, but incomplete" },
+  "pending": { "message": "pending" },
+  "confirmed": { "message": "confirmed" },
+  "notRequested": { "message": "not requested" },
+  "notSubmitted": { "message": "not submitted" },
+  "submitted": { "message": "submitted" },
+  "pendingConfirmation": { "message": "pending confirmation" },
+  "valid": { "message": "valid" },
+  "invalid": { "message": "invalid" },
+  "verificationFailed": { "message": "verification failed" },
+  "staging": { "message": "staging" },
+  "stored": { "message": "stored" },
+  "locked": { "message": "stored with retention" },
+  "retentionFailed": { "message": "retention failed" },
+  "unknown": { "message": "not verified" },
   "newCapture": { "message": "New capture" },
   "legalDisclaimer": {
     "message": "Technical integrity does not guarantee definitive legal validity."

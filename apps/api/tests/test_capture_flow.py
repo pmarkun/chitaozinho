@@ -303,6 +303,10 @@ def test_session_event_part_finalize_and_idempotency(
     assert finalized.status_code == 200
     result = finalized.json()
     assert result["status"] == "complete"
+    assert result["package_status"] == "not_generated"
+    assert result["timestamp_status"] == "not_requested"
+    assert result["blockchain_status"] == "not_submitted"
+    assert result["storage_status"] == "staging"
     Draft202012Validator(
         json.loads((SCHEMA_DIR / "capture-close.schema.json").read_text()),
         format_checker=FormatChecker(),

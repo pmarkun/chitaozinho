@@ -4,6 +4,27 @@
     "message": "Captura e preservação verificável de evidências digitais."
   },
   "appTagline": { "message": "captura verificável" },
+  "homeTitle": { "message": "O que deseja fazer?" },
+  "myCaptures": { "message": "Minhas capturas" },
+  "verifyPackage": { "message": "Verificar pacote" },
+  "settings": { "message": "Configurações" },
+  "back": { "message": "Voltar" },
+  "noCaptures": { "message": "Nenhuma captura local encontrada." },
+  "downloadAgain": { "message": "Baixar novamente" },
+  "verifyPackageBody": {
+    "message": "Selecione um ZIP para calcular seu SHA-256 localmente, sem enviar o arquivo."
+  },
+  "selectPackage": { "message": "Pacote ZIP" },
+  "fullVerificationNotice": {
+    "message": "A validação completa de assinaturas, cadeias e recibos é feita pelo verificador offline incluído no projeto."
+  },
+  "language": { "message": "Idioma" },
+  "apiEnvironment": { "message": "API" },
+  "localDevelopment": { "message": "desenvolvimento local" },
+  "version": { "message": "Versão" },
+  "settingsBody": {
+    "message": "O idioma acompanha o Chrome. Endpoints e retenção são definidos pelo ambiente implantado."
+  },
   "loginTitle": { "message": "Entrar" },
   "loginBody": {
     "message": "Informe seu e-mail. Enviaremos um link de uso único; nenhum código ou token é exibido nos logs da captura."
@@ -45,6 +66,27 @@
   "captureComplete": {
     "message": "Captura finalizada. O pacote foi enviado para a pasta de downloads."
   },
+  "integrity": { "message": "Integridade" },
+  "timestamp": { "message": "Timestamp" },
+  "blockchain": { "message": "Blockchain" },
+  "retention": { "message": "Retenção" },
+  "packageHash": { "message": "Hash externo do pacote" },
+  "integral": { "message": "íntegro" },
+  "incomplete": { "message": "íntegro, mas incompleto" },
+  "pending": { "message": "pendente" },
+  "confirmed": { "message": "confirmado" },
+  "notRequested": { "message": "não solicitado" },
+  "notSubmitted": { "message": "não submetida" },
+  "submitted": { "message": "submetida" },
+  "pendingConfirmation": { "message": "aguardando confirmação" },
+  "valid": { "message": "válido" },
+  "invalid": { "message": "inválido" },
+  "verificationFailed": { "message": "falha na verificação" },
+  "staging": { "message": "em preparação" },
+  "stored": { "message": "armazenado" },
+  "locked": { "message": "armazenado com retenção" },
+  "retentionFailed": { "message": "falha na retenção" },
+  "unknown": { "message": "não verificado" },
   "newCapture": { "message": "Nova captura" },
   "legalDisclaimer": {
     "message": "Integridade técnica não equivale a validade jurídica definitiva."

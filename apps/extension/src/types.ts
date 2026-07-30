@@ -26,6 +26,10 @@ export interface SessionRecord {
   captureFinished: boolean;
   artifacts: ArtifactSummary[];
   packageHash?: string;
+  integrityStatus?: string;
+  timestampStatus?: string;
+  blockchainStatus?: string;
+  storageStatus?: string;
   error?: string;
 }
 
@@ -83,6 +87,8 @@ export interface ExtensionMessage {
     | "GET_STATE"
     | "DISMISS_RESULT"
     | "DISCARD_FAILED_CAPTURE"
+    | "DOWNLOAD_PACKAGE"
+    | "LIST_SESSIONS"
     | "RESUME_CAPTURE"
     | "START_CAPTURE"
     | "STOP_CAPTURE"
