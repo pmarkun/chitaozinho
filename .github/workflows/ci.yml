@@ -14,7 +14,12 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: cachix/install-nix-action@v31.10.6
+      - name: Reject unversioned protocol changes
+        if: github.event_name == 'pull_request'
+        run: nix develop --command ./scripts/check-protocol-compatibility "origin/${GITHUB_BASE_REF}"
       - name: Check TypeScript, Python, Rust and infrastructure
         run: nix develop --command ./scripts/check
       - name: Smoke PostgreSQL and Garage persistence

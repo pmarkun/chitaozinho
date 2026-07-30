@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+base_ref="${1:-}"
+version_file="packages/schemas/version.json"
+
+if [[ -z "$base_ref" ]]; then
+  echo "usage: scripts/check-protocol-compatibility <base-git-ref>" >&2
+  exit 2
+fi
+
+if [[ "$base_ref" =~ ^0+$ ]] || ! git cat-file -e "${base_ref}^{commit}" 2>/dev/null; then
+  echo "Protocol compatibility: no comparable base commit; bootstrap accepted."
+  exit 0
+fi
+
+if ! git cat-file -e "${base_ref}:${version_file}" 2>/dev/null; then
+  echo "Protocol compatibility: version contract introduced in this change."
+  exit 0
+fi
+
+mapfile -t changed_schemas < <(
+  git diff --name-only "${base_ref}...HEAD" -- \
+    'packages/schemas/*.schema.json'
+)
+
+if (( ${#changed_schemas[@]} == 0 )); then
+  echo "Protocol compatibility: normative schemas unchanged."
+  exit 0
+fi
+
+base_versions="$(git show "${base_ref}:${version_file}" | jq -cS .)"
+current_versions="$(jq -cS . "$version_file")"
+
+if [[ "$base_versions" == "$current_versions" ]]; then
+  printf 'Normative schema changed without a protocol/schema version bump:\n' >&2
+  printf '  %s\n' "${changed_schemas[@]}" >&2
+  exit 1
+fi
+
+echo "Protocol compatibility: normative change carries an explicit version bump."
