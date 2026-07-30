@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chitaozinho.dev/schemas/0.1.0/chain-record.schema.json",
+  "title": "Chitaozinho signed chain record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["entry", "entry_hash", "signature_hex"],
+  "properties": {
+    "entry": { "$ref": "entry.schema.json" },
+    "entry_hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "signature_hex": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{128}$"
+    }
+  }
+}

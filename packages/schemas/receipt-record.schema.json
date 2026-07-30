@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chitaozinho.dev/schemas/0.1.0/receipt-record.schema.json",
+  "title": "Chitaozinho signed receipt record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["receipt", "receipt_hash", "signature_hex"],
+  "properties": {
+    "receipt": { "$ref": "receipt.schema.json" },
+    "receipt_hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "signature_hex": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{128}$"
+    }
+  }
+}

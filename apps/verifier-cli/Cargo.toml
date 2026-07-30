@@ -12,5 +12,14 @@ path = "src/main.rs"
 [dependencies]
 anyhow.workspace = true
 chitaozinho-protocol = { path = "../../packages/protocol-rs" }
+chrono.workspace = true
 clap.workspace = true
+ed25519-dalek.workspace = true
+hex.workspace = true
+mime_guess.workspace = true
+serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+walkdir.workspace = true
+zip.workspace = true

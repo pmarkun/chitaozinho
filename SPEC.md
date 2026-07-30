@@ -833,6 +833,11 @@ chitaozinho-evidence-<session_id>.zip
 ├── reports/
 │   └── verification.html
 └── schema/
+    ├── entry.schema.json
+    ├── chain-record.schema.json
+    ├── receipt.schema.json
+    ├── receipt-record.schema.json
+    ├── capture-close.schema.json
     ├── manifest.schema.json
     ├── attestation.schema.json
     ├── package-index.schema.json

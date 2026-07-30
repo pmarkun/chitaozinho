@@ -72,7 +72,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [ ] Base64URL, hexadecimal, RFC 3339 e tempo monotônico normalizados.
 - [x] Prefixos de domínio de todas as assinaturas documentados.
 - [ ] Sequência global, entrada gênese e mudança de `client_clock_id` implementadas.
-- [ ] `part_hash`, `artifact_hash`, `entry_hash`, `receipt_hash` e `session_root` implementados conforme a SPEC.
+- [x] `part_hash`, `artifact_hash`, `entry_hash`, `receipt_hash` e `session_root` implementados conforme a SPEC.
 
 ### Vetores de teste
 
@@ -85,17 +85,17 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ### Empacotador e verificador
 
-- [ ] Empacotador preserva os arquivos originais.
-- [ ] `package-index.json` cobre todos os membros aplicáveis.
-- [ ] Assinaturas do cliente, servidor e índice são incluídas corretamente.
-- [ ] Hash externo do ZIP é gerado sem autorreferência.
-- [ ] CLI verifica pacote sem backend e sem autenticação.
-- [ ] CLI recalcula todos os hashes e cadeias.
-- [ ] CLI informa erro localizado e código de saída não zero.
+- [x] Empacotador preserva os arquivos originais.
+- [x] `package-index.json` cobre todos os membros aplicáveis.
+- [x] Assinaturas do cliente, servidor e índice são incluídas corretamente.
+- [x] Hash externo do ZIP é gerado sem autorreferência.
+- [x] CLI verifica pacote sem backend e sem autenticação.
+- [x] CLI recalcula todos os hashes e cadeias.
+- [x] CLI informa erro localizado e código de saída não zero.
 - [ ] Relatório diferencia integridade, completude e prova temporal.
-- [ ] Verificador rejeita path traversal, links simbólicos e nomes duplicados.
-- [ ] Verificador limita quantidade, tamanho, expansão, profundidade e memória.
-- [ ] Verificador rejeita schema e algoritmo desconhecidos de forma segura.
+- [x] Verificador rejeita path traversal, links simbólicos e nomes duplicados.
+- [x] Verificador limita quantidade, tamanho, expansão, profundidade e memória.
+- [x] Verificador rejeita schema e algoritmo desconhecidos de forma segura.
 
 ## 3. Fase 1 — POC funcional
 
