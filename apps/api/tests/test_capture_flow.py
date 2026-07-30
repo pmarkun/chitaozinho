@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from chitaozinho_api.config import Settings
 from chitaozinho_api.main import create_app
-from chitaozinho_api.models import Incident
+from chitaozinho_api.models import Incident, TimestampAttempt
 from chitaozinho_protocol import (
     DOMAINS,
     base64url_encode,
@@ -32,6 +32,7 @@ def client(tmp_path: Path) -> TestClient:
     settings = Settings(
         database_url=f"sqlite:///{tmp_path / 'api.db'}",
         storage_path=tmp_path / "artifacts",
+        proofs_path=tmp_path / "proofs",
         server_key_id="server-test",
         server_seed_hex=SERVER_SEED.hex(),
     )
@@ -192,7 +193,6 @@ def test_session_event_part_finalize_and_idempotency(
         bytes.fromhex(receipt["receipt_signature_hex"]),
         public_key(SERVER_SEED),
     )
-
     replayed_part = client.put(
         f"/v1/sessions/{session_id}/artifacts/recording/parts/0",
         headers=headers,
@@ -324,6 +324,62 @@ def test_session_event_part_finalize_and_idempotency(
     assert replayed_finalize.status_code == 200
     assert replayed_finalize.json() == result
 
+    timestamped = client.post(f"/v1/sessions/{session_id}/timestamp")
+    assert timestamped.status_code == 200
+    timestamp_attestation = timestamped.json()
+    assert timestamp_attestation["document"]["manifest_hash"] == result["manifest_hash"]
+    assert timestamp_attestation["document"]["timestamp_status"] == "pending"
+    assert verify_canonical(
+        DOMAINS["attestation"],
+        timestamp_attestation["document"],
+        bytes.fromhex(timestamp_attestation["signature_hex"]),
+        public_key(SERVER_SEED),
+    )
+    retried_timestamp = client.post(f"/v1/sessions/{session_id}/timestamp")
+    assert retried_timestamp.status_code == 200
+    with client.app.state.session_factory() as database:
+        attempts = list(
+            database.scalars(
+                select(TimestampAttempt)
+                .where(TimestampAttempt.session_id == session_id)
+                .order_by(TimestampAttempt.attempt_number)
+            )
+        )
+        assert [attempt.attempt_number for attempt in attempts] == [1, 2]
+        assert {attempt.manifest_hash for attempt in attempts} == {
+            result["manifest_hash"]
+        }
+
+    batch = client.post(
+        "/v1/merkle-batches",
+        json={"session_ids": [session_id], "submit_ots": False},
+    )
+    assert batch.status_code == 201
+    assert batch.json()["status"] == "not_submitted"
+
+    attestations = client.get(f"/v1/sessions/{session_id}/attestations")
+    assert attestations.status_code == 200
+    documents = attestations.json()
+    assert len(documents) == 3
+    assert (
+        documents[2]["document"]["previous_attestation_hash"]
+        == documents[1]["document_hash"]
+    )
+    attestation_schema = json.loads(
+        (SCHEMA_DIR / "attestation.schema.json").read_text()
+    )
+    for attestation in documents:
+        Draft202012Validator(
+            attestation_schema,
+            format_checker=FormatChecker(),
+        ).validate(attestation["document"])
+        assert verify_canonical(
+            DOMAINS["attestation"],
+            attestation["document"],
+            bytes.fromhex(attestation["signature_hex"]),
+            public_key(SERVER_SEED),
+        )
+
     package = client.get(f"/v1/sessions/{session_id}/package")
     assert package.status_code == 200
     assert package.headers["content-type"] == "application/zip"
@@ -356,6 +412,8 @@ def test_session_event_part_finalize_and_idempotency(
     assert current.json()["capture_status"] == "complete"
     assert current.json()["manifest_hash"] == result["manifest_hash"]
     assert current.json()["package_status"] == "available"
+    assert current.json()["timestamp_status"] == "pending"
+    assert current.json()["blockchain_status"] == "not_submitted"
 
 
 def test_artifact_identifier_cannot_escape_storage(client: TestClient) -> None:

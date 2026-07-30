@@ -25,16 +25,29 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from .config import Settings
 from .database import create_database_engine, session_dependency
-from .models import Artifact, ArtifactPart, Base, CaptureSession, ChainEntry, Incident, Receipt
+from .models import (
+    Artifact,
+    ArtifactPart,
+    Attestation,
+    Base,
+    CaptureSession,
+    ChainEntry,
+    Incident,
+    Receipt,
+)
 from .packaging import ensure_package
+from .proof_service import create_merkle_batch, timestamp_capture
 from .schemas import (
     ArtifactCompleteRequest,
     ArtifactCompleteResponse,
+    AttestationResponse,
     CreateSessionResponse,
     EntryRequest,
     EntryResponse,
     FinalizeRequest,
     FinalizeResponse,
+    MerkleBatchRequest,
+    MerkleBatchResponse,
     PartResponse,
     RegisterKeyRequest,
     SessionStatusResponse,
@@ -598,6 +611,75 @@ def create_app(
             headers={"X-Package-SHA256": package_hash},
         )
 
+    @app.post(
+        "/v1/sessions/{session_id}/timestamp",
+        response_model=AttestationResponse,
+    )
+    def timestamp_session(
+        session_id: str,
+        database: Session = Depends(get_session),
+    ) -> AttestationResponse:
+        active_signer = require_signer(signer)
+        capture_session = require_capture_session(database, session_id)
+        if capture_session.manifest is None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "session must be finalized before timestamping",
+            )
+        attestation = timestamp_capture(
+            database,
+            settings,
+            active_signer,
+            capture_session,
+        )
+        return attestation_response(attestation)
+
+    @app.post(
+        "/v1/merkle-batches",
+        response_model=MerkleBatchResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def create_batch(
+        body: MerkleBatchRequest,
+        database: Session = Depends(get_session),
+    ) -> MerkleBatchResponse:
+        active_signer = require_signer(signer)
+        try:
+            batch = create_merkle_batch(
+                database,
+                settings,
+                active_signer,
+                body.session_ids,
+                submit_ots=body.submit_ots,
+            )
+        except ValueError as error:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                str(error),
+            ) from error
+        return MerkleBatchResponse(
+            batch_id=batch.id,
+            root_hash=batch.root_hash,
+            status=batch.status,
+            session_count=len(body.session_ids),
+        )
+
+    @app.get(
+        "/v1/sessions/{session_id}/attestations",
+        response_model=list[AttestationResponse],
+    )
+    def get_attestations(
+        session_id: str,
+        database: Session = Depends(get_session),
+    ) -> list[AttestationResponse]:
+        require_capture_session(database, session_id)
+        attestations = database.scalars(
+            select(Attestation)
+            .where(Attestation.session_id == session_id)
+            .order_by(Attestation.sequence)
+        )
+        return [attestation_response(value) for value in attestations]
+
     @app.get(
         "/v1/sessions/{session_id}",
         response_model=SessionStatusResponse,
@@ -611,10 +693,10 @@ def create_app(
         return SessionStatusResponse(
             session_id=session_id,
             capture_status=capture_session.status,
-            package_status="available" if package_available else "not_generated",
-            timestamp_status="not_requested",
-            blockchain_status="not_submitted",
-            storage_status="staging",
+            package_status="available" if package_available else capture_session.package_status,
+            timestamp_status=capture_session.timestamp_status,
+            blockchain_status=capture_session.blockchain_status,
+            storage_status=capture_session.storage_status,
             next_sequence=capture_session.next_sequence,
             manifest_hash=capture_session.manifest_hash,
         )
@@ -1017,6 +1099,14 @@ def finalize_response(capture_session: CaptureSession) -> FinalizeResponse:
         manifest_signature_hex=capture_session.manifest_signature_hex or "",
         server_key_id=capture_session.server_key_id or "",
         manifest=capture_session.manifest or {},
+    )
+
+
+def attestation_response(attestation: Attestation) -> AttestationResponse:
+    return AttestationResponse(
+        document=attestation.document,
+        document_hash=attestation.document_hash,
+        signature_hex=attestation.signature_hex,
     )
 
 

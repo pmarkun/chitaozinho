@@ -86,6 +86,24 @@ class FinalizeResponse(StrictModel):
     manifest: dict[str, Any]
 
 
+class MerkleBatchRequest(StrictModel):
+    session_ids: list[str] = Field(min_length=1, max_length=100)
+    submit_ots: bool = False
+
+
+class MerkleBatchResponse(StrictModel):
+    batch_id: str
+    root_hash: str
+    status: str
+    session_count: int
+
+
+class AttestationResponse(StrictModel):
+    document: dict[str, Any]
+    document_hash: str
+    signature_hex: str
+
+
 class SessionStatusResponse(StrictModel):
     session_id: str
     capture_status: str

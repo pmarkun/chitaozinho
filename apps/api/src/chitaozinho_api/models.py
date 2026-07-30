@@ -38,6 +38,16 @@ class CaptureSession(Base):
     manifest_signature_hex: Mapped[str | None] = mapped_column(String(128))
     server_key_id: Mapped[str | None] = mapped_column(String(128))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    package_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="not_generated"
+    )
+    timestamp_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="not_requested"
+    )
+    blockchain_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="not_submitted"
+    )
+    storage_status: Mapped[str] = mapped_column(String(32), nullable=False, default="staging")
 
 
 class ChainEntry(Base):
@@ -133,4 +143,69 @@ class Incident(Base):
     )
     kind: Mapped[str] = mapped_column(String(64), nullable=False)
     details: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class TimestampAttempt(Base):
+    __tablename__ = "timestamp_attempts"
+    __table_args__ = (UniqueConstraint("session_id", "attempt_number"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("capture_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    manifest_hash: Mapped[str] = mapped_column(String(71), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    query_path: Mapped[str] = mapped_column(Text, nullable=False)
+    response_path: Mapped[str | None] = mapped_column(Text)
+    chain_path: Mapped[str | None] = mapped_column(Text)
+    gen_time: Mapped[str | None] = mapped_column(String(128))
+    policy: Mapped[str | None] = mapped_column(String(256))
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class MerkleBatch(Base):
+    __tablename__ = "merkle_batches"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    root_hash: Mapped[str] = mapped_column(String(71), nullable=False, unique=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    root_path: Mapped[str] = mapped_column(Text, nullable=False)
+    ots_proof_path: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class MerkleMembership(Base):
+    __tablename__ = "merkle_memberships"
+    __table_args__ = (UniqueConstraint("batch_id", "session_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    batch_id: Mapped[str] = mapped_column(
+        ForeignKey("merkle_batches.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("capture_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    proof_path: Mapped[str] = mapped_column(Text, nullable=False)
+    proof: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+
+class Attestation(Base):
+    __tablename__ = "attestations"
+    __table_args__ = (
+        UniqueConstraint("session_id", "sequence"),
+        UniqueConstraint("document_hash"),
+    )
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("capture_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    previous_attestation_hash: Mapped[str | None] = mapped_column(String(71))
+    document: Mapped[dict] = mapped_column(JSON, nullable=False)
+    document_hash: Mapped[str] = mapped_column(String(71), nullable=False)
+    signature_hex: Mapped[str] = mapped_column(String(128), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

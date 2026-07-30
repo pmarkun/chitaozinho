@@ -166,16 +166,16 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Requisição usa o hash do manifesto assinado.
 - [ ] `.tsq`, `.tsr`, certificado, cadeia e política são preservados.
 - [ ] `genTime`, cadeia, validade e revogação são verificados.
-- [ ] Falha da TSA muda apenas `timestamp_status`.
-- [ ] Retry usa exatamente o mesmo hash e registra cada tentativa.
-- [ ] Attestation referencia o manifesto sem modificá-lo.
+- [x] Falha da TSA muda apenas `timestamp_status`.
+- [x] Retry usa exatamente o mesmo hash e registra cada tentativa.
+- [x] Attestation referencia o manifesto sem modificá-lo.
 
 ### Merkle e OpenTimestamps
 
 - [x] Sessões são agregadas sem publicar identificadores reversíveis.
 - [x] Prova individual de inclusão Merkle é gerada.
-- [ ] Apenas a raiz agregada é submetida.
-- [ ] Prova `.ots` inicial é preservada.
+- [x] Apenas a raiz agregada é submetida.
+- [x] Prova `.ots` inicial é preservada.
 - [ ] Confirmação posterior gera novo complemento append-only.
 - [ ] Verificador distingue pendente, confirmado e inválido.
 

@@ -72,6 +72,8 @@ def ensure_package(
         hash_content = f"{package_hash}  {target.name}\n"
         write_once(hash_target, hash_content.encode("ascii"))
         fsync_directory(target.parent)
+        capture_session.package_status = "available"
+        database.commit()
         return target, package_hash
     finally:
         temporary.unlink(missing_ok=True)

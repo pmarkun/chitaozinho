@@ -9,6 +9,7 @@ from chitaozinho_api.proofs import (
     MerkleStep,
     build_merkle_proofs,
     create_rfc3161_query,
+    parse_openssl_time,
     verify_merkle_proof,
 )
 
@@ -54,3 +55,7 @@ def test_merkle_proof_detects_tampering() -> None:
         steps=(MerkleStep("right", "ff" * 32),),
     )
     assert not verify_merkle_proof(tampered)
+
+
+def test_openssl_timestamp_is_normalized_to_rfc3339() -> None:
+    assert parse_openssl_time("Jul 30 19:43:49 2026 GMT") == "2026-07-30T19:43:49Z"

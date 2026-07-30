@@ -12,6 +12,12 @@ CHITAOZINHO_SERVER_SEED_HEX="$(openssl rand -hex 32)" \
   uv run uvicorn chitaozinho_api.main:app --reload
 ```
 
+Apply database migrations before starting a new environment:
+
+```sh
+uv run alembic upgrade head
+```
+
 The opt-in persistence smoke test is:
 
 ```sh

@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import urllib.request
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
 
@@ -85,10 +86,43 @@ def verify_rfc3161_response(
         ["openssl", "ts", "-reply", "-in", str(response), "-text"]
     ).stdout
     return {
-        "gen_time": extract_field(text, "Time stamp"),
+        "gen_time": parse_openssl_time(extract_field(text, "Time stamp")),
         "policy": extract_field(text, "Policy OID"),
         "serial": extract_field(text, "Serial number"),
     }
+
+
+def extract_rfc3161_chain(response: Path, output: Path) -> None:
+    token = response.with_suffix(".token.der")
+    try:
+        run_checked(
+            [
+                "openssl",
+                "ts",
+                "-reply",
+                "-in",
+                str(response),
+                "-token_out",
+                "-out",
+                str(token),
+            ]
+        )
+        output.parent.mkdir(parents=True, exist_ok=True)
+        run_checked(
+            [
+                "openssl",
+                "pkcs7",
+                "-inform",
+                "DER",
+                "-in",
+                str(token),
+                "-print_certs",
+                "-out",
+                str(output),
+            ]
+        )
+    finally:
+        token.unlink(missing_ok=True)
 
 
 @dataclass(frozen=True)
@@ -226,6 +260,11 @@ def extract_field(text: str, label: str) -> str:
     if match is None:
         raise ValueError(f"RFC 3161 response is missing {label}")
     return match.group(1).strip()
+
+
+def parse_openssl_time(value: str) -> str:
+    parsed = datetime.strptime(value, "%b %d %H:%M:%S %Y GMT").replace(tzinfo=UTC)
+    return parsed.isoformat().replace("+00:00", "Z")
 
 
 def run_checked(command: list[str]) -> subprocess.CompletedProcess[str]:

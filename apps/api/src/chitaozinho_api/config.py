@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///data/chitaozinho.db"
     storage_backend: str = "local"
     storage_path: Path = Path("data/artifacts")
+    proofs_path: Path = Path("data/proofs")
     s3_endpoint_url: str | None = None
     s3_region: str = "garage"
     s3_bucket: str = "chitaozinho"
@@ -35,6 +36,7 @@ class Settings(BaseSettings):
     tsa_url: str | None = None
     tsa_ca_bundle: Path | None = None
     tsa_untrusted_chain: Path | None = None
+    tsa_crl_bundle: Path | None = None
     ots_calendars: str = (
         "https://alice.btc.calendar.opentimestamps.org,"
         "https://bob.btc.calendar.opentimestamps.org"
