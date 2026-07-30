@@ -23,6 +23,7 @@ export interface SessionRecord {
   uploadedParts: number;
   durationMs: number;
   recordingActive: boolean;
+  captureFinished: boolean;
   artifacts: ArtifactSummary[];
   packageHash?: string;
   error?: string;

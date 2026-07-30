@@ -14,6 +14,7 @@ interface PublicState {
   packageHash?: string;
   error?: string;
   unavailableArtifacts: number;
+  captureFinished: boolean;
 }
 
 function App() {
@@ -192,12 +193,21 @@ function App() {
               </button>
             </div>
           )}
-          {["interrupted", "error"].includes(capture.status) && (
+          {["interrupted", "error"].includes(capture.status) &&
+            !capture.captureFinished && (
+              <button
+                disabled={busy}
+                onClick={() => void act({ type: "RESUME_CAPTURE" })}
+              >
+                Retomar nesta aba
+              </button>
+            )}
+          {capture.status === "error" && capture.captureFinished && (
             <button
               disabled={busy}
-              onClick={() => void act({ type: "RESUME_CAPTURE" })}
+              onClick={() => void act({ type: "STOP_CAPTURE" })}
             >
-              Retomar nesta aba
+              Tentar finalizar novamente
             </button>
           )}
           {capture.status === "complete" && (

@@ -3,6 +3,8 @@ import type { ExtensionMessage } from "./types";
 let recorder: MediaRecorder | undefined;
 let stream: MediaStream | undefined;
 let sessionId: string | undefined;
+const pendingChunks = new Set<Promise<void>>();
+let chunkError: unknown;
 
 chrome.runtime.onMessage.addListener(
   (
@@ -37,6 +39,7 @@ async function startRecording(
   if (recorder?.state === "recording") {
     throw new Error("recorder is already active");
   }
+  chunkError = undefined;
   sessionId = captureSessionId;
   stream = await navigator.mediaDevices.getUserMedia({
     audio: {
@@ -58,7 +61,15 @@ async function startRecording(
   });
   recorder.addEventListener("dataavailable", (event) => {
     if (event.data.size > 0 && sessionId) {
-      void sendChunk(event.data, sessionId);
+      const pending = sendChunk(event.data, sessionId);
+      pendingChunks.add(pending);
+      void pending.then(
+        () => pendingChunks.delete(pending),
+        (error: unknown) => {
+          chunkError = error;
+          pendingChunks.delete(pending);
+        },
+      );
     }
   });
   recorder.start(4_000);
@@ -74,6 +85,9 @@ async function sendChunk(blob: Blob, captureSessionId: string): Promise<void> {
   } satisfies ExtensionMessage);
   if (!response?.ok && recorder?.state === "recording") {
     recorder.stop();
+  }
+  if (!response?.ok) {
+    throw new Error(String(response?.error ?? "recorder chunk upload failed"));
   }
 }
 
@@ -94,6 +108,10 @@ async function stopRecording(): Promise<void> {
     );
     recorder?.stop();
   });
+  await Promise.all([...pendingChunks]);
+  if (chunkError) {
+    throw chunkError;
+  }
 }
 
 function preferredMimeType(): string {

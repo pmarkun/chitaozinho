@@ -25,6 +25,7 @@ const session: SessionRecord = {
   uploadedParts: 0,
   durationMs: 0,
   recordingActive: false,
+  captureFinished: false,
   artifacts: [],
 };
 

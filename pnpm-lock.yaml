@@ -13,6 +13,9 @@ importers:
       '@chitaozinho/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol-ts
+      '@noble/hashes':
+        specifier: 2.2.0
+        version: 2.2.0
       idb:
         specifier: ^8.0.3
         version: 8.0.3

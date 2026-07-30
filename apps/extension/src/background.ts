@@ -26,6 +26,7 @@ import {
   saveSession,
   sessionParts,
 } from "./db";
+import { incrementalSha256Identifier, totalByteLength } from "./hash";
 import type { ExtensionMessage, PartRecord, SessionRecord } from "./types";
 
 let operationQueue = Promise.resolve<unknown>(undefined);
@@ -36,16 +37,23 @@ chrome.runtime.onMessage.addListener(
     _sender,
     sendResponse: (value?: unknown) => void,
   ) => {
+    if (message.type === "RECORDER_START" || message.type === "RECORDER_STOP") {
+      return false;
+    }
+    if (message.type === "STOP_CAPTURE") {
+      void stopRecorderAndFinalize()
+        .then((result) => sendResponse({ ok: true, result }))
+        .catch(async (error: unknown) => {
+          await recordOperationError(error);
+          sendResponse({ ok: false, error: String(error) });
+        });
+      return true;
+    }
     operationQueue = operationQueue
       .then(() => handleMessage(message))
       .then((result) => sendResponse({ ok: true, result }))
       .catch(async (error: unknown) => {
-        const session = await currentSession();
-        if (session && session.status !== "finalizing") {
-          session.status = "error";
-          session.error = String(error);
-          await saveSession(session);
-        }
+        await recordOperationError(error);
         sendResponse({ ok: false, error: String(error) });
       });
     return true;
@@ -98,8 +106,6 @@ async function handleMessage(message: ExtensionMessage): Promise<unknown> {
         throw new Error("invalid recorder chunk");
       await persistAndUploadPart(message.sessionId, "recording", message.bytes);
       return undefined;
-    case "STOP_CAPTURE":
-      return publicState(await stopCapture());
     case "ADD_MARKER": {
       const session = requireActive(await currentSession());
       await appendEvent(session, "marker", { note: message.note ?? "" });
@@ -117,6 +123,39 @@ async function handleMessage(message: ExtensionMessage): Promise<unknown> {
     }
     default:
       return undefined;
+  }
+}
+
+async function stopRecorderAndFinalize(): Promise<Record<
+  string,
+  unknown
+> | null> {
+  const session = requireActive(await currentSession());
+  const recordingWasActive = session.recordingActive;
+  if (recordingWasActive) {
+    const stopped = await chrome.runtime.sendMessage({
+      type: "RECORDER_STOP",
+    } satisfies ExtensionMessage);
+    if (!stopped?.ok) {
+      throw new Error(String(stopped?.error ?? "recorder did not stop"));
+    }
+  }
+  const finalization = operationQueue.then(async () => {
+    const current = requireActive(await currentSession());
+    current.recordingActive = false;
+    await saveSession(current);
+    return publicState(await stopCapture(recordingWasActive));
+  });
+  operationQueue = finalization.catch(() => undefined);
+  return finalization;
+}
+
+async function recordOperationError(error: unknown): Promise<void> {
+  const session = await currentSession();
+  if (session && session.status !== "complete") {
+    session.status = "error";
+    session.error = String(error);
+    await saveSession(session);
   }
 }
 
@@ -165,6 +204,7 @@ async function startCapture(): Promise<SessionRecord> {
     uploadedParts: 0,
     durationMs: 0,
     recordingActive: false,
+    captureFinished: false,
     artifacts: [],
   };
   await saveSession(session);
@@ -431,8 +471,9 @@ async function completeStoredArtifact(
   if (!parts.length || parts.some((part) => part.state !== "uploaded")) {
     throw new Error(`artifact ${artifactId} has pending parts`);
   }
-  const combined = concatenate(parts.map((part) => new Uint8Array(part.bytes)));
-  const artifactHash = sha256Identifier(combined);
+  const partBytes = parts.map((part) => part.bytes);
+  const artifactHash = incrementalSha256Identifier(partBytes);
+  const artifactSize = totalByteLength(partBytes);
   const entry = nextEntry(session, "artifact_completed", {
     artifact_id: artifactId,
     artifact_hash: artifactHash,
@@ -441,7 +482,7 @@ async function completeStoredArtifact(
   await completeArtifact(sessionId, artifactId, {
     entry: signed,
     part_count: parts.length,
-    size: combined.byteLength,
+    size: artifactSize,
     artifact_hash: artifactHash,
     path,
     media_type: mediaType,
@@ -452,35 +493,58 @@ async function completeStoredArtifact(
   session.artifacts.push({
     artifact_id: artifactId,
     path,
-    size: combined.byteLength,
+    size: artifactSize,
     status: "captured",
     artifact_hash: artifactHash,
   });
   await saveSession(session);
 }
 
-async function stopCapture(): Promise<SessionRecord> {
+async function stopCapture(
+  recordingWasActive: boolean,
+): Promise<SessionRecord> {
   let session = requireActive(await currentSession());
   session.status = "finalizing";
+  session.error = undefined;
   await saveSession(session);
-  if (session.recordingActive) {
-    const stopped = await chrome.runtime.sendMessage({
-      type: "RECORDER_STOP",
-    } satisfies ExtensionMessage);
-    if (stopped?.error) throw new Error(String(stopped.error));
+  const hasRecordingResult = session.artifacts.some(
+    (artifact) => artifact.artifact_id === "recording",
+  );
+  const recordingParts = (await sessionParts(session.id)).filter(
+    (part) => part.artifactId === "recording",
+  );
+  if (
+    !hasRecordingResult &&
+    (recordingWasActive || recordingParts.length > 0)
+  ) {
     session = requireActive(await getSession(session.id));
-    await completeStoredArtifact(
-      session.id,
-      "recording",
-      "capture/recording.webm",
-      "video/webm",
-      "MediaRecorder",
-    );
+    if (recordingParts.length > 0) {
+      await completeStoredArtifact(
+        session.id,
+        "recording",
+        "capture/recording.webm",
+        "video/webm",
+        "MediaRecorder",
+      );
+    } else {
+      await declareUnavailable(
+        session.id,
+        "recording",
+        "capture/recording.webm",
+        "video/webm",
+        "MediaRecorder",
+        "tab recording produced no data",
+      );
+    }
   }
   session = requireActive(await getSession(session.id));
-  session = await appendEvent(session, "capture_finished", {
-    duration_ms: Date.now() - new Date(session.startedAt).getTime(),
-  });
+  if (!session.captureFinished) {
+    session = await appendEvent(session, "capture_finished", {
+      duration_ms: Date.now() - new Date(session.startedAt).getTime(),
+    });
+    session.captureFinished = true;
+    await saveSession(session);
+  }
   const captureClose = {
     protocol_version: "0.1.0",
     session_id: session.id,
@@ -622,20 +686,9 @@ function publicState(
         : session.durationMs,
     packageHash: session.packageHash,
     error: session.error,
+    captureFinished: session.captureFinished,
     unavailableArtifacts: session.artifacts.filter(
       (artifact) => artifact.status !== "captured",
     ).length,
   };
-}
-
-function concatenate(parts: Uint8Array[]): Uint8Array {
-  const result = new Uint8Array(
-    parts.reduce((total, part) => total + part.length, 0),
-  );
-  let offset = 0;
-  for (const part of parts) {
-    result.set(part, offset);
-    offset += part.length;
-  }
-  return result;
 }

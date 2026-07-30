@@ -7,3 +7,6 @@
 - Major updates are isolated in their own conventional commit.
 - Dependencies with abandoned upstreams or known unpatched critical
   vulnerabilities are not permitted.
+
+`@noble/hashes` is pinned for incremental SHA-256 in the extension so a long
+recording is finalized without concatenating the full WebM in memory.
