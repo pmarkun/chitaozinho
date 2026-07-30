@@ -1024,6 +1024,42 @@ def create_app(
             },
         )
 
+    @app.get("/v1/sessions/{session_id}/package.sha256")
+    def download_package_hash(
+        session_id: str,
+        database: Session = Depends(get_session),
+    ) -> FileResponse:
+        active_signer = require_signer(signer)
+        capture_session = require_capture_session(database, session_id)
+        if capture_session.manifest is None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "session must be finalized before packaging",
+            )
+        try:
+            package_path, package_hash, storage_status = ensure_package(
+                database,
+                settings,
+                storage,
+                active_signer,
+                capture_session,
+            )
+        except (OSError, ValueError) as error:
+            raise HTTPException(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                "package generation failed",
+            ) from error
+        hash_path = package_path.with_suffix(".zip.sha256")
+        return FileResponse(
+            hash_path,
+            media_type="text/plain",
+            filename=f"chitaozinho-{session_id}.zip.sha256",
+            headers={
+                "X-Package-SHA256": package_hash,
+                "X-Storage-Status": storage_status,
+            },
+        )
+
     @app.post(
         "/v1/sessions/{session_id}/timestamp",
         response_model=AttestationResponse,

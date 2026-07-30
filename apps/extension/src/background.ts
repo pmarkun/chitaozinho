@@ -11,6 +11,7 @@ import {
   createSession,
   declareArtifactUnavailable,
   finalizeSession,
+  packageHashUrl,
   packageUrl,
   registerKey,
   sendEvent,
@@ -582,6 +583,11 @@ async function stopCapture(
     url: packageUrl(session.id),
     filename: `chitaozinho-${session.id}.zip`,
     saveAs: true,
+  });
+  await chrome.downloads.download({
+    url: packageHashUrl(session.id),
+    filename: `chitaozinho-${session.id}.zip.sha256`,
+    saveAs: false,
   });
   return session;
 }

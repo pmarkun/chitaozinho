@@ -483,6 +483,15 @@ def test_session_event_part_finalize_and_idempotency(
     assert package.status_code == 200
     assert package.headers["content-type"] == "application/zip"
     assert package.headers["X-Storage-Status"] == "stored"
+    package_hash = client.get(f"/v1/sessions/{session_id}/package.sha256")
+    assert package_hash.status_code == 200
+    assert package_hash.headers["content-type"].startswith("text/plain")
+    assert (
+        package_hash.headers["X-Package-SHA256"] == package.headers["X-Package-SHA256"]
+    )
+    assert package_hash.text == (
+        f"{package.headers['X-Package-SHA256']}  chitaozinho-{session_id}.zip\n"
+    )
     package_path = tmp_path / "capture.zip"
     package_path.write_bytes(package.content)
     verified = subprocess.run(

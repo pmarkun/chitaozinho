@@ -83,7 +83,7 @@ def ensure_package(
         with suppress(FileExistsError):
             os.link(temporary, target)
         package_hash = hash_path(target)
-        hash_content = f"{package_hash}  {target.name}\n"
+        hash_content = f"{package_hash}  chitaozinho-{capture_session.id}.zip\n"
         write_once(hash_target, hash_content.encode("ascii"))
         fsync_directory(target.parent)
         capture_session.package_status = "available"

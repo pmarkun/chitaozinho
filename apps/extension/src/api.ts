@@ -147,6 +147,10 @@ export function packageUrl(sessionId: string): string {
   return `${API_BASE_URL}/v1/sessions/${sessionId}/package`;
 }
 
+export function packageHashUrl(sessionId: string): string {
+  return `${API_BASE_URL}/v1/sessions/${sessionId}/package.sha256`;
+}
+
 export async function authStatus(): Promise<boolean> {
   const response = await checked(
     await apiFetch(`${API_BASE_URL}/v1/auth/session`),
