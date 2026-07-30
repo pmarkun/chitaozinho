@@ -8,6 +8,7 @@ export type MessageKey =
   | "blockchain"
   | "captureComplete"
   | "captureConsent"
+  | "calculatedHash"
   | "connection"
   | "discardCapture"
   | "discardCaptureConfirmation"
@@ -22,6 +23,7 @@ export type MessageKey =
   | "invalid"
   | "language"
   | "legalDisclaimer"
+  | "loading"
   | "locked"
   | "loginBody"
   | "loginTitle"
@@ -69,6 +71,7 @@ export type MessageKey =
   | "verifyPackage"
   | "verifyPackageBody"
   | "version"
+  | "working"
   | "localDevelopment";
 
 export function t(key: MessageKey): string {

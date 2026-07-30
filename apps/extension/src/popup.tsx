@@ -44,6 +44,10 @@ function App() {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    document.querySelector<HTMLElement>("[data-view-heading]")?.focus();
+  }, [authenticated, screen, capture?.id, capture?.status]);
+
   async function refresh() {
     const hasSession = await authStatus().catch(() => false);
     setAuthenticated(hasSession);
@@ -120,7 +124,7 @@ function App() {
 
   const recording = capture?.status === "recording";
   return (
-    <main>
+    <main aria-busy={busy}>
       <header>
         <span className="brand-mark" aria-hidden="true">
           C
@@ -133,7 +137,9 @@ function App() {
 
       {authenticated === false && (
         <section>
-          <h1>{t("loginTitle")}</h1>
+          <h1 data-view-heading tabIndex={-1}>
+            {t("loginTitle")}
+          </h1>
           <p>{t("loginBody")}</p>
           <label>
             {t("emailLabel")}
@@ -157,13 +163,25 @@ function App() {
           >
             {t("sendAccessLink")}
           </button>
-          {linkSent && <p className="success">{t("accessLinkSent")}</p>}
+          {linkSent && (
+            <p className="success" role="status">
+              {t("accessLinkSent")}
+            </p>
+          )}
         </section>
+      )}
+
+      {authenticated === null && (
+        <p role="status" data-view-heading tabIndex={-1}>
+          {t("loading")}
+        </p>
       )}
 
       {authenticated && !capture && screen === "home" && (
         <section>
-          <h1>{t("homeTitle")}</h1>
+          <h1 data-view-heading tabIndex={-1}>
+            {t("homeTitle")}
+          </h1>
           <div className="menu-grid">
             <button onClick={() => setScreen("new")}>{t("newCapture")}</button>
             <button className="secondary" onClick={() => void openCaptures()}>
@@ -182,7 +200,9 @@ function App() {
       {authenticated && !capture && screen === "new" && (
         <section>
           <BackButton onClick={() => setScreen("home")} />
-          <h1>{t("newCaptureTitle")}</h1>
+          <h1 data-view-heading tabIndex={-1}>
+            {t("newCaptureTitle")}
+          </h1>
           <p>{t("newCaptureBody")}</p>
           <p className="notice">{t("sensitiveDataNotice")}</p>
           <label className="consent">
@@ -205,7 +225,9 @@ function App() {
       {authenticated && !capture && screen === "captures" && (
         <section>
           <BackButton onClick={() => setScreen("home")} />
-          <h1>{t("myCaptures")}</h1>
+          <h1 data-view-heading tabIndex={-1}>
+            {t("myCaptures")}
+          </h1>
           {sessions.length === 0 ? (
             <p>{t("noCaptures")}</p>
           ) : (
@@ -238,7 +260,9 @@ function App() {
       {authenticated && !capture && screen === "verify" && (
         <section>
           <BackButton onClick={() => setScreen("home")} />
-          <h1>{t("verifyPackage")}</h1>
+          <h1 data-view-heading tabIndex={-1}>
+            {t("verifyPackage")}
+          </h1>
           <p>{t("verifyPackageBody")}</p>
           <label>
             {t("selectPackage")}
@@ -253,7 +277,13 @@ function App() {
             />
           </label>
           {verificationHash && (
-            <output className="hash-output">{verificationHash}</output>
+            <output
+              className="hash-output"
+              aria-label={t("calculatedHash")}
+              role="status"
+            >
+              {verificationHash}
+            </output>
           )}
           <p className="notice">{t("fullVerificationNotice")}</p>
         </section>
@@ -262,7 +292,9 @@ function App() {
       {authenticated && !capture && screen === "settings" && (
         <section>
           <BackButton onClick={() => setScreen("home")} />
-          <h1>{t("settings")}</h1>
+          <h1 data-view-heading tabIndex={-1}>
+            {t("settings")}
+          </h1>
           <dl>
             <div>
               <dt>{t("language")}</dt>
@@ -283,9 +315,14 @@ function App() {
 
       {authenticated && capture && (
         <section>
-          <div className="status-row">
-            <span className={`dot ${recording ? "recording" : ""}`} />
-            <strong>{statusLabel(capture.status)}</strong>
+          <div className="status-row" role="status" aria-live="polite">
+            <span
+              className={`dot ${recording ? "recording" : ""}`}
+              aria-hidden="true"
+            />
+            <strong data-view-heading tabIndex={-1}>
+              {statusLabel(capture.status)}
+            </strong>
             <time>{formatDuration(capture.durationMs)}</time>
           </div>
           <dl>
@@ -307,7 +344,9 @@ function App() {
             </div>
           </dl>
           {capture.unavailableArtifacts > 0 && (
-            <p className="notice">{t("partialCapture")}</p>
+            <p className="notice" role="status">
+              {t("partialCapture")}
+            </p>
           )}
           {recording && (
             <div className="actions">
@@ -369,7 +408,9 @@ function App() {
             )}
           {capture.status === "complete" && (
             <>
-              <p className="success">{t("captureComplete")}</p>
+              <p className="success" role="status">
+                {t("captureComplete")}
+              </p>
               <dl className="result-list">
                 <Result
                   label={t("integrity")}
@@ -415,6 +456,11 @@ function App() {
       {(error || capture?.error) && (
         <p role="alert" className="error">
           {error ?? capture?.error}
+        </p>
+      )}
+      {busy && (
+        <p className="sr-only" role="status">
+          {t("working")}
         </p>
       )}
       <footer>{t("legalDisclaimer")}</footer>

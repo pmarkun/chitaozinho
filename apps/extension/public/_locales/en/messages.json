@@ -15,6 +15,7 @@
     "message": "Select a ZIP to calculate its SHA-256 locally without uploading the file."
   },
   "selectPackage": { "message": "ZIP package" },
+  "calculatedHash": { "message": "Calculated SHA-256 hash" },
   "fullVerificationNotice": {
     "message": "Complete signature, chain, and receipt validation is performed by the offline verifier included in the project."
   },
@@ -96,5 +97,7 @@
   "statusFinalizing": { "message": "Finalizing" },
   "statusComplete": { "message": "Complete" },
   "statusInterrupted": { "message": "Interrupted" },
-  "statusError": { "message": "Error" }
+  "statusError": { "message": "Error" },
+  "loading": { "message": "Loading…" },
+  "working": { "message": "Working…" }
 }
