@@ -62,12 +62,44 @@ export async function savePart(part: PartRecord): Promise<void> {
   await (await database).put("parts", part);
 }
 
+export async function saveQueuedPart(
+  session: SessionRecord,
+  part: PartRecord,
+): Promise<void> {
+  const transaction = (await database).transaction(
+    ["sessions", "parts"],
+    "readwrite",
+  );
+  await Promise.all([
+    transaction.objectStore("sessions").put(session),
+    transaction.objectStore("parts").put(part),
+  ]);
+  await transaction.done;
+}
+
 export async function sessionParts(sessionId: string): Promise<PartRecord[]> {
   return (await database).getAllFromIndex("parts", "by-session", sessionId);
 }
 
 export async function saveReceipt(receipt: ReceiptRecord): Promise<void> {
   await (await database).put("receipts", receipt);
+}
+
+export async function acknowledgePart(
+  session: SessionRecord,
+  part: PartRecord,
+  receipt: ReceiptRecord,
+): Promise<void> {
+  const transaction = (await database).transaction(
+    ["sessions", "parts", "receipts"],
+    "readwrite",
+  );
+  await Promise.all([
+    transaction.objectStore("sessions").put(session),
+    transaction.objectStore("parts").put(part),
+    transaction.objectStore("receipts").put(receipt),
+  ]);
+  await transaction.done;
 }
 
 export async function sessionReceipts(

@@ -101,6 +101,83 @@ describe("capture database", () => {
     expect(await reopened.sessionReceipts("session-1")).toEqual([receipt]);
   });
 
+  it("atomically queues chain progress and acknowledges a pending part", async () => {
+    const database = await import("./db");
+    const session: SessionRecord = {
+      id: "offline-session",
+      challenge: "challenge",
+      keyId: "key",
+      publicKey: new Uint8Array([1]),
+      privateKey: null,
+      clockId: "clock",
+      clockStartedAt: 1,
+      nextSequence: 2,
+      previousEntryHash: "sha256:second",
+      tabId: 1,
+      windowId: 1,
+      startedAt: "2026-07-30T12:00:00.000Z",
+      status: "error",
+      uploadedParts: 0,
+      durationMs: 0,
+      recordingActive: true,
+      captureFinished: false,
+      artifacts: [],
+    };
+    const entry: ChainEntry = {
+      protocol_version: "0.1.0",
+      entry_type: "artifact_part",
+      session_id: session.id,
+      sequence: 1,
+      previous_entry_hash: "sha256:first",
+      client_clock_id: session.clockId,
+      client_monotonic_time: 1_000,
+      client_wall_time: "2026-07-30T12:00:01.000Z",
+      server_challenge: session.challenge,
+      artifact_id: "recording",
+      part_number: 0,
+      part_hash: "sha256:part",
+    };
+    const part: PartRecord = {
+      id: `${session.id}:recording:0`,
+      sessionId: session.id,
+      artifactId: "recording",
+      partNumber: 0,
+      bytes: new Uint8Array([7, 8, 9]).buffer,
+      hash: "sha256:part",
+      entry,
+      entryHash: "sha256:second",
+      signatureHex: "abcd",
+      state: "pending",
+    };
+
+    await database.saveQueuedPart(session, part);
+    expect(await database.getSession(session.id)).toMatchObject({
+      nextSequence: 2,
+      previousEntryHash: "sha256:second",
+    });
+    expect(await database.sessionParts(session.id)).toEqual([part]);
+
+    const receipt: ReceiptRecord = {
+      id: part.id,
+      sessionId: session.id,
+      artifactId: part.artifactId,
+      partNumber: part.partNumber,
+      receipt: { receipt_id: "receipt-offline" },
+      receiptHash: "sha256:receipt",
+      receiptSignatureHex: "ef01",
+    };
+    part.state = "uploaded";
+    session.uploadedParts = 1;
+    await database.acknowledgePart(session, part, receipt);
+
+    expect((await database.sessionParts(session.id))[0].state).toBe("uploaded");
+    expect(await database.sessionReceipts(session.id)).toEqual([receipt]);
+    expect(await database.getSession(session.id)).toMatchObject({
+      nextSequence: 2,
+      uploadedParts: 1,
+    });
+  });
+
   it("deletes a failed session only after an explicit local discard", async () => {
     const database = await import("./db");
     const session: SessionRecord = {

@@ -21,13 +21,13 @@ import {
 import { artifactObservation } from "./artifact-observation";
 import { advanceSession, nextEntry, signedEntry } from "./chain";
 import {
+  acknowledgePart,
   allSessions,
   currentSession,
   deleteLocalSession,
   getSession,
   latestSession,
-  savePart,
-  saveReceipt,
+  saveQueuedPart,
   saveSession,
   sessionParts,
 } from "./db";
@@ -473,8 +473,12 @@ async function persistAndUploadPart(
   bytes: ArrayBuffer,
 ): Promise<void> {
   const session = requireActive(await getSession(sessionId));
-  const parts = (await sessionParts(sessionId)).filter(
+  const sessionPartRecords = await sessionParts(sessionId);
+  const parts = sessionPartRecords.filter(
     (part) => part.artifactId === artifactId,
+  );
+  const hasPendingPredecessor = sessionPartRecords.some(
+    (part) => part.state === "pending",
   );
   const partNumber = parts.length;
   const hash = sha256Identifier(new Uint8Array(bytes));
@@ -496,16 +500,16 @@ async function persistAndUploadPart(
     signatureHex: signed.signature_hex,
     state: "pending",
   };
-  await savePart(part);
-  await uploadPendingPart(session, part);
+  const advanced = advanceSession(session, part.entryHash);
+  await saveQueuedPart(advanced, part);
+  if (!hasPendingPredecessor) {
+    await uploadPendingPart(part);
+  }
 }
 
-async function uploadPendingPart(
-  session: SessionRecord,
-  part: PartRecord,
-): Promise<void> {
+async function uploadPendingPart(part: PartRecord): Promise<void> {
   const receipt = await uploadPart(
-    session.id,
+    part.sessionId,
     part.artifactId,
     part.partNumber,
     part.bytes,
@@ -515,20 +519,18 @@ async function uploadPendingPart(
       signature_hex: part.signatureHex,
     },
   );
+  const session = requireActive(await getSession(part.sessionId));
   part.state = "uploaded";
-  await savePart(part);
-  await saveReceipt({
+  session.uploadedParts += 1;
+  await acknowledgePart(session, part, {
     id: part.id,
-    sessionId: session.id,
+    sessionId: part.sessionId,
     artifactId: part.artifactId,
     partNumber: part.partNumber,
     receipt,
     receiptHash: String(receipt.receipt_hash),
     receiptSignatureHex: String(receipt.receipt_signature_hex),
   });
-  session = advanceSession(session, part.entryHash);
-  session.uploadedParts += 1;
-  await saveSession(session);
 }
 
 async function retryPendingParts(sessionId: string): Promise<void> {
@@ -536,11 +538,7 @@ async function retryPendingParts(sessionId: string): Promise<void> {
     .filter((part) => part.state === "pending")
     .sort((left, right) => left.entry.sequence - right.entry.sequence);
   for (const part of pending) {
-    const session = requireActive(await getSession(sessionId));
-    if (part.entry.sequence !== session.nextSequence) {
-      throw new Error("pending part is not the next chain entry");
-    }
-    await uploadPendingPart(session, part);
+    await uploadPendingPart(part);
   }
 }
 
