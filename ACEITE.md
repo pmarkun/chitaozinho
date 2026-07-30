@@ -151,7 +151,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 ### Gate da POC funcional
 
 - [x] Captura real de 60 segundos gera vídeo, screenshot e metadados.
-- [ ] Queda e retomada de upload não duplicam partes ou recibos.
+- [x] Queda e retomada de upload não duplicam partes ou recibos.
 - [x] Pacote é baixado e verificado integralmente offline.
 - [x] Alteração de um byte é detectada e localizada.
 - [x] Remoção, duplicação e reordenação de evento são detectadas.
@@ -227,7 +227,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ### Rede e recuperação
 
-- [ ] Queda e retomada de conexão.
+- [x] Queda e retomada de conexão.
 - [x] Duplicação e retry idempotente.
 - [x] Mesma sequência com bytes divergentes.
 - [x] Encerramento com partes ausentes.

@@ -61,3 +61,7 @@ This run proves the short functional flow. It does not satisfy the separate
   immutable artifact result. The client must complete the artifact or declare
   it unavailable or failed, so missing parts cannot be silently omitted from
   `capture_close`.
+- A simulated network failure leaves the recording part, chain position and
+  upload count unchanged in IndexedDB. Retrying with the same signed entry
+  stores one receipt, advances the upload count once and makes subsequent
+  retries no-ops.
