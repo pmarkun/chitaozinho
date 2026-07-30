@@ -5,3 +5,7 @@ output "evidence_bucket_name" {
 output "evidence_bucket_region" {
   value = var.aws_region
 }
+
+output "evidence_kms_key_arn" {
+  value = aws_kms_key.evidence.arn
+}

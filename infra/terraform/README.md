@@ -2,8 +2,9 @@
 
 Declarative resources for Railway integrations and external S3 live here.
 
-The S3 module creates a bucket in `sa-east-1` with versioning and Object Lock
-enabled at creation, default `COMPLIANCE` retention, encryption at rest,
+The S3 module creates a bucket in `sa-east-1` with versioning, Object Lock and
+a dedicated customer-managed KMS key with automatic rotation enabled at
+creation, default `COMPLIANCE` retention, encryption at rest,
 complete public-access blocking, TLS-only access and `prevent_destroy`.
 
 ```sh

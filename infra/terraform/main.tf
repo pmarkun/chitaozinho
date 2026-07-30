@@ -38,12 +38,34 @@ resource "aws_s3_bucket_object_lock_configuration" "evidence" {
   depends_on = [aws_s3_bucket_versioning.evidence]
 }
 
+resource "aws_kms_key" "evidence" {
+  description             = "Chitaozinho immutable evidence encryption"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+
+  tags = {
+    Application = "chitaozinho"
+    Environment = var.environment
+    DataClass   = "digital-evidence"
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_kms_alias" "evidence" {
+  name          = "alias/chitaozinho-${var.environment}-evidence"
+  target_key_id = aws_kms_key.evidence.key_id
+}
+
 resource "aws_s3_bucket_server_side_encryption_configuration" "evidence" {
   bucket = aws_s3_bucket.evidence.id
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      kms_master_key_id = aws_kms_key.evidence.arn
+      sse_algorithm     = "aws:kms"
     }
     bucket_key_enabled = true
   }
