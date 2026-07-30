@@ -684,6 +684,8 @@ def test_unavailable_artifact_produces_verifiable_incomplete_package(
     package = client.get(f"/v1/sessions/{session_id}/package")
     package_path = tmp_path / "partial.zip"
     package_path.write_bytes(package.content)
+    with ZipFile(BytesIO(package.content)) as archive:
+        assert "capture/dom.html" not in archive.namelist()
     verified = subprocess.run(
         [
             "cargo",

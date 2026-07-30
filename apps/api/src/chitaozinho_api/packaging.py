@@ -129,6 +129,15 @@ def package_members(
             .order_by(ArtifactPart.artifact_id, ArtifactPart.part_number)
         )
     )
+    server_key_record = {
+        "key_id": signer.key_id,
+        "algorithm": "Ed25519",
+        "public_key_hex": signer.public_key.hex(),
+    }
+    if signer.certificate is not None:
+        server_key_record["certificate_path"] = (
+            "signatures/server-key-certificate.json"
+        )
     members = {
         "capture-manifest.json": canonical_bytes(capture_session.manifest),
         "chain/capture-close.json": canonical_bytes(capture_session.capture_close),
@@ -157,11 +166,7 @@ def package_members(
         "signatures/public-keys.json": canonical_bytes(
             {
                 "schema_version": "0.1.0",
-                "server": {
-                    "key_id": signer.key_id,
-                    "algorithm": "Ed25519",
-                    "public_key_hex": signer.public_key.hex(),
-                },
+                "server": server_key_record,
                 "client": {
                     "key_id": capture_session.client_key_id,
                     "algorithm": "Ed25519",
@@ -170,10 +175,16 @@ def package_members(
             }
         ),
     }
+    if signer.certificate is not None:
+        members["signatures/server-key-certificate.json"] = canonical_bytes(
+            signer.certificate
+        )
     parts_by_artifact: dict[str, list[ArtifactPart]] = {}
     for part in parts:
         parts_by_artifact.setdefault(part.artifact_id, []).append(part)
     for artifact in artifacts:
+        if artifact.status != "captured":
+            continue
         members[artifact.path] = b"".join(
             storage.read(part.storage_key)
             for part in parts_by_artifact.get(artifact.artifact_id, [])
