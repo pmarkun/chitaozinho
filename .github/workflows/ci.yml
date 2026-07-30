@@ -31,3 +31,14 @@ jobs:
             CHITAOZINHO_RUN_SERVICE_INTEGRATION=1 \
               uv run pytest apps/api/tests/test_services_integration.py -q
           '
+
+  oci-reproducibility:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: cachix/install-nix-action@v31.10.6
+      - name: Build the production image reproducibly
+        run: nix develop --command ./scripts/check-oci-reproducibility

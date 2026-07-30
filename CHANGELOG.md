@@ -7,3 +7,4 @@ The project follows Semantic Versioning once the first public release exists.
 ## Unreleased
 
 - Initial repository, protocol schemas and cross-language cryptographic vectors.
+- Reproducible non-root OCI image and declarative Railway service templates.

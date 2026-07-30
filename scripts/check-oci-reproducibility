@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! docker info >/dev/null 2>&1; then
+  echo "Docker daemon unavailable; cannot verify OCI reproducibility" >&2
+  exit 1
+fi
+
+tmp_dir=$(mktemp -d)
+builder_name="chitaozinho-repro-$$"
+cleanup() {
+  docker buildx rm "$builder_name" >/dev/null 2>&1 || true
+  if [[ "${CHITAOZINHO_KEEP_OCI_TEMP:-0}" == "1" ]]; then
+    echo "OCI diagnostics preserved at $tmp_dir" >&2
+  else
+    rm -rf "$tmp_dir"
+  fi
+}
+trap cleanup EXIT
+
+buildkit_image="moby/buildkit:buildx-stable-1@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec"
+docker buildx create \
+  --driver docker-container \
+  --driver-opt "image=$buildkit_image" \
+  --name "$builder_name" >/dev/null
+
+source_date_epoch=$(git log -1 --format=%ct)
+vcs_ref=$(git rev-parse HEAD)
+
+build_image() {
+  local name=$1
+  docker buildx build \
+    --builder "$builder_name" \
+    --platform linux/amd64 \
+    --no-cache \
+    --provenance=false \
+    --sbom=false \
+    --build-arg "SOURCE_DATE_EPOCH=$source_date_epoch" \
+    --build-arg "VCS_REF=$vcs_ref" \
+    --output "type=oci,dest=$tmp_dir/$name.tar,rewrite-timestamp=true" \
+    --metadata-file "$tmp_dir/$name.json" \
+    .
+  jq -r '."containerimage.digest"' "$tmp_dir/$name.json"
+}
+
+first_digest=$(build_image first)
+second_digest=$(build_image second)
+
+if [[ "$first_digest" != "$second_digest" ]]; then
+  echo "OCI builds differ: $first_digest != $second_digest" >&2
+  exit 1
+fi
+
+echo "Reproducible OCI image: $first_digest"

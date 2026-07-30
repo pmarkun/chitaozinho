@@ -262,7 +262,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ## 7. Produção
 
-- [ ] API e workers empacotados em imagens OCI reproduzíveis.
+- [x] API e workers empacotados em imagens OCI reproduzíveis.
 - [ ] Serviços publicados no Railway somente após autorização explícita.
 - [ ] Ambientes de staging e produção são separados.
 - [ ] PostgreSQL possui backups e restauração testada.

@@ -1,0 +1,9 @@
+.git
+.github
+.venv
+data
+dist
+node_modules
+target
+*.db
+*.log

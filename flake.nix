@@ -21,6 +21,7 @@
             packages = with pkgs; [
               cargo
               clippy
+              docker-client
               garage
               jq
               nodejs_22
