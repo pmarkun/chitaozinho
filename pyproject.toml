@@ -17,5 +17,8 @@ target-version = "py313"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
+[tool.ruff.lint.per-file-ignores]
+"apps/api/src/chitaozinho_api/main.py" = ["B008"]
+
 [tool.pytest.ini_options]
 testpaths = ["apps/api/tests", "packages/protocol-py/tests"]

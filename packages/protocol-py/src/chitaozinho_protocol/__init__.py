@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 from typing import Any
 
@@ -30,6 +31,17 @@ def sha256_bytes(data: bytes) -> bytes:
 
 def sha256_identifier(data: bytes) -> str:
     return f"sha256:{sha256_bytes(data).hex()}"
+
+
+def base64url_encode(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def base64url_decode(value: str) -> bytes:
+    if "=" in value:
+        raise ValueError("Base64URL padding is not allowed")
+    padding = "=" * ((4 - len(value) % 4) % 4)
+    return base64.b64decode(value + padding, altchars=b"-_", validate=True)
 
 
 def hash_canonical(value: Any) -> bytes:
@@ -63,6 +75,8 @@ def verify_canonical(
 
 __all__ = [
     "DOMAINS",
+    "base64url_decode",
+    "base64url_encode",
     "canonical_bytes",
     "hash_canonical",
     "sha256_bytes",

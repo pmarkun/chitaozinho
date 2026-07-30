@@ -5,6 +5,8 @@ import { describe, expect, test } from "vitest";
 
 import {
   DOMAINS,
+  base64UrlDecode,
+  base64UrlEncode,
   bytesToHex,
   canonicalBytes,
   hexToBytes,
@@ -20,6 +22,10 @@ interface Vector {
   private_seed_hex: string;
   public_key_hex: string;
   signature_hex: string;
+  base64url: {
+    bytes_hex: string;
+    encoded: string;
+  };
 }
 
 const vector = JSON.parse(
@@ -73,5 +79,14 @@ describe("protocol vector", () => {
     await expect(
       verifyCanonical(DOMAINS.entry, vector.entry, alteredSignature, publicKey),
     ).resolves.toBe(false);
+  });
+
+  test("uses Base64URL without padding", () => {
+    const value = hexToBytes(vector.base64url.bytes_hex);
+    expect(base64UrlEncode(value)).toBe(vector.base64url.encoded);
+    expect(bytesToHex(base64UrlDecode(vector.base64url.encoded))).toBe(
+      vector.base64url.bytes_hex,
+    );
+    expect(() => base64UrlDecode("AAEC-_8=")).toThrow();
   });
 });

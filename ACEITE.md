@@ -69,7 +69,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Schema de `package-index.json` definido.
 - [x] Regras de compatibilidade e migração de schemas documentadas.
 - [x] RFC 8785/JCS implementado de forma equivalente nas três linguagens.
-- [ ] Base64URL, hexadecimal, RFC 3339 e tempo monotônico normalizados.
+- [x] Base64URL, hexadecimal, RFC 3339 e tempo monotônico normalizados.
 - [x] Prefixos de domínio de todas as assinaturas documentados.
 - [ ] Sequência global, entrada gênese e mudança de `client_clock_id` implementadas.
 - [x] `part_hash`, `artifact_hash`, `entry_hash`, `receipt_hash` e `session_root` implementados conforme a SPEC.
@@ -119,18 +119,18 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ### API e persistência
 
-- [ ] Criar sessão e desafio do servidor.
-- [ ] Registrar chave pública efêmera.
-- [ ] Receber eventos com sequência e idempotência.
-- [ ] Receber partes com tamanho e `part_hash`.
-- [ ] Recalcular hash a partir dos bytes recebidos.
-- [ ] Persistir parte antes de emitir recibo.
-- [ ] Reenvio idêntico retorna o mesmo resultado lógico.
+- [x] Criar sessão e desafio do servidor.
+- [x] Registrar chave pública efêmera.
+- [x] Receber eventos com sequência e idempotência.
+- [x] Receber partes com tamanho e `part_hash`.
+- [x] Recalcular hash a partir dos bytes recebidos.
+- [x] Persistir parte antes de emitir recibo.
+- [x] Reenvio idêntico retorna o mesmo resultado lógico.
 - [ ] Reenvio divergente retorna conflito e registra incidente.
-- [ ] Finalizar artefato recalculando o hash completo.
-- [ ] Finalizar sessão apenas sem lacunas não declaradas.
-- [ ] Validar assinatura de `capture_close`.
-- [ ] Gerar e assinar manifesto de captura imutável.
+- [x] Finalizar artefato recalculando o hash completo.
+- [x] Finalizar sessão apenas sem lacunas não declaradas.
+- [x] Validar assinatura de `capture_close`.
+- [x] Gerar e assinar manifesto de captura imutável.
 - [ ] Gerar pacote e hash externo.
 - [ ] Disponibilizar pacote sem permitir enumeração de sessões.
 - [ ] Eventos de auditoria são append-only e encadeados.

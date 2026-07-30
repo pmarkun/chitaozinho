@@ -1,3 +1,4 @@
+use base64::Engine;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -15,6 +16,8 @@ pub enum ProtocolError {
     Canonicalization(#[from] serde_json::Error),
     #[error("invalid Ed25519 signature")]
     InvalidSignature,
+    #[error("invalid Base64URL without padding")]
+    InvalidBase64Url,
 }
 
 pub fn canonical_bytes<T: Serialize>(value: &T) -> Result<Vec<u8>, ProtocolError> {
@@ -27,6 +30,16 @@ pub fn sha256_bytes(data: &[u8]) -> [u8; 32] {
 
 pub fn sha256_identifier(data: &[u8]) -> String {
     format!("sha256:{}", hex::encode(sha256_bytes(data)))
+}
+
+pub fn base64url_encode(data: &[u8]) -> String {
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(data)
+}
+
+pub fn base64url_decode(value: &str) -> Result<Vec<u8>, ProtocolError> {
+    base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(value)
+        .map_err(|_| ProtocolError::InvalidBase64Url)
 }
 
 pub fn hash_canonical<T: Serialize>(value: &T) -> Result<[u8; 32], ProtocolError> {
@@ -75,6 +88,13 @@ mod tests {
         private_seed_hex: String,
         public_key_hex: String,
         signature_hex: String,
+        base64url: Base64UrlVector,
+    }
+
+    #[derive(Deserialize)]
+    struct Base64UrlVector {
+        bytes_hex: String,
+        encoded: String,
     }
 
     fn vector() -> Vector {
@@ -118,5 +138,14 @@ mod tests {
         assert!(verify_canonical(RECEIPT_DOMAIN, &vector.entry, &signature, &public_key).is_err());
         signature[0] ^= 1;
         assert!(verify_canonical(ENTRY_DOMAIN, &vector.entry, &signature, &public_key).is_err());
+    }
+
+    #[test]
+    fn base64url_has_no_padding() {
+        let vector = vector().base64url;
+        let bytes = hex::decode(vector.bytes_hex).unwrap();
+        assert_eq!(base64url_encode(&bytes), vector.encoded);
+        assert_eq!(base64url_decode(&vector.encoded).unwrap(), bytes);
+        assert!(base64url_decode("AAEC-_8=").is_err());
     }
 }

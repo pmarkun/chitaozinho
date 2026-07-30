@@ -30,6 +30,28 @@ export function sha256Identifier(data: Uint8Array): string {
   return `sha256:${bytesToHex(sha256Bytes(data))}`;
 }
 
+export function base64UrlEncode(data: Uint8Array): string {
+  let binary = "";
+  for (const byte of data) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary)
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/, "");
+}
+
+export function base64UrlDecode(value: string): Uint8Array {
+  if (!/^[A-Za-z0-9_-]*$/.test(value)) {
+    throw new TypeError("invalid Base64URL without padding");
+  }
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const binary = atob(
+    value.replaceAll("-", "+").replaceAll("_", "/") + padding,
+  );
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
 export function hashCanonical(value: unknown): Uint8Array {
   return sha256Bytes(canonicalBytes(value));
 }

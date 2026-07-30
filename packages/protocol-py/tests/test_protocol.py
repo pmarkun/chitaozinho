@@ -3,8 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from chitaozinho_protocol import (
     DOMAINS,
+    base64url_decode,
+    base64url_encode,
     canonical_bytes,
     sha256_identifier,
     sign_canonical,
@@ -64,3 +67,12 @@ def test_rejects_altered_content_domain_and_signature() -> None:
         altered_signature,
         public_key,
     )
+
+
+def test_base64url_has_no_padding() -> None:
+    vector = load_vector()["base64url"]
+    value = bytes.fromhex(vector["bytes_hex"])
+    assert base64url_encode(value) == vector["encoded"]
+    assert base64url_decode(vector["encoded"]) == value
+    with pytest.raises(ValueError):
+        base64url_decode("AAEC-_8=")

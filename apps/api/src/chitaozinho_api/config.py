@@ -1,0 +1,27 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="CHITAOZINHO_",
+        env_file=".env",
+        extra="ignore",
+    )
+
+    env: str = "development"
+    database_url: str = "sqlite:///data/chitaozinho.db"
+    storage_path: Path = Path("data/artifacts")
+    server_key_id: str = "server-unconfigured"
+    server_seed_hex: str | None = Field(default=None, min_length=64, max_length=64)
+    public_base_url: str = "http://127.0.0.1:8000"
+    max_part_size: int = 8 * 1024 * 1024
+    max_artifact_parts: int = 10_000
+    software_name: str = "Chitãozinho Client"
+    software_version: str = "0.1.0"
+    software_commit: str = "development"
+    software_build_hash: str = "sha256:" + ("0" * 64)
