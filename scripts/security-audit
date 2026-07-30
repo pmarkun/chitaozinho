@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+temporary="$(mktemp -d)"
+trap 'rm -rf "${temporary}"' EXIT
+source_tree="${temporary}/source"
+osv_report="${temporary}/osv.json"
+mkdir "${source_tree}"
+
+(
+  cd "${project_root}"
+  git ls-files -z |
+    tar --null --files-from=- --create --format=posix
+) | tar --extract --directory="${source_tree}"
+
+set +e
+osv-scanner scan source \
+  --recursive \
+  --include-git-root \
+  --call-analysis=rust \
+  --format json \
+  --output "${osv_report}" \
+  "${source_tree}"
+osv_status=$?
+set -e
+
+if [[ "${osv_status}" -gt 1 || ! -s "${osv_report}" ]]; then
+  echo "OSV Scanner failed with status ${osv_status}" >&2
+  exit "${osv_status}"
+fi
+
+# OSV currently flattens the upstream advisory ranges into "<= 5.0.7" and
+# therefore flags 1.1.18. Upstream lists 1.1.17 as the patched 1.x release.
+# Keep this exception exact so any package, version or advisory change fails.
+unaccepted_vulnerabilities="$(
+  jq '
+    [
+      .results[]?.packages[]? as $finding
+      | $finding.vulnerabilities[]?
+      | {
+          package: $finding.package,
+          vulnerability: {
+            id: .id,
+            summary: .summary
+          }
+        }
+      | select(
+          (
+            .package.ecosystem == "npm"
+            and .package.name == "brace-expansion"
+            and .package.version == "1.1.18"
+            and .vulnerability.id == "GHSA-mh99-v99m-4gvg"
+          )
+          | not
+        )
+    ]
+  ' "${osv_report}"
+)"
+
+if [[ "$(jq 'length' <<<"${unaccepted_vulnerabilities}")" -ne 0 ]]; then
+  echo "OSV Scanner found unaccepted dependency vulnerabilities:" >&2
+  jq . <<<"${unaccepted_vulnerabilities}" >&2
+  exit 1
+fi
+
+if jq -e '
+  [
+    .results[]?.packages[]? as $finding
+    | $finding.vulnerabilities[]?
+    | select(
+        $finding.package.ecosystem == "npm"
+        and $finding.package.name == "brace-expansion"
+        and $finding.package.version == "1.1.18"
+        and .id == "GHSA-mh99-v99m-4gvg"
+      )
+  ]
+  | length > 0
+' "${osv_report}" >/dev/null; then
+  echo "OSV exception: GHSA-mh99-v99m-4gvg for patched brace-expansion 1.1.18"
+fi
+
+trivy filesystem \
+  --scanners misconfig,secret \
+  --severity HIGH,CRITICAL \
+  --exit-code 1 \
+  --no-progress \
+  --skip-dirs .git \
+  "${source_tree}"
+
+echo "Security audit passed: dependency vulnerabilities, secrets and misconfigurations"

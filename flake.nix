@@ -29,6 +29,7 @@
               nodejs_22
               opentofu
               openssl
+              osv-scanner
               pkg-config
               pnpm
               postgresql_17
@@ -37,6 +38,7 @@
               rustc
               rustfmt
               syft
+              trivy
               unzip
               uv
               zip
