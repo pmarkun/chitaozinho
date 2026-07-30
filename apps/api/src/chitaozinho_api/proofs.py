@@ -64,6 +64,9 @@ def verify_rfc3161_response(
     untrusted_chain: Path | None = None,
     crl_check: bool = True,
 ) -> dict[str, str]:
+    text = run_checked(["openssl", "ts", "-reply", "-in", str(response), "-text"]).stdout
+    gen_time = parse_openssl_time(extract_field(text, "Time stamp"))
+    verification_time = int(datetime.fromisoformat(gen_time.replace("Z", "+00:00")).timestamp())
     command = [
         "openssl",
         "ts",
@@ -76,17 +79,17 @@ def verify_rfc3161_response(
         str(ca_bundle),
         "-purpose",
         "timestampsign",
+        "-attime",
+        str(verification_time),
+        "-x509_strict",
     ]
     if untrusted_chain is not None:
         command.extend(["-untrusted", str(untrusted_chain)])
     if crl_check:
         command.append("-crl_check_all")
     run_checked(command)
-    text = run_checked(
-        ["openssl", "ts", "-reply", "-in", str(response), "-text"]
-    ).stdout
     return {
-        "gen_time": parse_openssl_time(extract_field(text, "Time stamp")),
+        "gen_time": gen_time,
         "policy": extract_field(text, "Policy OID"),
         "serial": extract_field(text, "Serial number"),
     }
@@ -157,8 +160,7 @@ class MerkleProof:
             "salt_hex": self.leaf.salt_hex,
             "root_hash": self.root_hash,
             "steps": [
-                {"side": step.side, "hash": f"sha256:{step.hash_hex}"}
-                for step in self.steps
+                {"side": step.side, "hash": f"sha256:{step.hash_hex}"} for step in self.steps
             ],
         }
 
@@ -213,8 +215,7 @@ def verify_merkle_proof(proof: MerkleProof) -> bool:
 def write_merkle_proof(proof: MerkleProof, output: Path) -> None:
     write_new(
         output,
-        json.dumps(proof.as_dict(), sort_keys=True, separators=(",", ":")).encode()
-        + b"\n",
+        json.dumps(proof.as_dict(), sort_keys=True, separators=(",", ":")).encode() + b"\n",
     )
 
 
