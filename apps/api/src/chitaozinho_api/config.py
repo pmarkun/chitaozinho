@@ -32,3 +32,10 @@ class Settings(BaseSettings):
     software_version: str = "0.1.0"
     software_commit: str = "development"
     software_build_hash: str = "sha256:" + ("0" * 64)
+    tsa_url: str | None = None
+    tsa_ca_bundle: Path | None = None
+    tsa_untrusted_chain: Path | None = None
+    ots_calendars: str = (
+        "https://alice.btc.calendar.opentimestamps.org,"
+        "https://bob.btc.calendar.opentimestamps.org"
+    )

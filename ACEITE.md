@@ -163,7 +163,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ### RFC 3161
 
-- [ ] Requisição usa o hash do manifesto assinado.
+- [x] Requisição usa o hash do manifesto assinado.
 - [ ] `.tsq`, `.tsr`, certificado, cadeia e política são preservados.
 - [ ] `genTime`, cadeia, validade e revogação são verificados.
 - [ ] Falha da TSA muda apenas `timestamp_status`.
@@ -172,8 +172,8 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ### Merkle e OpenTimestamps
 
-- [ ] Sessões são agregadas sem publicar identificadores reversíveis.
-- [ ] Prova individual de inclusão Merkle é gerada.
+- [x] Sessões são agregadas sem publicar identificadores reversíveis.
+- [x] Prova individual de inclusão Merkle é gerada.
 - [ ] Apenas a raiz agregada é submetida.
 - [ ] Prova `.ots` inicial é preservada.
 - [ ] Confirmação posterior gera novo complemento append-only.
