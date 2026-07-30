@@ -1887,11 +1887,19 @@ mod tests {
             .remove(0);
         record.signature_hex =
             hex::encode(sign_canonical(RECEIPT_DOMAIN, &record.entry, &seed).unwrap());
-        write_json_lines(&source.join(ENTRIES_PATH), &[record]);
+        write_json_lines(&source.join(ENTRIES_PATH), &[record.clone()]);
         let domain_error = pack(&source, &invalid_path, &seed).unwrap_err().to_string();
         assert!(
             domain_error.contains("invalid entry signature"),
             "{domain_error}"
+        );
+
+        record.signature_hex = "00".repeat(64);
+        write_json_lines(&source.join(ENTRIES_PATH), &[record]);
+        let signature_error = pack(&source, &invalid_path, &seed).unwrap_err().to_string();
+        assert!(
+            signature_error.contains("invalid entry signature"),
+            "{signature_error}"
         );
     }
 
@@ -2132,6 +2140,23 @@ mod tests {
         let error = verify(&package_path, &[0_u8; 32]).unwrap_err().to_string();
         assert!(error.contains("unsafe ZIP path"), "{error}");
         assert!(!temporary.path().join("escape").exists());
+
+        let source = temporary.path().join("source");
+        let seed = [32_u8; 32];
+        let public_key = SigningKey::from_bytes(&seed).verifying_key().to_bytes();
+        create_fixture(&source, &seed, &public_key);
+        std::os::unix::fs::symlink(
+            source.join("capture/recording.webm"),
+            source.join("capture/link.webm"),
+        )
+        .unwrap();
+        let symlink_error = pack(&source, &temporary.path().join("symlink.zip"), &seed)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            symlink_error.contains("source symlink is not allowed"),
+            "{symlink_error}"
+        );
     }
 
     #[test]
