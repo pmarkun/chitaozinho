@@ -31,7 +31,12 @@ def ensure_package(
     target = storage.package_path(capture_session.id)
     hash_target = target.with_suffix(".zip.sha256")
     if target.exists() and hash_target.exists():
-        package_hash = hash_target.read_text().split()[0]
+        stored_hash = hash_target.read_text().split()[0]
+        package_hash = (
+            stored_hash
+            if stored_hash.startswith("sha256:")
+            else f"sha256:{stored_hash}"
+        )
         storage_status = protect_final_artifact(
             database,
             settings,
@@ -83,7 +88,10 @@ def ensure_package(
         with suppress(FileExistsError):
             os.link(temporary, target)
         package_hash = hash_path(target)
-        hash_content = f"{package_hash}  chitaozinho-{capture_session.id}.zip\n"
+        hash_content = (
+            f"{package_hash.removeprefix('sha256:')}  "
+            f"chitaozinho-{capture_session.id}.zip\n"
+        )
         write_once(hash_target, hash_content.encode("ascii"))
         fsync_directory(target.parent)
         capture_session.package_status = "available"

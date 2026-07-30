@@ -490,7 +490,8 @@ def test_session_event_part_finalize_and_idempotency(
         package_hash.headers["X-Package-SHA256"] == package.headers["X-Package-SHA256"]
     )
     assert package_hash.text == (
-        f"{package.headers['X-Package-SHA256']}  chitaozinho-{session_id}.zip\n"
+        f"{package.headers['X-Package-SHA256'].removeprefix('sha256:')}  "
+        f"chitaozinho-{session_id}.zip\n"
     )
     package_path = tmp_path / "capture.zip"
     package_path.write_bytes(package.content)
