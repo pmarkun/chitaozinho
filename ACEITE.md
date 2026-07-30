@@ -176,7 +176,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Prova individual de inclusão Merkle é gerada.
 - [x] Apenas a raiz agregada é submetida.
 - [x] Prova `.ots` inicial é preservada.
-- [ ] Confirmação posterior gera novo complemento append-only.
+- [x] Confirmação posterior gera novo complemento append-only.
 - [ ] Verificador distingue pendente, confirmado e inválido.
 
 ### Object Lock

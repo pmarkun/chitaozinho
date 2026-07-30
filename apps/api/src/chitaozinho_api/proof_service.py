@@ -16,6 +16,7 @@ from .models import (
     CaptureSession,
     MerkleBatch,
     MerkleMembership,
+    OtsComplement,
     TimestampAttempt,
 )
 from .proofs import (
@@ -25,6 +26,8 @@ from .proofs import (
     extract_rfc3161_chain,
     request_rfc3161_timestamp,
     stamp_ots,
+    upgrade_ots,
+    verify_ots,
     verify_rfc3161_response,
     write_merkle_proof,
 )
@@ -93,6 +96,8 @@ def timestamp_capture(
             gen_time = verified["gen_time"]
             policy = verified["policy"]
             details["gen_time"] = gen_time
+            details["policy"] = policy
+            details["serial"] = verified["serial"]
             status = "valid"
         except Exception as error:  # noqa: BLE001 - provider failures are persisted
             status = "failed"
@@ -200,6 +205,74 @@ def create_merkle_batch(
         )
     database.commit()
     return batch
+
+
+def upgrade_merkle_batch(
+    database: Session,
+    settings: Settings,
+    signer: ServerSigner,
+    batch: MerkleBatch,
+) -> OtsComplement:
+    if batch.ots_proof_path is None:
+        raise ValueError("Merkle batch has no original OpenTimestamps proof")
+    sequence = (
+        database.scalar(
+            select(func.count(OtsComplement.id)).where(
+                OtsComplement.batch_id == batch.id
+            )
+        )
+        or 0
+    ) + 1
+    original = settings.proofs_path / batch.ots_proof_path
+    complement_path = (
+        settings.proofs_path
+        / "merkle"
+        / batch.id
+        / "complements"
+        / f"upgrade-{sequence:04d}.ots"
+    )
+    original_hash = sha256_identifier(original.read_bytes())
+    upgrade_ots(original, complement_path)
+    if sha256_identifier(original.read_bytes()) != original_hash:
+        raise RuntimeError("original OpenTimestamps proof was modified")
+    proof_hash = sha256_identifier(complement_path.read_bytes())
+    root_file = settings.proofs_path / batch.root_path
+    proof_status = verify_ots(root_file, complement_path)
+    complement = OtsComplement(
+        id=f"{batch.id}-{sequence:04d}",
+        batch_id=batch.id,
+        sequence=sequence,
+        proof_path=relative_proof_path(settings, complement_path),
+        proof_hash=proof_hash,
+        status=proof_status,
+        created_at=datetime.now(UTC),
+    )
+    database.add(complement)
+    batch.status = proof_status
+    memberships = list(
+        database.scalars(
+            select(MerkleMembership).where(MerkleMembership.batch_id == batch.id)
+        )
+    )
+    for membership in memberships:
+        capture_session = database.get(CaptureSession, membership.session_id)
+        if capture_session is None:
+            raise RuntimeError("Merkle membership references a missing session")
+        capture_session.blockchain_status = proof_status
+        append_attestation(
+            database,
+            signer,
+            capture_session,
+            blockchain={
+                "merkle_proof_path": membership.proof_path,
+                "ots_proof_path": batch.ots_proof_path,
+                "ots_complement_path": complement.proof_path,
+                "ots_complement_hash": proof_hash,
+                "checked_at": rfc3339(datetime.now(UTC)),
+            },
+        )
+    database.commit()
+    return complement
 
 
 def append_attestation(

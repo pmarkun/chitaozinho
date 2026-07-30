@@ -33,10 +33,12 @@ from .models import (
     CaptureSession,
     ChainEntry,
     Incident,
+    MerkleBatch,
+    OtsComplement,
     Receipt,
 )
 from .packaging import ensure_package
-from .proof_service import create_merkle_batch, timestamp_capture
+from .proof_service import create_merkle_batch, timestamp_capture, upgrade_merkle_batch
 from .schemas import (
     ArtifactCompleteRequest,
     ArtifactCompleteResponse,
@@ -48,6 +50,7 @@ from .schemas import (
     FinalizeResponse,
     MerkleBatchRequest,
     MerkleBatchResponse,
+    OtsComplementResponse,
     PartResponse,
     RegisterKeyRequest,
     SessionStatusResponse,
@@ -664,6 +667,32 @@ def create_app(
             session_count=len(body.session_ids),
         )
 
+    @app.post(
+        "/v1/merkle-batches/{batch_id}/upgrade",
+        response_model=OtsComplementResponse,
+    )
+    def upgrade_batch(
+        batch_id: str,
+        database: Session = Depends(get_session),
+    ) -> OtsComplementResponse:
+        active_signer = require_signer(signer)
+        batch = database.get(MerkleBatch, batch_id)
+        if batch is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Merkle batch not found")
+        try:
+            complement = upgrade_merkle_batch(
+                database,
+                settings,
+                active_signer,
+                batch,
+            )
+        except ValueError as error:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                str(error),
+            ) from error
+        return ots_complement_response(complement)
+
     @app.get(
         "/v1/sessions/{session_id}/attestations",
         response_model=list[AttestationResponse],
@@ -1107,6 +1136,15 @@ def attestation_response(attestation: Attestation) -> AttestationResponse:
         document=attestation.document,
         document_hash=attestation.document_hash,
         signature_hex=attestation.signature_hex,
+    )
+
+
+def ots_complement_response(complement: OtsComplement) -> OtsComplementResponse:
+    return OtsComplementResponse(
+        complement_id=complement.id,
+        batch_id=complement.batch_id,
+        proof_hash=complement.proof_hash,
+        status=complement.status,
     )
 
 

@@ -36,7 +36,9 @@
         "request_path": { "type": "string" },
         "response_path": { "type": "string" },
         "chain_path": { "type": "string" },
-        "gen_time": { "type": "string", "format": "date-time" }
+        "gen_time": { "type": "string", "format": "date-time" },
+        "policy": { "type": "string" },
+        "serial": { "type": "string" }
       }
     },
     "blockchain_status": {
@@ -54,6 +56,8 @@
       "properties": {
         "merkle_proof_path": { "type": "string" },
         "ots_proof_path": { "type": "string" },
+        "ots_complement_path": { "type": "string" },
+        "ots_complement_hash": { "$ref": "#/$defs/sha256" },
         "checked_at": { "type": "string", "format": "date-time" }
       }
     }

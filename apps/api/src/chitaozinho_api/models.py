@@ -192,6 +192,21 @@ class MerkleMembership(Base):
     proof: Mapped[dict] = mapped_column(JSON, nullable=False)
 
 
+class OtsComplement(Base):
+    __tablename__ = "ots_complements"
+    __table_args__ = (UniqueConstraint("batch_id", "sequence"),)
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    batch_id: Mapped[str] = mapped_column(
+        ForeignKey("merkle_batches.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    proof_path: Mapped[str] = mapped_column(Text, nullable=False)
+    proof_hash: Mapped[str] = mapped_column(String(71), nullable=False, unique=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class Attestation(Base):
     __tablename__ = "attestations"
     __table_args__ = (

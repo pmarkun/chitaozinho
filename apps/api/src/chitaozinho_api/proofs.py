@@ -236,7 +236,10 @@ def upgrade_ots(original: Path, complement: Path) -> None:
         raise FileExistsError(complement)
     complement.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(original, complement)
-    run_checked(["ots", "upgrade", str(complement)])
+    try:
+        run_checked(["ots", "upgrade", str(complement)])
+    finally:
+        complement.with_name(complement.name + ".bak").unlink(missing_ok=True)
 
 
 def verify_ots(root_file: Path, proof_file: Path) -> str:

@@ -98,6 +98,13 @@ class MerkleBatchResponse(StrictModel):
     session_count: int
 
 
+class OtsComplementResponse(StrictModel):
+    complement_id: str
+    batch_id: str
+    proof_hash: str
+    status: str
+
+
 class AttestationResponse(StrictModel):
     document: dict[str, Any]
     document_hash: str

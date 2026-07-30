@@ -61,6 +61,7 @@ def signed_entry(entry: dict) -> dict:
 def test_session_event_part_finalize_and_idempotency(
     client: TestClient,
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     created = client.post("/v1/sessions")
     assert created.status_code == 201
@@ -350,20 +351,49 @@ def test_session_event_part_finalize_and_idempotency(
             result["manifest_hash"]
         }
 
+    def fake_stamp(
+        root_hash: str,
+        root_file: Path,
+        proof_file: Path,
+        _calendars: list[str],
+    ) -> None:
+        root_file.parent.mkdir(parents=True, exist_ok=True)
+        root_file.write_bytes(bytes.fromhex(root_hash[7:]))
+        proof_file.write_bytes(b"immutable-original-proof")
+
+    def fake_upgrade(original: Path, complement: Path) -> None:
+        complement.parent.mkdir(parents=True, exist_ok=True)
+        complement.write_bytes(original.read_bytes() + b"-confirmed")
+
+    monkeypatch.setattr("chitaozinho_api.proof_service.stamp_ots", fake_stamp)
+    monkeypatch.setattr("chitaozinho_api.proof_service.upgrade_ots", fake_upgrade)
+    monkeypatch.setattr(
+        "chitaozinho_api.proof_service.verify_ots",
+        lambda _root, _proof: "confirmed",
+    )
     batch = client.post(
         "/v1/merkle-batches",
-        json={"session_ids": [session_id], "submit_ots": False},
+        json={"session_ids": [session_id], "submit_ots": True},
     )
     assert batch.status_code == 201
-    assert batch.json()["status"] == "not_submitted"
+    assert batch.json()["status"] == "pending_confirmation"
+    batch_id = batch.json()["batch_id"]
+    original_proof = tmp_path / "proofs" / "merkle" / batch_id / "root.bin.ots"
+    original_bytes = original_proof.read_bytes()
+
+    upgraded = client.post(f"/v1/merkle-batches/{batch_id}/upgrade")
+    assert upgraded.status_code == 200
+    assert upgraded.json()["status"] == "confirmed"
+    assert original_proof.read_bytes() == original_bytes
+    assert upgraded.json()["proof_hash"] != sha256_identifier(original_bytes)
 
     attestations = client.get(f"/v1/sessions/{session_id}/attestations")
     assert attestations.status_code == 200
     documents = attestations.json()
-    assert len(documents) == 3
+    assert len(documents) == 4
     assert (
-        documents[2]["document"]["previous_attestation_hash"]
-        == documents[1]["document_hash"]
+        documents[3]["document"]["previous_attestation_hash"]
+        == documents[2]["document_hash"]
     )
     attestation_schema = json.loads(
         (SCHEMA_DIR / "attestation.schema.json").read_text()
@@ -413,7 +443,7 @@ def test_session_event_part_finalize_and_idempotency(
     assert current.json()["manifest_hash"] == result["manifest_hash"]
     assert current.json()["package_status"] == "available"
     assert current.json()["timestamp_status"] == "pending"
-    assert current.json()["blockchain_status"] == "not_submitted"
+    assert current.json()["blockchain_status"] == "confirmed"
 
 
 def test_artifact_identifier_cannot_escape_storage(client: TestClient) -> None:
