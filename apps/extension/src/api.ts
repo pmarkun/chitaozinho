@@ -4,6 +4,10 @@ import type { ChainEntry } from "./types";
 
 const API_BASE_URL = "http://127.0.0.1:8000";
 
+function apiFetch(input: RequestInfo | URL, init?: RequestInit) {
+  return fetch(input, { ...init, credentials: "include" });
+}
+
 interface SignedEntry {
   entry: ChainEntry;
   entry_hash: string;
@@ -20,7 +24,7 @@ async function checked(response: Response): Promise<Response> {
 export async function createSession(): Promise<Record<string, unknown>> {
   return (
     await checked(
-      await fetch(`${API_BASE_URL}/v1/sessions`, { method: "POST" }),
+      await apiFetch(`${API_BASE_URL}/v1/sessions`, { method: "POST" }),
     )
   ).json();
 }
@@ -31,7 +35,7 @@ export async function registerKey(
   publicKey: Uint8Array,
 ): Promise<void> {
   await checked(
-    await fetch(`${API_BASE_URL}/v1/sessions/${sessionId}/keys`, {
+    await apiFetch(`${API_BASE_URL}/v1/sessions/${sessionId}/keys`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -48,7 +52,7 @@ export async function sendEvent(
   idempotencyKey: string,
 ): Promise<void> {
   await checked(
-    await fetch(`${API_BASE_URL}/v1/sessions/${sessionId}/events`, {
+    await apiFetch(`${API_BASE_URL}/v1/sessions/${sessionId}/events`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -68,7 +72,7 @@ export async function uploadPart(
 ): Promise<Record<string, unknown>> {
   return (
     await checked(
-      await fetch(
+      await apiFetch(
         `${API_BASE_URL}/v1/sessions/${sessionId}/artifacts/${artifactId}/parts/${partNumber}`,
         {
           method: "PUT",
@@ -92,7 +96,7 @@ export async function completeArtifact(
   body: Record<string, unknown>,
 ): Promise<void> {
   await checked(
-    await fetch(
+    await apiFetch(
       `${API_BASE_URL}/v1/sessions/${sessionId}/artifacts/${artifactId}/complete`,
       {
         method: "POST",
@@ -109,7 +113,7 @@ export async function declareArtifactUnavailable(
   body: Record<string, unknown>,
 ): Promise<void> {
   await checked(
-    await fetch(
+    await apiFetch(
       `${API_BASE_URL}/v1/sessions/${sessionId}/artifacts/${artifactId}/unavailable`,
       {
         method: "POST",
@@ -127,7 +131,7 @@ export async function finalizeSession(
 ): Promise<Record<string, unknown>> {
   return (
     await checked(
-      await fetch(`${API_BASE_URL}/v1/sessions/${sessionId}/finalize`, {
+      await apiFetch(`${API_BASE_URL}/v1/sessions/${sessionId}/finalize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -141,4 +145,21 @@ export async function finalizeSession(
 
 export function packageUrl(sessionId: string): string {
   return `${API_BASE_URL}/v1/sessions/${sessionId}/package`;
+}
+
+export async function authStatus(): Promise<boolean> {
+  const response = await checked(
+    await apiFetch(`${API_BASE_URL}/v1/auth/session`),
+  );
+  return Boolean((await response.json()).authenticated);
+}
+
+export async function requestMagicLink(email: string): Promise<void> {
+  await checked(
+    await apiFetch(`${API_BASE_URL}/v1/auth/magic-links`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    }),
+  );
 }

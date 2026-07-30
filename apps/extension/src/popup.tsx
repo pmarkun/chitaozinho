@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
+import { authStatus, requestMagicLink } from "./api";
 import type { ExtensionMessage } from "./types";
 import "./popup.css";
 
@@ -17,6 +18,9 @@ interface PublicState {
 
 function App() {
   const [capture, setCapture] = useState<PublicState | null>(null);
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  const [email, setEmail] = useState("");
+  const [linkSent, setLinkSent] = useState(false);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -28,6 +32,9 @@ function App() {
   }, []);
 
   async function refresh() {
+    const hasSession = await authStatus().catch(() => false);
+    setAuthenticated(hasSession);
+    if (!hasSession) return;
     const response = await send({ type: "GET_STATE" });
     if (response.ok) setCapture(response.result as PublicState | null);
   }
@@ -59,7 +66,45 @@ function App() {
         </div>
       </header>
 
-      {!capture && (
+      {authenticated === false && (
+        <section>
+          <h1>Entrar</h1>
+          <p>
+            Informe seu e-mail. Enviaremos um link de uso único; nenhum código
+            ou token é exibido nos logs da captura.
+          </p>
+          <label>
+            E-mail
+            <input
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </label>
+          <button
+            disabled={busy || !email}
+            onClick={() => {
+              setBusy(true);
+              setError(undefined);
+              void requestMagicLink(email)
+                .then(() => setLinkSent(true))
+                .catch((caught: unknown) => setError(String(caught)))
+                .finally(() => setBusy(false));
+            }}
+          >
+            Enviar link de acesso
+          </button>
+          {linkSent && (
+            <p className="success">
+              Confira seu e-mail, abra o link e volte aqui. Esta tela detectará
+              o acesso automaticamente.
+            </p>
+          )}
+        </section>
+      )}
+
+      {authenticated && !capture && (
         <section>
           <h1>Nova captura</h1>
           <p>
@@ -89,7 +134,7 @@ function App() {
         </section>
       )}
 
-      {capture && (
+      {authenticated && capture && (
         <section>
           <div className="status-row">
             <span className={`dot ${recording ? "recording" : ""}`} />

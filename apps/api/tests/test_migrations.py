@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import DatabaseError
 
 
@@ -17,6 +17,14 @@ def test_migrations_match_models_and_protect_audit_log(
     database_url = f"sqlite:///{database_path}"
     monkeypatch.setenv("CHITAOZINHO_DATABASE_URL", database_url)
     configuration = Config("alembic.ini")
+    command.upgrade(configuration, "head")
+    command.check(configuration)
+    command.downgrade(configuration, "0004_partial_artifacts")
+    downgraded = inspect(create_engine(database_url))
+    assert "users" not in downgraded.get_table_names()
+    assert "owner_user_id" not in {
+        column["name"] for column in downgraded.get_columns("capture_sessions")
+    }
     command.upgrade(configuration, "head")
     command.check(configuration)
 

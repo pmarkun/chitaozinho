@@ -24,3 +24,8 @@ The opt-in persistence smoke test is:
 CHITAOZINHO_RUN_SERVICE_INTEGRATION=1 \
   uv run pytest apps/api/tests/test_services_integration.py
 ```
+
+Local development uses the built-in development identity. Public environments
+require the magic-link, cookie, SMTP and owner-isolation flow documented in
+`docs/authentication.md`; startup fails closed when that configuration is
+incomplete.

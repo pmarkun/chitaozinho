@@ -28,6 +28,20 @@ class Settings(BaseSettings):
     server_certificate_path: Path | None = None
     server_revocation_list_path: Path | None = None
     public_base_url: str = "http://127.0.0.1:8000"
+    auth_mode: str = "development"
+    auth_token_pepper: str | None = Field(default=None, min_length=32)
+    magic_link_ttl_seconds: int = Field(default=15 * 60, ge=60, le=60 * 60)
+    access_token_ttl_seconds: int = Field(
+        default=30 * 24 * 60 * 60,
+        ge=5 * 60,
+        le=365 * 24 * 60 * 60,
+    )
+    smtp_host: str | None = None
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
+    smtp_starttls: bool = True
     cors_origin_regex: str = r"^chrome-extension://[a-p]{32}$"
     max_part_size: int = 8 * 1024 * 1024
     max_artifact_parts: int = 10_000
@@ -68,4 +82,16 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "root-signed key revocation list is required outside local development"
                 )
+            if self.auth_mode != "magic_link":
+                raise ValueError("magic-link authentication is required outside local development")
+            if self.auth_token_pepper is None:
+                raise ValueError(
+                    "authentication token pepper is required outside local development"
+                )
+            if self.smtp_host is None or self.smtp_from is None:
+                raise ValueError("SMTP host and sender are required outside local development")
+            if not self.smtp_starttls:
+                raise ValueError("SMTP STARTTLS is required outside local development")
+        elif self.auth_mode not in {"development", "magic_link"}:
+            raise ValueError("unsupported authentication mode")
         return self

@@ -66,6 +66,21 @@ button {
   font-weight: 700;
   cursor: pointer;
 }
+input[type="email"] {
+  width: 100%;
+  margin: 6px 0 14px;
+  border: 1px solid #aeb9b2;
+  border-radius: 8px;
+  padding: 10px;
+  color: inherit;
+  background: white;
+}
+input[type="email"]:focus-visible,
+button:focus-visible,
+input[type="checkbox"]:focus-visible {
+  outline: 3px solid #8ab9ff;
+  outline-offset: 2px;
+}
 button:disabled {
   cursor: not-allowed;
   opacity: 0.5;

@@ -102,7 +102,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 ### Extensão Chromium
 
 - [ ] Manifest V3 válido e instalável.
-- [ ] Usuário recebe explicação e registra consentimento antes da captura.
+- [x] Usuário recebe explicação e registra consentimento antes da captura.
 - [ ] Captura de uma aba por pelo menos 60 segundos.
 - [ ] Vídeo WebM preservado sem recompressão.
 - [ ] Screenshot por viewport.
@@ -140,7 +140,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 ### Experiência e relatório
 
 - [ ] Tela inicial oferece nova captura, capturas existentes, verificação e configurações.
-- [ ] Antes da captura, interface mostra dados coletados, limites e riscos.
+- [x] Antes da captura, interface mostra dados coletados, limites e riscos.
 - [ ] Após a captura, interface mostra integridade, completude e estados independentes.
 - [ ] Download inclui pacote, hash externo e chaves públicas necessárias.
 - [ ] Relatório HTML apresenta resultados `íntegro`, `íntegro, mas incompleto`, `inválido` ou `não verificável`.
@@ -202,9 +202,9 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 - [x] TLS obrigatório fora do desenvolvimento local.
 - [x] Criptografia em repouso habilitada.
-- [ ] Chaves e secrets nunca aparecem em código ou logs.
-- [ ] Logs não incluem conteúdo, URL completa, tokens ou dados pessoais por padrão.
-- [ ] Telemetria é mínima e separada do conteúdo.
+- [x] Chaves e secrets nunca aparecem em código ou logs.
+- [x] Logs não incluem conteúdo, URL completa, tokens ou dados pessoais por padrão.
+- [x] Telemetria é mínima e separada do conteúdo.
 - [ ] Backend indisponível não apaga o buffer local.
 - [ ] Downloads usam autorização e URLs expiráveis.
 - [x] Sessões não podem ser enumeradas.
@@ -266,7 +266,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [ ] Serviços publicados no Railway somente após autorização explícita.
 - [ ] Ambientes de staging e produção são separados.
 - [ ] PostgreSQL possui backups e restauração testada.
-- [ ] Migrações possuem validação e rollback.
+- [x] Migrações possuem validação e rollback.
 - [ ] S3 externo com Object Lock é usado para evidências.
 - [x] Volumes do Railway não são usados como storage probatório.
 - [ ] Chaves de produção ficam em KMS/HSM ou solução equivalente aprovada.
@@ -283,7 +283,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 ### Requisitos funcionais
 
 - [ ] RF-001 — iniciar sessão pela extensão.
-- [ ] RF-002 — registrar consentimento.
+- [x] RF-002 — registrar consentimento.
 - [x] RF-003 — calcular SHA-256 no cliente.
 - [x] RF-004 — encadear eventos.
 - [x] RF-005 — emitir recibos assinados.
@@ -311,9 +311,9 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 ### Requisitos não funcionais
 
 - [ ] RNF-001 — usar TLS moderno.
-- [ ] RNF-002 — respeitar finalidade e consentimento de uso dos dados.
+- [x] RNF-002 — respeitar finalidade e consentimento de uso dos dados.
 - [ ] RNF-003 — preservar buffer durante indisponibilidade.
-- [ ] RNF-004 — manter build identificável, changelog e logs seguros.
+- [x] RNF-004 — manter build identificável, changelog e logs seguros.
 - [x] RNF-005 — verificar fora da plataforma.
 - [ ] RNF-006 — respeitar limites de desempenho e memória.
 - [x] RNF-007 — suportar multipart e processamento assíncrono.

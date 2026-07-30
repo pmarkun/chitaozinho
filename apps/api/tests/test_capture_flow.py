@@ -726,6 +726,14 @@ def test_unavailable_artifact_produces_verifiable_incomplete_package(
     )
     assert verified.returncode == 0, verified.stderr
     assert json.loads(verified.stdout)["result"] == "integral_but_incomplete"
+    with client.app.state.session_factory() as database:
+        audit_details = [
+            event.details
+            for event in database.scalars(
+                select(AuditEvent).where(AuditEvent.subject_id == session_id)
+            )
+        ]
+        assert reason not in json.dumps(audit_details)
 
 
 def test_server_key_is_required_for_session_creation(tmp_path: Path) -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, timedelta
 from pathlib import Path
 
+from chitaozinho_protocol import sha256_identifier
 from sqlalchemy.orm import Session
 
 from .audit import append_audit_event
@@ -39,7 +40,7 @@ def protect_final_artifact(
         details = {
             "artifact_name": name,
             "artifact_hash": digest,
-            "storage_key": result.key,
+            "storage_key_hash": sha256_identifier(result.key.encode()),
             "storage_status": result.status,
             "version_id": result.version_id,
             "retain_until": (

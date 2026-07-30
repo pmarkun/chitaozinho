@@ -25,6 +25,7 @@ def test_extension_cors_preflight() -> None:
     )
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"].startswith("chrome-extension://")
+    assert response.headers["access-control-allow-credentials"] == "true"
 
 
 def test_non_local_environment_fails_closed_without_tls_and_external_storage() -> None:
@@ -43,6 +44,24 @@ def test_non_local_environment_fails_closed_without_tls_and_external_storage() -
             storage_backend="s3",
             server_seed_hex="11" * 32,
             server_certificate_path=Path("server-certificate.json"),
+        )
+    production_base = {
+        "env": "staging",
+        "public_base_url": "https://example.test",
+        "storage_backend": "s3",
+        "server_seed_hex": "11" * 32,
+        "server_certificate_path": Path("server-certificate.json"),
+        "server_revocation_list_path": Path("key-revocations.json"),
+    }
+    with pytest.raises(ValidationError, match="magic-link"):
+        Settings(**production_base)
+    with pytest.raises(ValidationError, match="token pepper"):
+        Settings(**production_base, auth_mode="magic_link")
+    with pytest.raises(ValidationError, match="SMTP"):
+        Settings(
+            **production_base,
+            auth_mode="magic_link",
+            auth_token_pepper="x" * 32,
         )
 
 

@@ -20,6 +20,14 @@ class CreateSessionResponse(StrictModel):
     next_sequence: int
 
 
+class MagicLinkRequest(StrictModel):
+    email: str = Field(min_length=3, max_length=320)
+
+
+class MagicLinkExchangeRequest(StrictModel):
+    token: str = Field(min_length=32, max_length=256)
+
+
 class RegisterKeyRequest(StrictModel):
     key_id: str = Field(min_length=1, max_length=128)
     public_key: str = Field(pattern=r"^[A-Za-z0-9_-]+$")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import secrets
 import time
 import uuid
@@ -9,6 +10,7 @@ from datetime import UTC, datetime
 from functools import partial
 from hashlib import sha256
 from pathlib import PurePosixPath
+from urllib.parse import urlsplit
 
 from chitaozinho_protocol import (
     DOMAINS,
@@ -20,12 +22,22 @@ from chitaozinho_protocol import (
 )
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from sqlalchemy import Engine, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from .audit import append_audit_event
+from .auth import (
+    CONSUME_HTML,
+    COOKIE_NAME,
+    MagicLinkSender,
+    authenticate_access_token,
+    create_magic_link,
+    exchange_magic_link,
+    magic_link_url,
+    smtp_magic_link_sender,
+)
 from .config import Settings
 from .database import create_database_engine, session_dependency
 from .jobs import (
@@ -61,6 +73,8 @@ from .schemas import (
     FinalizeRequest,
     FinalizeResponse,
     JobResponse,
+    MagicLinkExchangeRequest,
+    MagicLinkRequest,
     MerkleBatchRequest,
     MerkleBatchResponse,
     OtsComplementResponse,
@@ -77,12 +91,15 @@ def create_app(
     *,
     engine: Engine | None = None,
     storage: DurableStorage | None = None,
+    magic_link_sender: MagicLinkSender | None = None,
     create_tables: bool = False,
 ) -> FastAPI:
     settings = settings or Settings()
     engine = engine or create_database_engine(settings)
     storage = storage or create_storage(settings)
     signer = ServerSigner.from_settings(settings)
+    if settings.auth_mode == "magic_link" and magic_link_sender is None:
+        magic_link_sender = smtp_magic_link_sender(settings)
     factory = sessionmaker(engine, expire_on_commit=False)
     if create_tables:
         Base.metadata.create_all(engine)
@@ -91,10 +108,11 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=settings.cors_origin_regex,
-        allow_credentials=False,
+        allow_credentials=True,
         allow_methods=["GET", "POST", "PUT"],
         allow_headers=[
             "Content-Type",
+            "Authorization",
             "Idempotency-Key",
             "X-Entry-Json",
             "X-Entry-Hash",
@@ -111,6 +129,90 @@ def create_app(
     app.state.session_factory = factory
     get_session = partial(session_dependency, factory)
     request_times: dict[str, deque[float]] = defaultdict(deque)
+    allowed_extension_origin = re.compile(settings.cors_origin_regex)
+    public_url = urlsplit(settings.public_base_url)
+    public_origin = f"{public_url.scheme}://{public_url.netloc}"
+
+    @app.middleware("http")
+    async def authenticate(request: Request, call_next):
+        if settings.auth_mode == "development":
+            request.state.user_id = "development"
+        elif (
+            request.method != "OPTIONS"
+            and request.url.path.startswith("/v1/")
+            and not request.url.path.startswith("/v1/auth/")
+        ):
+            token = request.cookies.get(COOKIE_NAME)
+            authorization = request.headers.get("Authorization")
+            bearer_auth = (
+                authorization is not None and authorization.startswith("Bearer ")
+            )
+            if bearer_auth:
+                token = authorization.removeprefix("Bearer ").strip()
+            with factory() as database:
+                user_id = authenticate_access_token(database, settings, token)
+            if user_id is None:
+                return JSONResponse(
+                    {"detail": "authentication required"},
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                )
+            if (
+                not bearer_auth
+                and request.method not in {"GET", "HEAD"}
+                and (
+                    (origin := request.headers.get("Origin")) is None
+                    or (
+                        allowed_extension_origin.fullmatch(origin) is None
+                        and origin != public_origin
+                    )
+                )
+            ):
+                return JSONResponse(
+                    {"detail": "request origin is not authorized"},
+                    status_code=status.HTTP_403_FORBIDDEN,
+                )
+            request.state.user_id = user_id
+            session_match = re.fullmatch(
+                r"/v1/sessions/([A-Za-z0-9_-]{1,128})(?:/.*)?",
+                request.url.path,
+            )
+            if session_match is not None:
+                with factory() as database:
+                    owned_session = database.get(
+                        CaptureSession,
+                        session_match.group(1),
+                    )
+                if (
+                    owned_session is not None
+                    and owned_session.owner_user_id != user_id
+                ):
+                    return JSONResponse(
+                        {"detail": "session not found"},
+                        status_code=status.HTTP_404_NOT_FOUND,
+                    )
+            job_match = re.fullmatch(
+                r"/v1/jobs/([A-Za-z0-9_-]{1,128})",
+                request.url.path,
+            )
+            if job_match is not None:
+                with factory() as database:
+                    owned_job = database.get(Job, job_match.group(1))
+                    job_session = (
+                        database.get(CaptureSession, owned_job.subject_id)
+                        if owned_job is not None and owned_job.subject_id is not None
+                        else None
+                    )
+                if (
+                    job_session is not None
+                    and job_session.owner_user_id != user_id
+                ):
+                    return JSONResponse(
+                        {"detail": "job not found"},
+                        status_code=status.HTTP_404_NOT_FOUND,
+                    )
+        else:
+            request.state.user_id = None
+        return await call_next(request)
 
     @app.middleware("http")
     async def rate_limit(request: Request, call_next):
@@ -132,18 +234,128 @@ def create_app(
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.get("/v1/auth/consume", response_class=HTMLResponse)
+    def consume_magic_link_page() -> HTMLResponse:
+        return HTMLResponse(
+            CONSUME_HTML,
+            headers={
+                "Content-Security-Policy": (
+                    "default-src 'none'; script-src 'unsafe-inline'; "
+                    "connect-src 'self'; style-src 'none'; base-uri 'none'; "
+                    "frame-ancestors 'none'"
+                ),
+                "Referrer-Policy": "no-referrer",
+                "Cache-Control": "no-store",
+            },
+        )
+
+    @app.get("/v1/auth/session")
+    def get_auth_session(
+        request: Request,
+        database: Session = Depends(get_session),
+    ) -> dict[str, bool]:
+        if settings.auth_mode == "development":
+            return {"authenticated": True}
+        token = request.cookies.get(COOKIE_NAME)
+        authorization = request.headers.get("Authorization")
+        if authorization is not None and authorization.startswith("Bearer "):
+            token = authorization.removeprefix("Bearer ").strip()
+        return {
+            "authenticated": (
+                authenticate_access_token(database, settings, token) is not None
+            )
+        }
+
+    @app.post(
+        "/v1/auth/magic-links",
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+    def request_magic_link(
+        body: MagicLinkRequest,
+        database: Session = Depends(get_session),
+    ) -> Response:
+        if settings.auth_mode != "magic_link" or magic_link_sender is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "authentication unavailable")
+        try:
+            user_id, token = create_magic_link(database, settings, body.email)
+        except ValueError as error:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "invalid email address",
+            ) from error
+        append_audit_event(
+            database,
+            "magic_link_requested",
+            subject_id=user_id,
+            details={},
+        )
+        database.commit()
+        try:
+            magic_link_sender(body.email.strip().lower(), magic_link_url(settings, token))
+        except Exception as error:
+            append_audit_event(
+                database,
+                "magic_link_delivery_failed",
+                subject_id=user_id,
+                details={"error_type": type(error).__name__},
+            )
+            database.commit()
+            raise HTTPException(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                "authentication delivery unavailable",
+            ) from error
+        return Response(status_code=status.HTTP_202_ACCEPTED)
+
+    @app.post(
+        "/v1/auth/magic-links/exchange",
+        status_code=status.HTTP_204_NO_CONTENT,
+    )
+    def consume_magic_link(
+        body: MagicLinkExchangeRequest,
+        database: Session = Depends(get_session),
+    ) -> Response:
+        if settings.auth_mode != "magic_link":
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "authentication unavailable")
+        exchanged = exchange_magic_link(database, settings, body.token)
+        if exchanged is None:
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED,
+                "invalid or expired magic link",
+            )
+        user_id, access_token, _expires_at = exchanged
+        append_audit_event(
+            database,
+            "access_session_created",
+            subject_id=user_id,
+            details={},
+        )
+        database.commit()
+        response = Response(status_code=status.HTTP_204_NO_CONTENT)
+        response.set_cookie(
+            COOKIE_NAME,
+            access_token,
+            max_age=settings.access_token_ttl_seconds,
+            secure=settings.env not in {"development", "test"},
+            httponly=True,
+            samesite="none",
+            path="/",
+        )
+        return response
+
     @app.post(
         "/v1/sessions",
         response_model=CreateSessionResponse,
         status_code=status.HTTP_201_CREATED,
     )
     def create_capture_session(
+        request: Request,
         database: Session = Depends(get_session),
     ) -> CreateSessionResponse:
         active_signer = require_signer(signer)
         now = datetime.now(UTC)
         capture_session = CaptureSession(
             id=uuid.uuid4().hex,
+            owner_user_id=request.state.user_id,
             server_challenge=base64url_encode(secrets.token_bytes(32)),
             status="created",
             next_sequence=0,
@@ -231,7 +443,11 @@ def create_app(
                     database,
                     session_id,
                     "event_idempotency_conflict",
-                    {"idempotency_key": idempotency_key},
+                    {
+                        "idempotency_key_hash": sha256_identifier(
+                            idempotency_key.encode()
+                        )
+                    },
                 )
                 raise HTTPException(
                     status.HTTP_409_CONFLICT,
@@ -354,7 +570,9 @@ def create_app(
                     session_id,
                     "part_idempotency_conflict",
                     {
-                        "idempotency_key": idempotency_key,
+                        "idempotency_key_hash": sha256_identifier(
+                            idempotency_key.encode()
+                        ),
                         "artifact_id": artifact_id,
                         "part_number": part_number,
                     },
@@ -683,7 +901,6 @@ def create_app(
             details={
                 "artifact_id": artifact_id,
                 "status": body.status,
-                "reason": body.reason,
             },
         )
         database.commit()
