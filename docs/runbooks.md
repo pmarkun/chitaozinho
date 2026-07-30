@@ -51,6 +51,11 @@ pacotes, provas, banco ou audit trail para recuperar capacidade.
   jobs. Nunca restaure por cima da instância original.
 - Migrações são revertidas uma revisão por vez em staging; dados append-only não
   são reescritos.
+- O ensaio local/CI usa `scripts/test-postgres-backup-restore`: ele faz
+  `pg_dump`, restaura em banco temporário, compara tabelas e contagens e executa
+  as migrações. O banco de origem permanece somente leitura durante o ensaio.
+  No CI, `CHITAOZINHO_BACKUP_SYNTHETIC=1` cria e remove também uma origem
+  sintética isolada, evitando depender de qualquer banco preexistente.
 
 ## Rotação e revogação de chaves
 

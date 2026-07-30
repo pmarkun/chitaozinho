@@ -84,3 +84,13 @@ This run proves the short functional flow. It does not satisfy the separate
 - An ephemeral local Cosign key signed the checksum file into a Sigstore bundle
   and `cosign verify-blob` returned `Verified OK`. Tagged releases use GitHub
   OIDC instead of a stored signing key.
+
+## 2026-07-30 — PostgreSQL backup and restore
+
+- A fully migrated synthetic PostgreSQL source was dumped in custom format and
+  restored into a separately named database.
+- The restored public schema contained the same 17 tables and exact row counts.
+- Running migrations against the restored copy was a no-op at
+  `0005_magic_link_auth (head)`.
+- Both temporary databases were removed after validation; the development
+  database was not modified.

@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+postgres_socket="${project_root}/data/local-services/postgres-run"
+export PGHOST="${PGHOST:-${postgres_socket}}"
+export PGPORT="${PGPORT:-55432}"
+export PGUSER="${PGUSER:-chitaozinho}"
+source_database="${CHITAOZINHO_BACKUP_SOURCE_DATABASE:-chitaozinho}"
+restore_database="chitaozinho_restore_${$}"
+synthetic_source=0
+temporary="$(mktemp -d)"
+
+cleanup() {
+  dropdb --if-exists "${restore_database}" >/dev/null 2>&1 || true
+  if [[ "${synthetic_source}" == "1" ]]; then
+    dropdb --if-exists "${source_database}" >/dev/null 2>&1 || true
+  fi
+  rm -rf "${temporary}"
+}
+trap cleanup EXIT
+
+database_url() {
+  local database="$1"
+  printf 'postgresql+psycopg://%s@127.0.0.1:%s/%s' \
+    "${PGUSER}" "${PGPORT}" "${database}"
+}
+
+if [[ "${CHITAOZINHO_BACKUP_SYNTHETIC:-0}" == "1" ]]; then
+  synthetic_source=1
+  source_database="chitaozinho_backup_source_${$}"
+  createdb "${source_database}"
+  CHITAOZINHO_DATABASE_URL="$(database_url "${source_database}")" \
+    uv run --project "${project_root}/apps/api" alembic upgrade head >/dev/null
+  psql --dbname="${source_database}" --set=ON_ERROR_STOP=1 --command="
+    INSERT INTO capture_sessions (
+      id, server_challenge, status, next_sequence, created_at, updated_at
+    ) VALUES (
+      'backup-smoke-${$}', 'synthetic', 'created', 0, now(), now()
+    )
+  " >/dev/null
+fi
+
+if ! psql --dbname="${source_database}" --command="SELECT 1" >/dev/null 2>&1; then
+  echo "source PostgreSQL database is unavailable: ${source_database}" >&2
+  exit 1
+fi
+
+backup="${temporary}/${source_database}.dump"
+pg_dump \
+  --format=custom \
+  --no-owner \
+  --no-acl \
+  --file="${backup}" \
+  "${source_database}"
+backup_hash="$(sha256sum "${backup}" | cut -d' ' -f1)"
+
+createdb "${restore_database}"
+pg_restore \
+  --exit-on-error \
+  --no-owner \
+  --no-acl \
+  --dbname="${restore_database}" \
+  "${backup}"
+
+mapfile -t source_tables < <(
+  psql \
+    --dbname="${source_database}" \
+    --tuples-only \
+    --no-align \
+    --command="SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename"
+)
+mapfile -t restored_tables < <(
+  psql \
+    --dbname="${restore_database}" \
+    --tuples-only \
+    --no-align \
+    --command="SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename"
+)
+if [[ "${source_tables[*]}" != "${restored_tables[*]}" ]]; then
+  echo "restored table set differs from source" >&2
+  exit 1
+fi
+
+for table in "${source_tables[@]}"; do
+  if [[ ! "${table}" =~ ^[a-z][a-z0-9_]*$ ]]; then
+    echo "unsafe table name returned by PostgreSQL: ${table}" >&2
+    exit 1
+  fi
+  source_count="$(
+    psql --dbname="${source_database}" --tuples-only --no-align \
+      --command="SELECT count(*) FROM \"${table}\""
+  )"
+  restored_count="$(
+    psql --dbname="${restore_database}" --tuples-only --no-align \
+      --command="SELECT count(*) FROM \"${table}\""
+  )"
+  if [[ "${source_count}" != "${restored_count}" ]]; then
+    echo "restored row count differs for ${table}" >&2
+    exit 1
+  fi
+done
+
+restored_url="$(database_url "${restore_database}")"
+CHITAOZINHO_DATABASE_URL="${restored_url}" \
+  uv run --project "${project_root}/apps/api" alembic upgrade head >/dev/null
+restored_revision="$(
+  CHITAOZINHO_DATABASE_URL="${restored_url}" \
+    uv run --project "${project_root}/apps/api" alembic current |
+    tail -n 1
+)"
+
+printf 'backup_sha256=%s restored_database=%s tables=%s revision=%s\n' \
+  "${backup_hash}" \
+  "${restore_database}" \
+  "${#source_tables[@]}" \
+  "${restored_revision}"

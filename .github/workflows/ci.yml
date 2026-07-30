@@ -39,6 +39,8 @@ jobs:
             uv run alembic upgrade head
             CHITAOZINHO_RUN_SERVICE_INTEGRATION=1 \
               uv run pytest apps/api/tests/test_services_integration.py -q
+            CHITAOZINHO_BACKUP_SYNTHETIC=1 \
+              ./scripts/test-postgres-backup-restore
           '
 
   oci-reproducibility:
