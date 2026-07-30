@@ -8,7 +8,8 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use chitaozinho_protocol::{
     ATTESTATION_DOMAIN, CAPTURE_CLOSE_DOMAIN, ENTRY_DOMAIN, KEY_CERTIFICATE_DOMAIN,
     KEY_REVOCATION_LIST_DOMAIN, MANIFEST_DOMAIN, PACKAGE_INDEX_DOMAIN, PROOF_BUNDLE_INDEX_DOMAIN,
-    RECEIPT_DOMAIN, canonical_bytes, sha256_identifier, sign_canonical, verify_canonical,
+    RECEIPT_DOMAIN, base64url_decode, canonical_bytes, sha256_identifier, sign_canonical,
+    verify_canonical,
 };
 use chrono::{SecondsFormat, Utc};
 use ed25519_dalek::SigningKey;
@@ -187,10 +188,12 @@ struct ManifestChain {
 
 #[derive(Debug, Deserialize)]
 struct ManifestArtifact {
+    artifact_id: String,
     path: String,
     size: u64,
     status: String,
     artifact_hash: Option<String>,
+    reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -200,14 +203,31 @@ struct CaptureCloseReference {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct CaptureCloseStatement {
+    protocol_version: String,
     session_id: String,
     session_root: String,
     last_entry_hash: String,
     entry_count: u64,
+    artifacts: Vec<CaptureCloseArtifact>,
+    known_gaps: Vec<String>,
+    client_key_id: String,
+    client_public_key: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+struct CaptureCloseArtifact {
+    artifact_id: String,
+    path: String,
+    size: u64,
+    status: String,
+    artifact_hash: Option<String>,
+    reason: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct ChainRecord {
     entry: serde_json::Value,
@@ -739,6 +759,11 @@ fn verify_capture_close(
     let signature_path = checked_join(root, &manifest.capture_close.client_signature_path)?;
     let close_value: serde_json::Value = read_json(&close_path)?;
     let close: CaptureCloseStatement = read_json(&close_path)?;
+    let public_key = decode_array::<32>(&public_keys.client.public_key_hex, "client public key")?;
+    ensure!(
+        close.protocol_version == "0.1.0",
+        "unsupported capture close protocol"
+    );
     ensure!(
         close.session_id == manifest.session_id,
         "capture close session id mismatch"
@@ -749,8 +774,35 @@ fn verify_capture_close(
             && close.entry_count == manifest.chain.entry_count,
         "capture close does not match manifest chain"
     );
+    let expected_artifacts = manifest
+        .artifacts
+        .iter()
+        .map(|artifact| CaptureCloseArtifact {
+            artifact_id: artifact.artifact_id.clone(),
+            path: artifact.path.clone(),
+            size: artifact.size,
+            status: artifact.status.clone(),
+            artifact_hash: artifact.artifact_hash.clone(),
+            reason: artifact.reason.clone(),
+        })
+        .collect::<Vec<_>>();
+    ensure!(
+        close.artifacts == expected_artifacts,
+        "capture close artifacts do not match manifest"
+    );
+    ensure!(
+        close.client_key_id == public_keys.client.key_id,
+        "capture close client key id does not match packaged key"
+    );
+    ensure!(
+        base64url_decode(&close.client_public_key)? == public_key,
+        "capture close client public key does not match packaged key"
+    );
+    ensure!(
+        close.known_gaps.iter().all(|gap| !gap.is_empty()),
+        "capture close contains an empty known gap"
+    );
     let signature = read_hex_array::<64>(&signature_path)?;
-    let public_key = decode_array::<32>(&public_keys.client.public_key_hex, "client public key")?;
     verify_canonical(CAPTURE_CLOSE_DOMAIN, &close_value, &signature, &public_key)
         .context("invalid capture close signature")
 }
@@ -1781,6 +1833,291 @@ mod tests {
     }
 
     #[test]
+    fn detects_screenshot_and_manifest_changes() {
+        let temporary = tempfile::tempdir().unwrap();
+        let source = temporary.path().join("source");
+        let package_path = temporary.path().join("evidence.zip");
+        let screenshot_path = temporary.path().join("screenshot-tampered.zip");
+        let manifest_path = temporary.path().join("manifest-tampered.zip");
+        let seed = [27_u8; 32];
+        let public_key = SigningKey::from_bytes(&seed).verifying_key().to_bytes();
+        create_fixture(&source, &seed, &public_key);
+        pack(&source, &package_path, &seed).unwrap();
+
+        rewrite_zip(
+            &package_path,
+            &screenshot_path,
+            Some("capture/screenshot.png"),
+        );
+        let screenshot_error = verify(&screenshot_path, &public_key)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            screenshot_error.contains("mismatch: capture/screenshot.png"),
+            "{screenshot_error}"
+        );
+
+        rewrite_zip(&package_path, &manifest_path, Some(MANIFEST_PATH));
+        let manifest_error = verify(&manifest_path, &public_key).unwrap_err().to_string();
+        assert!(
+            manifest_error.contains("mismatch: capture-manifest.json"),
+            "{manifest_error}"
+        );
+    }
+
+    #[test]
+    fn rejects_wrong_trust_key_and_signature_domain() {
+        let temporary = tempfile::tempdir().unwrap();
+        let source = temporary.path().join("source");
+        let package_path = temporary.path().join("evidence.zip");
+        let invalid_path = temporary.path().join("invalid.zip");
+        let seed = [28_u8; 32];
+        let public_key = SigningKey::from_bytes(&seed).verifying_key().to_bytes();
+        create_fixture(&source, &seed, &public_key);
+        pack(&source, &package_path, &seed).unwrap();
+
+        let trust_error = verify(&package_path, &[0_u8; 32]).unwrap_err().to_string();
+        assert!(
+            trust_error.contains("packaged server key is not the trusted operational key"),
+            "{trust_error}"
+        );
+
+        let mut record: ChainRecord = read_json_lines(&source.join(ENTRIES_PATH))
+            .unwrap()
+            .remove(0);
+        record.signature_hex =
+            hex::encode(sign_canonical(RECEIPT_DOMAIN, &record.entry, &seed).unwrap());
+        write_json_lines(&source.join(ENTRIES_PATH), &[record]);
+        let domain_error = pack(&source, &invalid_path, &seed).unwrap_err().to_string();
+        assert!(
+            domain_error.contains("invalid entry signature"),
+            "{domain_error}"
+        );
+    }
+
+    #[test]
+    fn rejects_unknown_schema_algorithm_and_mismatched_key_id() {
+        let temporary = tempfile::tempdir().unwrap();
+        let seed = [29_u8; 32];
+        let public_key = SigningKey::from_bytes(&seed).verifying_key().to_bytes();
+
+        let schema_source = temporary.path().join("schema-source");
+        create_fixture(&schema_source, &seed, &public_key);
+        let mut manifest: serde_json::Value =
+            read_json(&schema_source.join(MANIFEST_PATH)).unwrap();
+        manifest["schema_version"] = json!("9.0.0");
+        fs::write(
+            schema_source.join(MANIFEST_PATH),
+            canonical_bytes(&manifest).unwrap(),
+        )
+        .unwrap();
+        let schema_error = pack(&schema_source, &temporary.path().join("schema.zip"), &seed)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            schema_error.contains("unsupported manifest schema"),
+            "{schema_error}"
+        );
+
+        let algorithm_source = temporary.path().join("algorithm-source");
+        create_fixture(&algorithm_source, &seed, &public_key);
+        let mut keys: serde_json::Value =
+            read_json(&algorithm_source.join(PUBLIC_KEYS_PATH)).unwrap();
+        keys["client"]["algorithm"] = json!("unknown");
+        fs::write(
+            algorithm_source.join(PUBLIC_KEYS_PATH),
+            canonical_bytes(&keys).unwrap(),
+        )
+        .unwrap();
+        let algorithm_error = pack(
+            &algorithm_source,
+            &temporary.path().join("algorithm.zip"),
+            &seed,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(
+            algorithm_error.contains("unsupported public key algorithm"),
+            "{algorithm_error}"
+        );
+
+        let key_source = temporary.path().join("key-source");
+        create_fixture(&key_source, &seed, &public_key);
+        let close_path = key_source.join("chain/capture-close.json");
+        let mut close: serde_json::Value = read_json(&close_path).unwrap();
+        close["client_key_id"] = json!("attacker-key");
+        fs::write(&close_path, canonical_bytes(&close).unwrap()).unwrap();
+        write_hex_file(
+            &key_source.join("signatures/capture-close.client.sig"),
+            &sign_canonical(CAPTURE_CLOSE_DOMAIN, &close, &seed).unwrap(),
+        )
+        .unwrap();
+        let key_error = pack(&key_source, &temporary.path().join("key.zip"), &seed)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            key_error.contains("client key id does not match packaged key"),
+            "{key_error}"
+        );
+    }
+
+    #[test]
+    fn detects_removed_inserted_duplicated_and_reordered_entries() {
+        let temporary = tempfile::tempdir().unwrap();
+        let source = temporary.path().join("source");
+        let seed = [30_u8; 32];
+        let public_key = SigningKey::from_bytes(&seed).verifying_key().to_bytes();
+        create_fixture(&source, &seed, &public_key);
+        let first: ChainRecord = read_json_lines(&source.join(ENTRIES_PATH))
+            .unwrap()
+            .remove(0);
+        let mut second = first.clone();
+        second.entry["sequence"] = json!(1);
+        second.entry["part_number"] = json!(1);
+        second.entry["client_monotonic_time"] = json!(2);
+        second.entry["previous_entry_hash"] = json!(first.entry_hash);
+        second.entry_hash = sha256_identifier(&canonical_bytes(&second.entry).unwrap());
+        second.signature_hex =
+            hex::encode(sign_canonical(ENTRY_DOMAIN, &second.entry, &seed).unwrap());
+        let mut manifest: CaptureManifest = read_json(&source.join(MANIFEST_PATH)).unwrap();
+        manifest.chain.entry_count = 2;
+        manifest.chain.first_hash = first.entry_hash.clone();
+        manifest.chain.last_hash = second.entry_hash.clone();
+        manifest.chain.root_hash = second.entry_hash.clone();
+        let keys: PublicKeys = read_json(&source.join(PUBLIC_KEYS_PATH)).unwrap();
+
+        write_json_lines(&source.join(ENTRIES_PATH), std::slice::from_ref(&second));
+        assert!(
+            verify_chain(&source, &manifest, &keys)
+                .unwrap_err()
+                .to_string()
+                .contains("entry count differs")
+        );
+
+        write_json_lines(
+            &source.join(ENTRIES_PATH),
+            &[first.clone(), first.clone(), second.clone()],
+        );
+        assert!(
+            verify_chain(&source, &manifest, &keys)
+                .unwrap_err()
+                .to_string()
+                .contains("entry count differs")
+        );
+
+        write_json_lines(
+            &source.join(ENTRIES_PATH),
+            &[first.clone(), second.clone(), second.clone()],
+        );
+        assert!(
+            verify_chain(&source, &manifest, &keys)
+                .unwrap_err()
+                .to_string()
+                .contains("entry count differs")
+        );
+
+        write_json_lines(&source.join(ENTRIES_PATH), &[second, first]);
+        assert!(
+            verify_chain(&source, &manifest, &keys)
+                .unwrap_err()
+                .to_string()
+                .contains("entry sequence has a gap")
+        );
+    }
+
+    #[test]
+    fn reports_pending_confirmed_and_invalid_external_proofs() {
+        let pending = json!({
+            "timestamp_status": "pending",
+            "blockchain_status": "pending_confirmation"
+        });
+        let confirmed = json!({
+            "timestamp_status": "valid",
+            "blockchain_status": "confirmed"
+        });
+        let invalid = json!({
+            "timestamp_status": "invalid",
+            "blockchain_status": "verification_failed"
+        });
+
+        assert_eq!(
+            merge_temporal_status("not_requested", &pending).unwrap(),
+            "pending"
+        );
+        assert_eq!(
+            merge_temporal_status("pending", &confirmed).unwrap(),
+            "confirmed"
+        );
+        assert!(
+            merge_temporal_status("not_requested", &invalid)
+                .unwrap_err()
+                .to_string()
+                .contains("invalid external proof")
+        );
+    }
+
+    #[test]
+    fn rejects_missing_extra_compressed_and_deep_members() {
+        let temporary = tempfile::tempdir().unwrap();
+        let source = temporary.path().join("source");
+        let package_path = temporary.path().join("evidence.zip");
+        let missing_path = temporary.path().join("missing.zip");
+        let extra_path = temporary.path().join("extra.zip");
+        let seed = [31_u8; 32];
+        let public_key = SigningKey::from_bytes(&seed).verifying_key().to_bytes();
+        create_fixture(&source, &seed, &public_key);
+        pack(&source, &package_path, &seed).unwrap();
+
+        rewrite_zip_shape(&package_path, &missing_path, Some(MANIFEST_PATH), None);
+        let missing_error = verify(&missing_path, &public_key).unwrap_err().to_string();
+        assert!(
+            missing_error.contains("package members differ from signed index"),
+            "{missing_error}"
+        );
+
+        rewrite_zip_shape(
+            &package_path,
+            &extra_path,
+            None,
+            Some(("extra.bin", b"extra")),
+        );
+        let extra_error = verify(&extra_path, &public_key).unwrap_err().to_string();
+        assert!(
+            extra_error.contains("package members differ from signed index"),
+            "{extra_error}"
+        );
+
+        let compressed_path = temporary.path().join("compressed.zip");
+        let file = File::create(&compressed_path).unwrap();
+        let mut writer = ZipWriter::new(file);
+        writer
+            .start_file(
+                "compressed.bin",
+                SimpleFileOptions::default().compression_method(CompressionMethod::Deflated),
+            )
+            .unwrap();
+        writer.write_all(&vec![0_u8; 4 * 1024 * 1024]).unwrap();
+        writer.finish().unwrap();
+        let compressed_error = extract_safely(&compressed_path).unwrap_err().to_string();
+        assert!(
+            compressed_error.contains("suspicious compression ratio"),
+            "{compressed_error}"
+        );
+
+        let deep_path = temporary.path().join("deep.json");
+        fs::write(
+            &deep_path,
+            format!("{}0{}", "[".repeat(256), "]".repeat(256)),
+        )
+        .unwrap();
+        let deep_error = format!(
+            "{:#}",
+            read_json::<serde_json::Value>(&deep_path).unwrap_err()
+        );
+        assert!(deep_error.contains("recursion limit"), "{deep_error}");
+    }
+
+    #[test]
     fn rejects_path_traversal_zip() {
         let temporary = tempfile::tempdir().unwrap();
         let package_path = temporary.path().join("unsafe.zip");
@@ -1848,8 +2185,10 @@ mod tests {
         fs::create_dir_all(source.join("chain")).unwrap();
         fs::create_dir_all(source.join("signatures")).unwrap();
         fs::write(source.join("capture/recording.webm"), b"original bytes").unwrap();
+        fs::write(source.join("capture/screenshot.png"), b"synthetic png").unwrap();
 
         let artifact_hash = sha256_identifier(b"original bytes");
+        let screenshot_hash = sha256_identifier(b"synthetic png");
         let entry = json!({
             "protocol_version": "0.1.0",
             "entry_type": "artifact_part",
@@ -1920,10 +2259,16 @@ mod tests {
                 "size": 14,
                 "status": "captured",
                 "artifact_hash": artifact_hash
+            }, {
+                "artifact_id": "screenshot",
+                "path": "capture/screenshot.png",
+                "size": 13,
+                "status": "captured",
+                "artifact_hash": screenshot_hash
             }],
             "known_gaps": [],
             "client_key_id": "client-test",
-            "client_public_key": "AQID"
+            "client_public_key": chitaozinho_protocol::base64url_encode(public_key)
         });
         fs::write(
             source.join("chain/capture-close.json"),
@@ -1981,6 +2326,15 @@ mod tests {
                 "method": "test",
                 "provenance": "client_reported",
                 "artifact_hash": artifact_hash
+            }, {
+                "artifact_id": "screenshot",
+                "path": "capture/screenshot.png",
+                "size": 13,
+                "media_type": "image/png",
+                "status": "captured",
+                "method": "test",
+                "provenance": "client_reported",
+                "artifact_hash": screenshot_hash
             }],
             "chain": {
                 "first_hash": entry_hash,
@@ -2111,5 +2465,42 @@ mod tests {
             }
         }
         writer.finish().unwrap();
+    }
+
+    fn rewrite_zip_shape(
+        source: &Path,
+        target: &Path,
+        omitted_path: Option<&str>,
+        extra: Option<(&str, &[u8])>,
+    ) {
+        let mut input = ZipArchive::new(File::open(source).unwrap()).unwrap();
+        let mut writer = ZipWriter::new(File::create(target).unwrap());
+        let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+        for index in 0..input.len() {
+            let mut entry = input.by_index(index).unwrap();
+            let name = entry.name().to_owned();
+            if omitted_path == Some(name.as_str()) {
+                continue;
+            }
+            writer.start_file(&name, options).unwrap();
+            io::copy(&mut entry, &mut writer).unwrap();
+        }
+        if let Some((name, bytes)) = extra {
+            writer.start_file(name, options).unwrap();
+            writer.write_all(bytes).unwrap();
+        }
+        writer.finish().unwrap();
+    }
+
+    fn write_json_lines<T: Serialize>(path: &Path, records: &[T]) {
+        let bytes = records
+            .iter()
+            .flat_map(|record| {
+                let mut line = canonical_bytes(record).unwrap();
+                line.push(b'\n');
+                line
+            })
+            .collect::<Vec<_>>();
+        fs::write(path, bytes).unwrap();
     }
 }
