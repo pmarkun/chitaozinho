@@ -103,13 +103,13 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 - [x] Manifest V3 válido e instalável.
 - [x] Usuário recebe explicação e registra consentimento antes da captura.
-- [ ] Captura de uma aba por pelo menos 60 segundos.
+- [x] Captura de uma aba por pelo menos 60 segundos.
 - [x] Vídeo WebM preservado sem recompressão.
 - [x] Screenshot por viewport.
 - [x] URL, título, user agent, resolução, viewport e timezone registrados como `client_reported`.
 - [x] HTML/DOM e texto visível coletados quando permitidos.
-- [ ] Navegação, rolagem, screenshots adicionais e marcadores geram eventos.
-- [ ] Cada artefato registra método, procedência, permissões, intervalo e completude.
+- [x] Navegação, rolagem, screenshots adicionais e marcadores geram eventos.
+- [x] Cada artefato registra método, procedência, permissões, intervalo e completude.
 - [x] Artefatos indisponíveis ou parciais registram motivo explícito.
 - [x] Hash e upload de vídeo são incrementais.
 - [x] IndexedDB preserva buffer, partes, recibos e estado local.
@@ -150,7 +150,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ### Gate da POC funcional
 
-- [ ] Captura real de 60 segundos gera vídeo, screenshot e metadados.
+- [x] Captura real de 60 segundos gera vídeo, screenshot e metadados.
 - [ ] Queda e retomada de upload não duplicam partes ou recibos.
 - [x] Pacote é baixado e verificado integralmente offline.
 - [x] Alteração de um byte é detectada e localizada.
@@ -182,7 +182,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 ### Object Lock
 
 - [ ] Bucket de teste possui versionamento e Object Lock desde a criação.
-- [ ] Testes usam somente conteúdo sintético ou público.
+- [x] Testes usam somente conteúdo sintético ou público.
 - [ ] Prazo de retenção de teste é mínimo e explícito.
 - [ ] Sobrescrita e exclusão antecipada são recusadas.
 - [ ] Manifestos, assinaturas, recibos, provas e relatórios são protegidos.
@@ -257,8 +257,8 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Artefato indisponível.
 - [ ] Captura parcial de iframe, canvas, WebGL, DRM ou conteúdo protegido.
 - [ ] Queda durante gravação.
-- [ ] Navegação durante captura.
-- [ ] Página longa ou dinâmica.
+- [x] Navegação durante captura.
+- [x] Página longa ou dinâmica.
 
 ## 7. Produção
 

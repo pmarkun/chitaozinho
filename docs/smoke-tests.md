@@ -22,3 +22,35 @@
 
 This run proves the short functional flow. It does not satisfy the separate
 60-second capture gate.
+
+## 2026-07-30 — Chromium unpacked, 60-second gate
+
+- Session: `5231c8c9394049b1b9c7d99520b23fd7`
+- Capture duration: `70,552 ms` by the signed client events.
+- Recording interval: `65,660 ms` in the signed artifact context; the last
+  media packet timestamp is approximately `69.693 s`.
+- Package SHA-256:
+  `ddf1f4384dd411959d9f7073b8e0d19449f2b8751904ae92ae0c36295ce59e0b`
+- The standard `sha256sum` sidecar matched the ZIP.
+- Source: public page at `https://www.wikiaves.com.br/`; captured content is
+  not stored in this repository.
+- Artifacts: DOM, client-reported metadata, VP9/Opus WebM recording and three
+  viewport screenshots, all marked captured with no known gaps.
+- Artifact completion events record method, client-reported provenance,
+  permissions, covered interval and completeness for all six artifacts.
+- Chain: 49 entries — 22 artifact parts, six completions, 16 scroll events,
+  two navigations, one marker, start and finish. Scroll positions cover
+  `y=480` through `y=10087`.
+- Offline verifier: `integral`, 13 members verified, artifact/index/manifest
+  hashes and signatures, entry/receipt chains and `capture_close` valid.
+- Verification report SHA-256:
+  `aa6db20ce48813009fc389e72ccef965cb0c32660f6f96fe298d4290133bffd2`.
+- Temporal proof: `not_provided`, as expected for this functional POC smoke.
+- Media probe: 676 VP9 packets through `69.583 s` and 1,162 Opus packets
+  through `69.693 s`; DTS is strictly increasing inside each stream. FFmpeg
+  decoded with exit code zero, but reported timestamp rounding warnings at the
+  null muxer and one malformed Opus packet header.
+- Build identity: version `0.1.0`, source commit
+  `0186c7be62669dd8e20890c61ea200e96a129201-dirty`. The functional gate is
+  accepted, but a subsequent reproducibility or release smoke must use a clean
+  build identity.
