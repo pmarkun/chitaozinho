@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+phase="${1:-}"
+duration="${2:-}"
+output="${3:-}"
+
+if [[ ! "${phase}" =~ ^[a-z0-9_-]+$ ]]; then
+  echo "usage: $0 <phase> <seconds> <output.csv>" >&2
+  exit 2
+fi
+if [[ ! "${duration}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "seconds must be a positive integer" >&2
+  exit 2
+fi
+if [[ -z "${output}" ]]; then
+  echo "output path is required" >&2
+  exit 2
+fi
+
+clock_ticks="$(getconf CLK_TCK)"
+if [[ ! -e "${output}" ]]; then
+  printf 'timestamp,phase,chrome_processes,cpu_percent,rss_mib,read_mib,write_mib\n' \
+    >"${output}"
+fi
+
+read_totals() {
+  local count=0 cpu=0 rss=0 reads=0 writes=0 pid value
+  while read -r pid; do
+    [[ -r "/proc/${pid}/stat" ]] || continue
+    value="$(awk '{print $14 + $15}' "/proc/${pid}/stat" 2>/dev/null || true)"
+    [[ -n "${value}" ]] || continue
+    cpu=$((cpu + value))
+    value="$(awk '/^VmRSS:/ {print $2}' "/proc/${pid}/status" 2>/dev/null || true)"
+    rss=$((rss + ${value:-0}))
+    value="$(awk '/^read_bytes:/ {print $2}' "/proc/${pid}/io" 2>/dev/null || true)"
+    reads=$((reads + ${value:-0}))
+    value="$(awk '/^write_bytes:/ {print $2}' "/proc/${pid}/io" 2>/dev/null || true)"
+    writes=$((writes + ${value:-0}))
+    count=$((count + 1))
+  done < <(ps -eo pid=,comm= | awk '$2 == "chrome" {print $1}')
+  printf '%s %s %s %s %s\n' "${count}" "${cpu}" "${rss}" "${reads}" "${writes}"
+}
+
+read -r _ previous_cpu _ initial_reads initial_writes < <(read_totals)
+previous_time="$(date +%s%N)"
+
+for ((sample = 1; sample <= duration; sample++)); do
+  sleep 1
+  current_time="$(date +%s%N)"
+  read -r processes cpu rss reads writes < <(read_totals)
+  elapsed_ns=$((current_time - previous_time))
+  cpu_delta=$((cpu - previous_cpu))
+  read_delta=$((reads - initial_reads))
+  write_delta=$((writes - initial_writes))
+  cpu_percent="$(
+    awk -v delta="${cpu_delta}" -v ticks="${clock_ticks}" -v ns="${elapsed_ns}" \
+      'BEGIN { printf "%.2f", 100 * delta / ticks / (ns / 1000000000) }'
+  )"
+  rss_mib="$(awk -v kib="${rss}" 'BEGIN { printf "%.2f", kib / 1024 }')"
+  read_mib="$(awk -v bytes="${read_delta}" 'BEGIN { printf "%.2f", bytes / 1048576 }')"
+  write_mib="$(awk -v bytes="${write_delta}" 'BEGIN { printf "%.2f", bytes / 1048576 }')"
+  printf '%s,%s,%s,%s,%s,%s,%s\n' \
+    "$(date --iso-8601=seconds)" \
+    "${phase}" \
+    "${processes}" \
+    "${cpu_percent}" \
+    "${rss_mib}" \
+    "${read_mib}" \
+    "${write_mib}" >>"${output}"
+  previous_cpu="${cpu}"
+  previous_time="${current_time}"
+done
+
+awk -F, -v phase="${phase}" '
+  NR > 1 && $2 == phase {
+    count += 1
+    cpu += $4
+    if ($5 > max_rss) max_rss = $5
+    final_read = $6
+    final_write = $7
+  }
+  END {
+    if (count == 0) exit 1
+    printf "phase=%s samples=%d avg_cpu_percent=%.2f max_rss_mib=%.2f read_mib=%.2f write_mib=%.2f\n",
+      phase, count, cpu / count, max_rss, final_read, final_write
+  }
+' "${output}"
