@@ -16,9 +16,12 @@ Do not run `apply` casually. The isolated POC test uses only synthetic/public
 content and `retention_days=1`. Production starts at 90 days and requires
 legal/security approval.
 
-Set `CHITAOZINHO_S3_KMS_KEY_ID` to the `evidence_kms_key_arn` output in the
+Set `CHITAOZINHO_S3_KMS_KEY_ID` to `evidence_kms_key_arn` and
+`CHITAOZINHO_SERVER_SEED_KMS_KEY_ID` to `signing_envelope_kms_key_arn` in the
 published API and worker environments. Non-local startup fails closed without
-this value, and final-object verification checks that S3 reports the same key.
+both values. Final-object verification checks the evidence key, while the
+operational Ed25519 seed is decrypted with a purpose- and key-ID-bound KMS
+encryption context.
 
 After explicit authorization, validate the isolated one-day test bucket with:
 

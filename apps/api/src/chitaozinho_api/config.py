@@ -21,16 +21,30 @@ class Settings(BaseSettings):
     s3_endpoint_url: str | None = None
     s3_region: str = "garage"
     s3_bucket: str = "chitaozinho"
-    s3_access_key_id: str | None = None
-    s3_secret_access_key: str | None = None
+    s3_access_key_id: str | None = Field(default=None, repr=False)
+    s3_secret_access_key: str | None = Field(default=None, repr=False)
     s3_kms_key_id: str | None = None
     server_key_id: str = "server-unconfigured"
-    server_seed_hex: str | None = Field(default=None, min_length=64, max_length=64)
+    server_seed_hex: str | None = Field(
+        default=None,
+        min_length=64,
+        max_length=64,
+        repr=False,
+    )
+    server_seed_kms_ciphertext_b64: str | None = Field(
+        default=None,
+        min_length=4,
+        max_length=16_384,
+        repr=False,
+    )
+    server_seed_kms_key_id: str | None = Field(default=None, min_length=1)
+    server_seed_kms_region: str = "sa-east-1"
     server_certificate_path: Path | None = None
     server_revocation_list_path: Path | None = None
+    server_root_public_path: Path | None = None
     public_base_url: str = "http://127.0.0.1:8000"
     auth_mode: str = "development"
-    auth_token_pepper: str | None = Field(default=None, min_length=32)
+    auth_token_pepper: str | None = Field(default=None, min_length=32, repr=False)
     magic_link_ttl_seconds: int = Field(default=15 * 60, ge=60, le=60 * 60)
     access_token_ttl_seconds: int = Field(
         default=30 * 24 * 60 * 60,
@@ -41,7 +55,7 @@ class Settings(BaseSettings):
     smtp_host: str | None = None
     smtp_port: int = Field(default=587, ge=1, le=65535)
     smtp_username: str | None = None
-    smtp_password: str | None = None
+    smtp_password: str | None = Field(default=None, repr=False)
     smtp_from: str | None = None
     smtp_starttls: bool = True
     cors_origin_regex: str = r"^chrome-extension://[a-p]{32}$"
@@ -78,8 +92,17 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "customer-managed S3 KMS key is required outside local development"
                 )
-            if self.server_seed_hex is None:
-                raise ValueError("server signing key is required outside local development")
+            if self.server_seed_hex is not None:
+                raise ValueError(
+                    "plaintext server signing seed is forbidden outside local development"
+                )
+            if (
+                self.server_seed_kms_ciphertext_b64 is None
+                or self.server_seed_kms_key_id is None
+            ):
+                raise ValueError(
+                    "KMS-encrypted server signing seed is required outside local development"
+                )
             if self.server_certificate_path is None:
                 raise ValueError(
                     "root-signed server certificate is required outside local development"
@@ -87,6 +110,10 @@ class Settings(BaseSettings):
             if self.server_revocation_list_path is None:
                 raise ValueError(
                     "root-signed key revocation list is required outside local development"
+                )
+            if self.server_root_public_path is None:
+                raise ValueError(
+                    "offline root public key is required outside local development"
                 )
             if self.auth_mode != "magic_link":
                 raise ValueError("magic-link authentication is required outside local development")
@@ -100,4 +127,9 @@ class Settings(BaseSettings):
                 raise ValueError("SMTP STARTTLS is required outside local development")
         elif self.auth_mode not in {"development", "magic_link"}:
             raise ValueError("unsupported authentication mode")
+        if (
+            self.server_seed_hex is not None
+            and self.server_seed_kms_ciphertext_b64 is not None
+        ):
+            raise ValueError("configure only one server signing seed source")
         return self

@@ -109,23 +109,37 @@ def test_non_local_environment_fails_closed_without_tls_and_external_storage() -
             public_base_url="https://example.test",
             storage_backend="s3",
         )
-    with pytest.raises(ValidationError, match="revocation list"):
-        Settings(
-            env="staging",
-            public_base_url="https://example.test",
-            storage_backend="s3",
-            s3_kms_key_id="arn:aws:kms:sa-east-1:123456789012:key/test-key",
-            server_seed_hex="11" * 32,
-            server_certificate_path=Path("server-certificate.json"),
-        )
-    production_base = {
+    kms_storage = {
         "env": "staging",
         "public_base_url": "https://example.test",
         "storage_backend": "s3",
-        "s3_kms_key_id": "arn:aws:kms:sa-east-1:123456789012:key/test-key",
-        "server_seed_hex": "11" * 32,
+        "s3_kms_key_id": "arn:aws:kms:sa-east-1:123456789012:key/evidence",
+    }
+    with pytest.raises(ValidationError, match="plaintext"):
+        Settings(
+            **kms_storage,
+            server_seed_hex="11" * 32,
+        )
+    with pytest.raises(ValidationError, match="KMS-encrypted"):
+        Settings(**kms_storage)
+    signing_envelope = {
+        "server_seed_kms_ciphertext_b64": "c3ludGhldGljLWNpcGhlcnRleHQ=",
+        "server_seed_kms_key_id": (
+            "arn:aws:kms:sa-east-1:123456789012:key/signing-envelope"
+        ),
+    }
+    with pytest.raises(ValidationError, match="revocation list"):
+        Settings(
+            **kms_storage,
+            **signing_envelope,
+            server_certificate_path=Path("server-certificate.json"),
+        )
+    production_base = {
+        **kms_storage,
+        **signing_envelope,
         "server_certificate_path": Path("server-certificate.json"),
         "server_revocation_list_path": Path("key-revocations.json"),
+        "server_root_public_path": Path("root-public.json"),
     }
     with pytest.raises(ValidationError, match="magic-link"):
         Settings(**production_base)
@@ -137,6 +151,23 @@ def test_non_local_environment_fails_closed_without_tls_and_external_storage() -
             auth_mode="magic_link",
             auth_token_pepper="x" * 32,
         )
+
+
+def test_settings_repr_redacts_credentials_and_key_material() -> None:
+    settings = Settings(
+        s3_access_key_id="access-id",
+        s3_secret_access_key="storage-secret",
+        server_seed_hex="11" * 32,
+        auth_token_pepper="pepper-secret-value-that-is-long",
+        smtp_password="smtp-secret",
+    )
+
+    rendered = repr(settings)
+    assert "access-id" not in rendered
+    assert "storage-secret" not in rendered
+    assert ("11" * 32) not in rendered
+    assert "pepper-secret" not in rendered
+    assert "smtp-secret" not in rendered
 
 
 def test_api_enforces_request_rate_limit(tmp_path: Path) -> None:

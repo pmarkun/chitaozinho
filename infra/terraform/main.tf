@@ -59,6 +59,27 @@ resource "aws_kms_alias" "evidence" {
   target_key_id = aws_kms_key.evidence.key_id
 }
 
+resource "aws_kms_key" "signing_envelope" {
+  description             = "Chitaozinho operational Ed25519 seed envelope"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+
+  tags = {
+    Application = "chitaozinho"
+    Environment = var.environment
+    DataClass   = "signing-key-material"
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_kms_alias" "signing_envelope" {
+  name          = "alias/chitaozinho-${var.environment}-signing-envelope"
+  target_key_id = aws_kms_key.signing_envelope.key_id
+}
+
 resource "aws_s3_bucket_server_side_encryption_configuration" "evidence" {
   bucket = aws_s3_bucket.evidence.id
 
