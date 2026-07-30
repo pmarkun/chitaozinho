@@ -101,7 +101,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ### Extensão Chromium
 
-- [ ] Manifest V3 válido e instalável.
+- [x] Manifest V3 válido e instalável.
 - [x] Usuário recebe explicação e registra consentimento antes da captura.
 - [ ] Captura de uma aba por pelo menos 60 segundos.
 - [ ] Vídeo WebM preservado sem recompressão.
@@ -112,7 +112,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [ ] Cada artefato registra método, procedência, permissões, intervalo e completude.
 - [x] Artefatos indisponíveis ou parciais registram motivo explícito.
 - [x] Hash e upload de vídeo são incrementais.
-- [ ] IndexedDB preserva buffer, partes, recibos e estado local.
+- [x] IndexedDB preserva buffer, partes, recibos e estado local.
 - [ ] Reinício da extensão cria novo `client_clock_id` e evento `clock_restarted`.
 - [ ] Indicadores de gravação, duração, upload, conexão e erros são visíveis.
 - [ ] `capture_close` é calculado e assinado antes de destruir a chave efêmera.
@@ -145,7 +145,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Download inclui pacote, hash externo e chaves públicas necessárias.
 - [x] Relatório HTML apresenta resultados `íntegro`, `íntegro, mas incompleto`, `inválido` ou `não verificável`.
 - [x] Relatório nunca afirma autoria, veracidade ou validade jurídica definitiva.
-- [ ] Interface preparada para pt-BR e inglês.
+- [x] Interface preparada para pt-BR e inglês.
 - [ ] Fluxo principal atende WCAG 2.2 AA.
 
 ### Gate da POC funcional
@@ -271,6 +271,10 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Volumes do Railway não são usados como storage probatório.
 - [ ] Chaves de produção ficam em KMS/HSM ou solução equivalente aprovada.
 - [ ] Health checks, métricas, alertas e logs estruturados configurados.
+  - [x] `/healthz` e `/readyz` separam vida e prontidão das dependências.
+  - [x] `/metrics` expõe contadores e duração sem identificadores sensíveis.
+  - [x] Logs HTTP estruturados usam somente rota parametrizada e metadados seguros.
+  - [ ] Monitor externo e alertas estão conectados aos ambientes publicados.
 - [x] Jobs são idempotentes e recuperáveis.
 - [x] Runbooks cobrem TSA, OpenTimestamps, storage, banco e rotação de chaves.
 - [ ] SBOM e assinatura de builds são gerados por release.
@@ -312,13 +316,13 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 - [ ] RNF-001 — usar TLS moderno.
 - [x] RNF-002 — respeitar finalidade e consentimento de uso dos dados.
-- [ ] RNF-003 — preservar buffer durante indisponibilidade.
+- [x] RNF-003 — preservar buffer durante indisponibilidade.
 - [x] RNF-004 — manter build identificável, changelog e logs seguros.
 - [x] RNF-005 — verificar fora da plataforma.
 - [ ] RNF-006 — respeitar limites de desempenho e memória.
 - [x] RNF-007 — suportar multipart e processamento assíncrono.
 - [ ] RNF-008 — atender WCAG 2.2 AA.
-- [ ] RNF-009 — preparar pt-BR e inglês.
+- [x] RNF-009 — preparar pt-BR e inglês.
 - [x] RNF-010 — oferecer build reproduzível do verificador.
 
 ## 9. Definição final de pronto
