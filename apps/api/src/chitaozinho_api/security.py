@@ -16,6 +16,7 @@ class ServerSigner:
     private_seed: bytes
     public_key: bytes
     certificate: dict | None
+    revocation_list: dict | None
 
     @classmethod
     def from_settings(cls, settings: Settings) -> ServerSigner | None:
@@ -41,7 +42,26 @@ class ServerSigner:
                 or document.get("purpose") != "server_signing"
             ):
                 raise ValueError("server certificate does not match operational key")
-        return cls(settings.server_key_id, seed, public_key, certificate)
+        revocation_list = (
+            json.loads(settings.server_revocation_list_path.read_text())
+            if settings.server_revocation_list_path is not None
+            else None
+        )
+        if revocation_list is not None:
+            document = revocation_list.get("document", {})
+            if (
+                document.get("schema_version") != "0.1.0"
+                or not isinstance(document.get("issuer_key_id"), str)
+                or not isinstance(document.get("revoked_keys"), list)
+            ):
+                raise ValueError("invalid server key revocation list")
+        return cls(
+            settings.server_key_id,
+            seed,
+            public_key,
+            certificate,
+            revocation_list,
+        )
 
     def sign(self, domain: bytes, value: object) -> str:
         return sign_canonical(domain, value, self.private_seed).hex()

@@ -24,9 +24,7 @@ def test_extension_cors_preflight() -> None:
         },
     )
     assert response.status_code == 200
-    assert response.headers["access-control-allow-origin"].startswith(
-        "chrome-extension://"
-    )
+    assert response.headers["access-control-allow-origin"].startswith("chrome-extension://")
 
 
 def test_non_local_environment_fails_closed_without_tls_and_external_storage() -> None:
@@ -37,6 +35,14 @@ def test_non_local_environment_fails_closed_without_tls_and_external_storage() -
             env="staging",
             public_base_url="https://example.test",
             storage_backend="local",
+        )
+    with pytest.raises(ValidationError, match="revocation list"):
+        Settings(
+            env="staging",
+            public_base_url="https://example.test",
+            storage_backend="s3",
+            server_seed_hex="11" * 32,
+            server_certificate_path=Path("server-certificate.json"),
         )
 
 

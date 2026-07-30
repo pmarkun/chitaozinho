@@ -14,6 +14,7 @@ export const DOMAINS = {
   attestation: "CHITAOZINHO/ATTESTATION/v1",
   proofBundleIndex: "CHITAOZINHO/PROOF_BUNDLE_INDEX/v1",
   keyCertificate: "CHITAOZINHO/KEY_CERTIFICATE/v1",
+  keyRevocationList: "CHITAOZINHO/KEY_REVOCATION_LIST/v1",
 } as const;
 
 export function canonicalBytes(value: unknown): Uint8Array {

@@ -42,6 +42,8 @@ enum Command {
         trusted_server_key_hex: Option<String>,
         #[arg(long, required_unless_present = "trusted_server_key_hex")]
         trusted_root_key_hex: Option<String>,
+        #[arg(long, requires = "trusted_root_key_hex")]
+        key_revocation_list: Option<PathBuf>,
         #[arg(long)]
         json: bool,
         #[arg(long)]
@@ -74,6 +76,7 @@ fn main() -> Result<()> {
             tsa_crl_bundle,
             trusted_server_key_hex,
             trusted_root_key_hex,
+            key_revocation_list,
             json,
             html_report,
         } => {
@@ -82,10 +85,10 @@ fn main() -> Result<()> {
                     (Some(value), None) => package::TrustAnchor::Operational(
                         package::decode_array::<32>(&value, "trusted server key")?,
                     ),
-                    (None, Some(value)) => package::TrustAnchor::Root(package::decode_array::<32>(
-                        &value,
-                        "trusted root key",
-                    )?),
+                    (None, Some(value)) => package::TrustAnchor::Root {
+                        public_key: package::decode_array::<32>(&value, "trusted root key")?,
+                        revocation_list: key_revocation_list,
+                    },
                     _ => anyhow::bail!("choose exactly one trusted key mode"),
                 };
             let report = match proof_bundle {

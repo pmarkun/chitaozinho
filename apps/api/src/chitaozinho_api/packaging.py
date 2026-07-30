@@ -138,6 +138,10 @@ def package_members(
         server_key_record["certificate_path"] = (
             "signatures/server-key-certificate.json"
         )
+    if signer.revocation_list is not None:
+        server_key_record["revocation_list_path"] = (
+            "signatures/server-key-revocations.json"
+        )
     members = {
         "capture-manifest.json": canonical_bytes(capture_session.manifest),
         "chain/capture-close.json": canonical_bytes(capture_session.capture_close),
@@ -178,6 +182,10 @@ def package_members(
     if signer.certificate is not None:
         members["signatures/server-key-certificate.json"] = canonical_bytes(
             signer.certificate
+        )
+    if signer.revocation_list is not None:
+        members["signatures/server-key-revocations.json"] = canonical_bytes(
+            signer.revocation_list
         )
     parts_by_artifact: dict[str, list[ArtifactPart]] = {}
     for part in parts:

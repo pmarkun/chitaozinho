@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chitaozinho.dev/schemas/0.1.0/key-revocation-list.schema.json",
+  "title": "Chitaozinho operational key revocation list",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["document", "signature_hex"],
+  "properties": {
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "issuer_key_id",
+        "sequence",
+        "issued_at",
+        "revoked_keys"
+      ],
+      "properties": {
+        "schema_version": { "const": "0.1.0" },
+        "issuer_key_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "sequence": { "type": "integer", "minimum": 0 },
+        "issued_at": { "type": "string", "format": "date-time" },
+        "revoked_keys": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key_id", "revoked_at", "reason"],
+            "properties": {
+              "key_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "revoked_at": { "type": "string", "format": "date-time" },
+              "reason": { "type": "string", "minLength": 1, "maxLength": 500 }
+            }
+          }
+        }
+      }
+    },
+    "signature_hex": { "type": "string", "pattern": "^[0-9a-f]{128}$" }
+  }
+}

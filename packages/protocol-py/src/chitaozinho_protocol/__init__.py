@@ -20,6 +20,7 @@ DOMAINS = {
     "attestation": b"CHITAOZINHO/ATTESTATION/v1",
     "proof_bundle_index": b"CHITAOZINHO/PROOF_BUNDLE_INDEX/v1",
     "key_certificate": b"CHITAOZINHO/KEY_CERTIFICATE/v1",
+    "key_revocation_list": b"CHITAOZINHO/KEY_REVOCATION_LIST/v1",
 }
 
 

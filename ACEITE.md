@@ -301,7 +301,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] RF-017 — registrar versões exatas dos componentes.
 - [x] RF-018 — representar captura incompleta.
 - [x] RF-019 — disponibilizar pacote e chaves.
-- [ ] RF-020 — preservar chaves históricas e rotação.
+- [x] RF-020 — preservar chaves históricas e rotação.
 - [x] RF-021 — registrar método, procedência e completude.
 - [x] RF-022 — garantir idempotência e detectar divergência.
 - [x] RF-023 — manter estados independentes.

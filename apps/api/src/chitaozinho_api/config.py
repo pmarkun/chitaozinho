@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     server_key_id: str = "server-unconfigured"
     server_seed_hex: str | None = Field(default=None, min_length=64, max_length=64)
     server_certificate_path: Path | None = None
+    server_revocation_list_path: Path | None = None
     public_base_url: str = "http://127.0.0.1:8000"
     cors_origin_regex: str = r"^chrome-extension://[a-p]{32}$"
     max_part_size: int = 8 * 1024 * 1024
@@ -61,5 +62,9 @@ class Settings(BaseSettings):
             if self.server_certificate_path is None:
                 raise ValueError(
                     "root-signed server certificate is required outside local development"
+                )
+            if self.server_revocation_list_path is None:
+                raise ValueError(
+                    "root-signed key revocation list is required outside local development"
                 )
         return self

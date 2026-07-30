@@ -8,3 +8,4 @@ The project follows Semantic Versioning once the first public release exists.
 
 - Initial repository, protocol schemas and cross-language cryptographic vectors.
 - Reproducible non-root OCI image and declarative Railway service templates.
+- Offline-root operational key certificates and signed cumulative revocations.

@@ -7,8 +7,8 @@ use std::process::Command;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use chitaozinho_protocol::{
     ATTESTATION_DOMAIN, CAPTURE_CLOSE_DOMAIN, ENTRY_DOMAIN, KEY_CERTIFICATE_DOMAIN,
-    MANIFEST_DOMAIN, PACKAGE_INDEX_DOMAIN, PROOF_BUNDLE_INDEX_DOMAIN, RECEIPT_DOMAIN,
-    canonical_bytes, sha256_identifier, sign_canonical, verify_canonical,
+    KEY_REVOCATION_LIST_DOMAIN, MANIFEST_DOMAIN, PACKAGE_INDEX_DOMAIN, PROOF_BUNDLE_INDEX_DOMAIN,
+    RECEIPT_DOMAIN, canonical_bytes, sha256_identifier, sign_canonical, verify_canonical,
 };
 use chrono::{SecondsFormat, Utc};
 use ed25519_dalek::SigningKey;
@@ -132,6 +132,7 @@ struct PublicKeyRecord {
     algorithm: String,
     public_key_hex: String,
     certificate_path: Option<String>,
+    revocation_list_path: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -139,6 +140,31 @@ struct PublicKeyRecord {
 struct KeyCertificate {
     document: serde_json::Value,
     signature_hex: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct KeyRevocationList {
+    document: KeyRevocationDocument,
+    signature_hex: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct KeyRevocationDocument {
+    schema_version: String,
+    issuer_key_id: String,
+    sequence: u64,
+    issued_at: String,
+    revoked_keys: Vec<RevokedKey>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RevokedKey {
+    key_id: String,
+    revoked_at: String,
+    reason: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -343,7 +369,10 @@ pub fn verify_with_proof_bundle_and_trust(
 
 pub enum TrustAnchor {
     Operational([u8; 32]),
-    Root([u8; 32]),
+    Root {
+        public_key: [u8; 32],
+        revocation_list: Option<PathBuf>,
+    },
 }
 
 pub fn verify_with_trust_anchor(
@@ -604,7 +633,10 @@ fn validate_trust_anchor(
             );
             Ok("custom_operational_key")
         }
-        TrustAnchor::Root(root_key) => {
+        TrustAnchor::Root {
+            public_key: root_key,
+            revocation_list,
+        } => {
             let certificate_path = server
                 .certificate_path
                 .as_deref()
@@ -651,6 +683,48 @@ fn validate_trust_anchor(
                 package_time >= valid_from && package_time <= valid_until,
                 "operational key certificate was not valid when package was signed"
             );
+            let packaged_revocation_path = server
+                .revocation_list_path
+                .as_deref()
+                .ok_or_else(|| anyhow!("root trust requires a signed key revocation list"))?;
+            let revocation_path = match revocation_list {
+                Some(path) => path.clone(),
+                None => checked_join(root, packaged_revocation_path)?,
+            };
+            let revocations: KeyRevocationList = read_json(&revocation_path)?;
+            ensure!(
+                revocations.document.schema_version == "0.1.0"
+                    && revocations.document.issuer_key_id
+                        == json_string(&certificate.document, "issuer_key_id")?,
+                "key revocation list issuer does not match certificate issuer"
+            );
+            let revocation_signature =
+                decode_array::<64>(&revocations.signature_hex, "key revocation list signature")?;
+            verify_canonical(
+                KEY_REVOCATION_LIST_DOMAIN,
+                &revocations.document,
+                &revocation_signature,
+                root_key,
+            )
+            .context("invalid root signature on key revocation list")?;
+            let issued_at = chrono::DateTime::parse_from_rfc3339(&revocations.document.issued_at)
+                .context("key revocation list issued_at is invalid")?;
+            for revoked in &revocations.document.revoked_keys {
+                ensure!(
+                    !revoked.key_id.is_empty() && !revoked.reason.is_empty(),
+                    "invalid revoked key record"
+                );
+                let revoked_at = chrono::DateTime::parse_from_rfc3339(&revoked.revoked_at)
+                    .context("revoked_at is invalid")?;
+                ensure!(
+                    revoked_at <= issued_at,
+                    "revocation occurs after list issue time"
+                );
+                ensure!(
+                    revoked.key_id != server.key_id || revoked_at > package_time,
+                    "operational key was revoked when package was signed"
+                );
+            }
             Ok("offline_root_delegation")
         }
     }
@@ -1531,8 +1605,32 @@ mod tests {
             canonical_bytes(&certificate).unwrap(),
         )
         .unwrap();
+        let revocations_path = "signatures/server-key-revocations.json";
+        let revocations_document = json!({
+            "schema_version": "0.1.0",
+            "issuer_key_id": "root-test",
+            "sequence": 0,
+            "issued_at": now.to_rfc3339_opts(SecondsFormat::Secs, true),
+            "revoked_keys": []
+        });
+        let revocations = json!({
+            "signature_hex": hex::encode(
+                sign_canonical(
+                    KEY_REVOCATION_LIST_DOMAIN,
+                    &revocations_document,
+                    &root_seed
+                ).unwrap()
+            ),
+            "document": revocations_document
+        });
+        fs::write(
+            source.join(revocations_path),
+            canonical_bytes(&revocations).unwrap(),
+        )
+        .unwrap();
         let mut keys: serde_json::Value = read_json(&source.join(PUBLIC_KEYS_PATH)).unwrap();
         keys["server"]["certificate_path"] = json!(certificate_path);
+        keys["server"]["revocation_list_path"] = json!(revocations_path);
         fs::write(
             source.join(PUBLIC_KEYS_PATH),
             canonical_bytes(&keys).unwrap(),
@@ -1540,14 +1638,77 @@ mod tests {
         .unwrap();
         pack(&source, &package_path, &operational_seed).unwrap();
 
-        let report = verify_with_trust_anchor(&package_path, &TrustAnchor::Root(root_key)).unwrap();
+        let root_trust = || TrustAnchor::Root {
+            public_key: root_key,
+            revocation_list: None,
+        };
+        let report = verify_with_trust_anchor(&package_path, &root_trust()).unwrap();
         assert_eq!(report.trust_mode, "offline_root_delegation");
         assert!(
-            verify_with_trust_anchor(&package_path, &TrustAnchor::Root([0_u8; 32]))
-                .unwrap_err()
-                .to_string()
-                .contains("invalid root signature")
+            verify_with_trust_anchor(
+                &package_path,
+                &TrustAnchor::Root {
+                    public_key: [0_u8; 32],
+                    revocation_list: None,
+                }
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("invalid root signature")
         );
+
+        let revoked_package_path = temporary.path().join("revoked.zip");
+        let revoked_document = json!({
+            "schema_version": "0.1.0",
+            "issuer_key_id": "root-test",
+            "sequence": 1,
+            "issued_at": now.to_rfc3339_opts(SecondsFormat::Secs, true),
+            "revoked_keys": [{
+                "key_id": "server-test",
+                "revoked_at": (now - chrono::Duration::hours(1))
+                    .to_rfc3339_opts(SecondsFormat::Secs, true),
+                "reason": "compromise"
+            }]
+        });
+        let revoked = json!({
+            "signature_hex": hex::encode(
+                sign_canonical(
+                    KEY_REVOCATION_LIST_DOMAIN,
+                    &revoked_document,
+                    &root_seed
+                ).unwrap()
+            ),
+            "document": revoked_document
+        });
+        let external_revocations_path = temporary.path().join("latest-revocations.json");
+        fs::write(
+            &external_revocations_path,
+            canonical_bytes(&revoked).unwrap(),
+        )
+        .unwrap();
+        let external_error = verify_with_trust_anchor(
+            &package_path,
+            &TrustAnchor::Root {
+                public_key: root_key,
+                revocation_list: Some(external_revocations_path),
+            },
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(
+            external_error.contains("operational key was revoked"),
+            "{external_error}"
+        );
+        fs::write(
+            source.join(revocations_path),
+            canonical_bytes(&revoked).unwrap(),
+        )
+        .unwrap();
+        pack(&source, &revoked_package_path, &operational_seed).unwrap();
+        let error = verify_with_trust_anchor(&revoked_package_path, &root_trust())
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("operational key was revoked"), "{error}");
     }
 
     #[test]

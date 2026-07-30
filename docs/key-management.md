@@ -27,7 +27,32 @@ nix develop --command scripts/key-management issue-operational \
   --output server-2026-q3.certificate.json
 ```
 
-Staging and production refuse startup without a matching certificate. The
-verifier checks its root signature and validity at the package signing time.
-Direct operational-key trust remains available only as an explicit development
-mode.
+Maintain revocations as a monotonically sequenced, root-signed snapshot. The
+input is a JSON array and must retain every previous revocation:
+
+```json
+[
+  {
+    "key_id": "server-2026-q2",
+    "revoked_at": "2026-07-30T18:00:00Z",
+    "reason": "scheduled rotation"
+  }
+]
+```
+
+```sh
+nix develop --command scripts/key-management issue-revocations \
+  --root-seed-file /secure/offline/chitaozinho-root/root.seed \
+  --root-key-id root-2026-01 \
+  --sequence 1 \
+  --issued-at 2026-07-30T18:00:00Z \
+  --revocations-file revocations.json \
+  --output key-revocations-1.json
+```
+
+Never overwrite a published list; publish the new sequence beside the old one.
+Staging and production refuse startup without a matching certificate and a
+signed revocation snapshot. Every package preserves both. The verifier checks
+the root signatures, certificate validity and revocation time at package
+signing. Direct operational-key trust remains available only as an explicit
+development mode.
