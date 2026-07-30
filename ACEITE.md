@@ -81,7 +81,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] TypeScript produz exatamente os resultados esperados.
 - [x] Python produz exatamente os resultados esperados.
 - [x] Rust produz exatamente os resultados esperados.
-- [ ] CI impede mudança incompatível não versionada.
+- [x] CI impede mudança incompatível não versionada.
 
 ### Empacotador e verificador
 
@@ -111,7 +111,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [ ] Navegação, rolagem, screenshots adicionais e marcadores geram eventos.
 - [ ] Cada artefato registra método, procedência, permissões, intervalo e completude.
 - [x] Artefatos indisponíveis ou parciais registram motivo explícito.
-- [ ] Hash e upload de vídeo são incrementais.
+- [x] Hash e upload de vídeo são incrementais.
 - [ ] IndexedDB preserva buffer, partes, recibos e estado local.
 - [ ] Reinício da extensão cria novo `client_clock_id` e evento `clock_restarted`.
 - [ ] Indicadores de gravação, duração, upload, conexão e erros são visíveis.
@@ -142,9 +142,9 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [ ] Tela inicial oferece nova captura, capturas existentes, verificação e configurações.
 - [x] Antes da captura, interface mostra dados coletados, limites e riscos.
 - [ ] Após a captura, interface mostra integridade, completude e estados independentes.
-- [ ] Download inclui pacote, hash externo e chaves públicas necessárias.
-- [ ] Relatório HTML apresenta resultados `íntegro`, `íntegro, mas incompleto`, `inválido` ou `não verificável`.
-- [ ] Relatório nunca afirma autoria, veracidade ou validade jurídica definitiva.
+- [x] Download inclui pacote, hash externo e chaves públicas necessárias.
+- [x] Relatório HTML apresenta resultados `íntegro`, `íntegro, mas incompleto`, `inválido` ou `não verificável`.
+- [x] Relatório nunca afirma autoria, veracidade ou validade jurídica definitiva.
 - [ ] Interface preparada para pt-BR e inglês.
 - [ ] Fluxo principal atende WCAG 2.2 AA.
 
@@ -152,12 +152,12 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 - [ ] Captura real de 60 segundos gera vídeo, screenshot e metadados.
 - [ ] Queda e retomada de upload não duplicam partes ou recibos.
-- [ ] Pacote é baixado e verificado integralmente offline.
-- [ ] Alteração de um byte é detectada e localizada.
-- [ ] Remoção, duplicação e reordenação de evento são detectadas.
+- [x] Pacote é baixado e verificado integralmente offline.
+- [x] Alteração de um byte é detectada e localizada.
+- [x] Remoção, duplicação e reordenação de evento são detectadas.
 - [x] Captura incompleta permanece verificável e claramente identificada.
-- [ ] Relatório HTML é gerado.
-- [ ] Vetores passam em TypeScript, Python e Rust.
+- [x] Relatório HTML é gerado.
+- [x] Vetores passam em TypeScript, Python e Rust.
 
 ## 4. Fase 2 — POC probatória completa
 
@@ -177,7 +177,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Apenas a raiz agregada é submetida.
 - [x] Prova `.ots` inicial é preservada.
 - [x] Confirmação posterior gera novo complemento append-only.
-- [ ] Verificador distingue pendente, confirmado e inválido.
+- [x] Verificador distingue pendente, confirmado e inválido.
 
 ### Object Lock
 
@@ -191,11 +191,11 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 ### Gate da POC probatória
 
 - [x] Timestamp RFC 3161 válido.
-- [ ] Attestation válida sem alteração do manifesto.
+- [x] Attestation válida sem alteração do manifesto.
 - [x] Prova OpenTimestamps gerada.
 - [x] Complemento atualizado e assinado.
 - [ ] Cópia de teste bloqueada em Object Lock.
-- [ ] CLI valida timestamp, Merkle, OpenTimestamps e cadeia de attestations.
+- [x] CLI valida timestamp, Merkle, OpenTimestamps e cadeia de attestations.
 - [x] Pacote funcional continua verificável sem TSA, OpenTimestamps ou backend.
 
 ## 5. Segurança, privacidade e robustez
@@ -211,7 +211,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Limites de tamanho, duração, partes e taxa estão definidos.
 - [ ] Uso de CPU, memória e disco é medido durante captura.
 - [ ] A captura não degrada significativamente a página observada.
-- [ ] Falhas de disco, rede, storage e processo possuem recuperação documentada.
+- [x] Falhas de disco, rede, storage e processo possuem recuperação documentada.
 - [x] Ameaças e limitações aparecem na interface e no relatório.
 - [x] Nenhum dado pessoal é publicado em blockchain.
 
@@ -220,10 +220,10 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 ### Integridade e assinaturas
 
 - [x] Alterar um byte do vídeo.
-- [ ] Substituir screenshot.
-- [ ] Alterar manifesto.
-- [ ] Remover, inserir, duplicar e reordenar entrada.
-- [ ] Usar chave, assinatura, algoritmo, `key_id` e domínio incorretos.
+- [x] Substituir screenshot.
+- [x] Alterar manifesto.
+- [x] Remover, inserir, duplicar e reordenar entrada.
+- [x] Usar chave, assinatura, algoritmo, `key_id` e domínio incorretos.
 
 ### Rede e recuperação
 
@@ -241,15 +241,15 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [ ] TSA indisponível ou não confiável.
 - [ ] Certificado fora da validade no `genTime`.
 - [ ] Hash ou cadeia RFC 3161 divergente.
-- [ ] Merkle proof, raiz ou `.ots` inválidos.
-- [ ] Confirmação blockchain pendente.
+- [x] Merkle proof, raiz ou `.ots` inválidos.
+- [x] Confirmação blockchain pendente.
 
 ### Pacotes hostis e storage
 
-- [ ] Path traversal, caminho absoluto e link simbólico.
-- [ ] Nome duplicado e arquivo obrigatório ausente.
-- [ ] ZIP bomb e JSON excessivamente profundo.
-- [ ] Schema ou algoritmo desconhecido.
+- [x] Path traversal, caminho absoluto e link simbólico.
+- [x] Nome duplicado e arquivo obrigatório ausente.
+- [x] ZIP bomb e JSON excessivamente profundo.
+- [x] Schema ou algoritmo desconhecido.
 - [ ] Sobrescrita, exclusão antecipada e versionamento do storage.
 
 ### Captura e completude
@@ -272,7 +272,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [ ] Chaves de produção ficam em KMS/HSM ou solução equivalente aprovada.
 - [ ] Health checks, métricas, alertas e logs estruturados configurados.
 - [x] Jobs são idempotentes e recuperáveis.
-- [ ] Runbooks cobrem TSA, OpenTimestamps, storage, banco e rotação de chaves.
+- [x] Runbooks cobrem TSA, OpenTimestamps, storage, banco e rotação de chaves.
 - [ ] SBOM e assinatura de builds são gerados por release.
 - [ ] Política de retenção e exclusão foi revisada juridicamente.
 - [ ] Teste de restauração e rollback foi concluído.
@@ -319,7 +319,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] RNF-007 — suportar multipart e processamento assíncrono.
 - [ ] RNF-008 — atender WCAG 2.2 AA.
 - [ ] RNF-009 — preparar pt-BR e inglês.
-- [ ] RNF-010 — oferecer build reproduzível do verificador.
+- [x] RNF-010 — oferecer build reproduzível do verificador.
 
 ## 9. Definição final de pronto
 
