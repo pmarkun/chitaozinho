@@ -67,14 +67,21 @@ chrome.runtime.onMessage.addListener(
 );
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.url) {
-    operationQueue = operationQueue.then(async () => {
-      const session = await currentSession();
-      if (session?.tabId === tabId && session.status === "recording") {
-        await appendEvent(session, "navigation", { url: changeInfo.url });
+  if (!changeInfo.url && changeInfo.status !== "complete") return;
+  operationQueue = operationQueue
+    .then(async () => {
+      let session = await currentSession();
+      if (session?.tabId !== tabId || session.status !== "recording") return;
+      if (changeInfo.url) {
+        session = await appendEvent(session, "navigation", {
+          url: changeInfo.url,
+        });
       }
-    });
-  }
+      if (changeInfo.status === "complete") {
+        await installScrollObserverOrWarn(session);
+      }
+    })
+    .catch(recordOperationError);
 });
 
 async function handleMessage(message: ExtensionMessage): Promise<unknown> {
@@ -296,7 +303,7 @@ async function startCapture(): Promise<SessionRecord> {
   }
   session.status = "recording";
   await saveSession(session);
-  await installScrollObserver(tab.id);
+  await installScrollObserverOrWarn(session);
   return session;
 }
 
@@ -331,7 +338,7 @@ async function resumeCapture(): Promise<SessionRecord> {
   session.recordingActive = true;
   session.status = "recording";
   await saveSession(session);
-  await installScrollObserver(tab.id);
+  await installScrollObserverOrWarn(session);
   return session;
 }
 
@@ -762,6 +769,11 @@ async function installScrollObserver(tabId: number): Promise<void> {
   await chrome.scripting.executeScript({
     target: { tabId },
     func: () => {
+      const observedDocument = document as Document & {
+        __chitaozinhoScrollObserverInstalled?: boolean;
+      };
+      if (observedDocument.__chitaozinhoScrollObserverInstalled) return;
+      observedDocument.__chitaozinhoScrollObserverInstalled = true;
       let timer: number | undefined;
       addEventListener(
         "scroll",
@@ -778,6 +790,17 @@ async function installScrollObserver(tabId: number): Promise<void> {
       );
     },
   });
+}
+
+async function installScrollObserverOrWarn(
+  session: SessionRecord,
+): Promise<void> {
+  try {
+    await installScrollObserver(session.tabId);
+  } catch (error) {
+    session.error = `scroll observation unavailable: ${String(error)}`;
+    await saveSession(session);
+  }
 }
 
 function requireActive(session: SessionRecord | undefined): SessionRecord {
