@@ -1001,7 +1001,14 @@ def create_app(
                 .order_by(Artifact.artifact_id)
             )
         )
-        validate_capture_close(capture_session, entries, artifacts, body)
+        parts = list(
+            database.scalars(
+                select(ArtifactPart)
+                .where(ArtifactPart.session_id == session_id)
+                .order_by(ArtifactPart.artifact_id, ArtifactPart.part_number)
+            )
+        )
+        validate_capture_close(capture_session, entries, artifacts, parts, body)
         now = datetime.now(UTC)
         capture_status = (
             "incomplete"
@@ -1643,6 +1650,7 @@ def validate_capture_close(
     capture_session: CaptureSession,
     entries: list[ChainEntry],
     artifacts: list[Artifact],
+    parts: list[ArtifactPart],
     body: FinalizeRequest,
 ) -> None:
     close = body.capture_close
@@ -1669,6 +1677,26 @@ def validate_capture_close(
         )
     if [entry.sequence for entry in entries] != list(range(len(entries))):
         raise HTTPException(status.HTTP_409_CONFLICT, "entry chain contains sequence gaps")
+    artifacts_by_id = {artifact.artifact_id: artifact for artifact in artifacts}
+    parts_by_artifact: dict[str, list[ArtifactPart]] = defaultdict(list)
+    for part in parts:
+        parts_by_artifact[part.artifact_id].append(part)
+    for artifact_id, artifact_parts in parts_by_artifact.items():
+        artifact = artifacts_by_id.get(artifact_id)
+        if artifact is None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"artifact {artifact_id} has uploaded parts but no immutable result",
+            )
+        if artifact.status == "captured" and (
+            len(artifact_parts) != artifact.part_count
+            or [part.part_number for part in artifact_parts]
+            != list(range(artifact.part_count))
+        ):
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"artifact {artifact_id} has missing or non-contiguous parts",
+            )
     last_hash = entries[-1].entry_hash
     if (
         close["protocol_version"] != "0.1.0"

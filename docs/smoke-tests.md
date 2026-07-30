@@ -54,3 +54,10 @@ This run proves the short functional flow. It does not satisfy the separate
   `0186c7be62669dd8e20890c61ea200e96a129201-dirty`. The functional gate is
   accepted, but a subsequent reproducibility or release smoke must use a clean
   build identity.
+
+## Automated recovery checks
+
+- Finalization rejects a session when persisted artifact parts have no
+  immutable artifact result. The client must complete the artifact or declare
+  it unavailable or failed, so missing parts cannot be silently omitted from
+  `capture_close`.

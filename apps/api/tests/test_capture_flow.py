@@ -750,6 +750,114 @@ def test_unavailable_artifact_produces_verifiable_incomplete_package(
         assert reason not in json.dumps(audit_details)
 
 
+def test_finalization_rejects_uploaded_parts_without_artifact_result(
+    client: TestClient,
+) -> None:
+    created = client.post("/v1/sessions").json()
+    session_id = created["session_id"]
+    assert (
+        client.post(
+            f"/v1/sessions/{session_id}/keys",
+            json={
+                "key_id": "client-test",
+                "public_key": base64url_encode(public_key(CLIENT_SEED)),
+            },
+        ).status_code
+        == 204
+    )
+
+    def entry(
+        entry_type: str,
+        sequence: int,
+        previous_hash: str | None,
+        **fields: object,
+    ) -> dict:
+        return {
+            "protocol_version": "0.1.0",
+            "entry_type": entry_type,
+            "session_id": session_id,
+            "sequence": sequence,
+            "previous_entry_hash": previous_hash,
+            "client_clock_id": "clock-missing-parts",
+            "client_monotonic_time": sequence * 1_000,
+            "client_wall_time": f"2026-07-30T15:00:0{sequence}-03:00",
+            "server_challenge": created["server_challenge"],
+            **fields,
+        }
+
+    started = signed_entry(entry("capture_started", 0, None))
+    assert (
+        client.post(
+            f"/v1/sessions/{session_id}/events",
+            headers={"Idempotency-Key": "missing-parts-start"},
+            json=started,
+        ).status_code
+        == 201
+    )
+
+    part_data = b"partial recording"
+    part_entry = entry(
+        "artifact_part",
+        1,
+        started["entry_hash"],
+        artifact_id="recording",
+        part_number=0,
+        part_hash=sha256_identifier(part_data),
+    )
+    signed_part = signed_entry(part_entry)
+    uploaded = client.put(
+        f"/v1/sessions/{session_id}/artifacts/recording/parts/0",
+        headers={
+            "Idempotency-Key": "missing-parts-upload",
+            "X-Entry-Json": base64url_encode(canonical_bytes(part_entry)),
+            "X-Entry-Hash": signed_part["entry_hash"],
+            "X-Entry-Signature": signed_part["signature_hex"],
+            "Content-Type": "application/octet-stream",
+        },
+        content=part_data,
+    )
+    assert uploaded.status_code == 201
+
+    finished = signed_entry(
+        entry("capture_finished", 2, signed_part["entry_hash"])
+    )
+    assert (
+        client.post(
+            f"/v1/sessions/{session_id}/events",
+            headers={"Idempotency-Key": "missing-parts-finish"},
+            json=finished,
+        ).status_code
+        == 201
+    )
+
+    capture_close = {
+        "protocol_version": "0.1.0",
+        "session_id": session_id,
+        "session_root": finished["entry_hash"],
+        "last_entry_hash": finished["entry_hash"],
+        "entry_count": 3,
+        "artifacts": [],
+        "known_gaps": ["recording: upload interrupted before completion"],
+        "client_key_id": "client-test",
+        "client_public_key": base64url_encode(public_key(CLIENT_SEED)),
+    }
+    finalized = client.post(
+        f"/v1/sessions/{session_id}/finalize",
+        json={
+            "capture_close": capture_close,
+            "signature_hex": sign_canonical(
+                DOMAINS["capture_close"],
+                capture_close,
+                CLIENT_SEED,
+            ).hex(),
+        },
+    )
+    assert finalized.status_code == 409
+    assert finalized.json()["detail"] == (
+        "artifact recording has uploaded parts but no immutable result"
+    )
+
+
 def test_server_key_is_required_for_session_creation(tmp_path: Path) -> None:
     settings = Settings(
         database_url=f"sqlite:///{tmp_path / 'api.db'}",

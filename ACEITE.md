@@ -230,7 +230,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [ ] Queda e retomada de conexão.
 - [x] Duplicação e retry idempotente.
 - [x] Mesma sequência com bytes divergentes.
-- [ ] Encerramento com partes ausentes.
+- [x] Encerramento com partes ausentes.
 - [x] Reinício do cliente com buffer local.
 - [ ] Reinício do servidor durante finalização.
 
