@@ -103,11 +103,18 @@ def test_non_local_environment_fails_closed_without_tls_and_external_storage() -
             public_base_url="https://example.test",
             storage_backend="local",
         )
+    with pytest.raises(ValidationError, match="KMS"):
+        Settings(
+            env="staging",
+            public_base_url="https://example.test",
+            storage_backend="s3",
+        )
     with pytest.raises(ValidationError, match="revocation list"):
         Settings(
             env="staging",
             public_base_url="https://example.test",
             storage_backend="s3",
+            s3_kms_key_id="arn:aws:kms:sa-east-1:123456789012:key/test-key",
             server_seed_hex="11" * 32,
             server_certificate_path=Path("server-certificate.json"),
         )
@@ -115,6 +122,7 @@ def test_non_local_environment_fails_closed_without_tls_and_external_storage() -
         "env": "staging",
         "public_base_url": "https://example.test",
         "storage_backend": "s3",
+        "s3_kms_key_id": "arn:aws:kms:sa-east-1:123456789012:key/test-key",
         "server_seed_hex": "11" * 32,
         "server_certificate_path": Path("server-certificate.json"),
         "server_revocation_list_path": Path("key-revocations.json"),

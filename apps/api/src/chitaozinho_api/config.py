@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     s3_bucket: str = "chitaozinho"
     s3_access_key_id: str | None = None
     s3_secret_access_key: str | None = None
+    s3_kms_key_id: str | None = None
     server_key_id: str = "server-unconfigured"
     server_seed_hex: str | None = Field(default=None, min_length=64, max_length=64)
     server_certificate_path: Path | None = None
@@ -73,6 +74,10 @@ class Settings(BaseSettings):
                 raise ValueError("HTTPS public_base_url is required outside local development")
             if self.storage_backend != "s3":
                 raise ValueError("external S3 storage is required outside local development")
+            if self.s3_kms_key_id is None:
+                raise ValueError(
+                    "customer-managed S3 KMS key is required outside local development"
+                )
             if self.server_seed_hex is None:
                 raise ValueError("server signing key is required outside local development")
             if self.server_certificate_path is None:

@@ -63,6 +63,7 @@ def test_s3_final_artifact_requires_verified_compliance_retention(
     storage = S3DurableStorage.__new__(S3DurableStorage)
     storage.root = tmp_path
     storage.bucket = "evidence-test"
+    storage.kms_key_id = None
     storage.client = client
 
     result = storage.protect_final(
@@ -80,6 +81,51 @@ def test_s3_final_artifact_requires_verified_compliance_retention(
     assert client.uploaded == content
 
     client.head_response["ObjectLockMode"] = "GOVERNANCE"
+    with pytest.raises(RuntimeError, match="retention could not be verified"):
+        storage.protect_final(
+            "another-session",
+            "evidence-package.zip",
+            source,
+            digest,
+            retain_until,
+        )
+
+
+def test_s3_final_artifact_uses_and_verifies_configured_kms_key(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "package.zip"
+    content = b"synthetic KMS package"
+    source.write_bytes(content)
+    digest = f"sha256:{sha256(content).hexdigest()}"
+    retain_until = datetime.now(UTC) + timedelta(days=1)
+    kms_key_id = "arn:aws:kms:sa-east-1:123456789012:key/test-key"
+    client = FakeObjectLockClient(content, digest, retain_until)
+    client.head_response.update(
+        {
+            "ServerSideEncryption": "aws:kms",
+            "SSEKMSKeyId": kms_key_id,
+        }
+    )
+    storage = S3DurableStorage.__new__(S3DurableStorage)
+    storage.root = tmp_path
+    storage.bucket = "evidence-test"
+    storage.kms_key_id = kms_key_id
+    storage.client = client
+
+    result = storage.protect_final(
+        "session",
+        "evidence-package.zip",
+        source,
+        digest,
+        retain_until,
+    )
+
+    assert result.status == "locked"
+    assert client.put_arguments["ServerSideEncryption"] == "aws:kms"
+    assert client.put_arguments["SSEKMSKeyId"] == kms_key_id
+
+    client.head_response["SSEKMSKeyId"] = "arn:aws:kms:sa-east-1:other:key/wrong"
     with pytest.raises(RuntimeError, match="retention could not be verified"):
         storage.protect_final(
             "another-session",

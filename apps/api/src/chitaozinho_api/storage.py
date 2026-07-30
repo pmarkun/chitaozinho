@@ -117,6 +117,7 @@ class S3DurableStorage:
             raise ValueError("S3 credentials are required")
         self.root = settings.storage_path
         self.bucket = settings.s3_bucket
+        self.kms_key_id = settings.s3_kms_key_id
         self.client = boto3.client(
             "s3",
             endpoint_url=settings.s3_endpoint_url,
@@ -190,6 +191,12 @@ class S3DurableStorage:
         key = f"final/{session_id}/{name}/{digest_hex}"
         head = self._head_final(key)
         if head is None:
+            encryption: dict[str, str] = {"ServerSideEncryption": "AES256"}
+            if self.kms_key_id is not None:
+                encryption = {
+                    "ServerSideEncryption": "aws:kms",
+                    "SSEKMSKeyId": self.kms_key_id,
+                }
             try:
                 with source.open("rb") as body:
                     self.client.put_object(
@@ -203,8 +210,8 @@ class S3DurableStorage:
                         Metadata={"sha256": digest},
                         ObjectLockMode="COMPLIANCE",
                         ObjectLockRetainUntilDate=retain_until,
-                        ServerSideEncryption="AES256",
                         IfNoneMatch="*",
+                        **encryption,
                     )
             except ClientError as error:
                 code = str(error.response.get("Error", {}).get("Code", ""))
@@ -221,6 +228,13 @@ class S3DurableStorage:
             or not isinstance(stored_until, datetime)
             or stored_until < retain_until
             or head.get("ServerSideEncryption") not in {"AES256", "aws:kms"}
+            or (
+                self.kms_key_id is not None
+                and (
+                    head.get("ServerSideEncryption") != "aws:kms"
+                    or head.get("SSEKMSKeyId") != self.kms_key_id
+                )
+            )
             or not head.get("VersionId")
         ):
             raise RuntimeError("final object retention could not be verified")

@@ -15,3 +15,7 @@ nix develop --command tofu -chdir=infra/terraform validate
 Do not run `apply` casually. The isolated POC test uses only synthetic/public
 content and `retention_days=1`. Production starts at 90 days and requires
 legal/security approval.
+
+Set `CHITAOZINHO_S3_KMS_KEY_ID` to the `evidence_kms_key_arn` output in the
+published API and worker environments. Non-local startup fails closed without
+this value, and final-object verification checks that S3 reports the same key.
