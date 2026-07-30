@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chitaozinho.dev/schemas/0.1.0/key-certificate.schema.json",
+  "title": "Chitaozinho operational key certificate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["document", "signature_hex"],
+  "properties": {
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "key_id",
+        "algorithm",
+        "public_key_hex",
+        "purpose",
+        "issuer_key_id",
+        "valid_from",
+        "valid_until"
+      ],
+      "properties": {
+        "schema_version": { "const": "0.1.0" },
+        "key_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "algorithm": { "const": "Ed25519" },
+        "public_key_hex": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "purpose": { "const": "server_signing" },
+        "issuer_key_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "valid_from": { "type": "string", "format": "date-time" },
+        "valid_until": { "type": "string", "format": "date-time" }
+      }
+    },
+    "signature_hex": { "type": "string", "pattern": "^[0-9a-f]{128}$" }
+  }
+}

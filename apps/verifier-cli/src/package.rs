@@ -6,9 +6,9 @@ use std::process::Command;
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use chitaozinho_protocol::{
-    ATTESTATION_DOMAIN, CAPTURE_CLOSE_DOMAIN, ENTRY_DOMAIN, MANIFEST_DOMAIN, PACKAGE_INDEX_DOMAIN,
-    PROOF_BUNDLE_INDEX_DOMAIN, RECEIPT_DOMAIN, canonical_bytes, sha256_identifier, sign_canonical,
-    verify_canonical,
+    ATTESTATION_DOMAIN, CAPTURE_CLOSE_DOMAIN, ENTRY_DOMAIN, KEY_CERTIFICATE_DOMAIN,
+    MANIFEST_DOMAIN, PACKAGE_INDEX_DOMAIN, PROOF_BUNDLE_INDEX_DOMAIN, RECEIPT_DOMAIN,
+    canonical_bytes, sha256_identifier, sign_canonical, verify_canonical,
 };
 use chrono::{SecondsFormat, Utc};
 use ed25519_dalek::SigningKey;
@@ -50,6 +50,7 @@ pub struct VerificationReport {
     pub checks: Vec<&'static str>,
     pub temporal_proof: &'static str,
     pub attestations_verified: usize,
+    pub trust_mode: &'static str,
 }
 
 pub fn write_html_report(report: &VerificationReport, path: &Path) -> Result<()> {
@@ -67,7 +68,8 @@ pub fn write_html_report(report: &VerificationReport, path: &Path) -> Result<()>
             "<dt>Sessão</dt><dd><code>{}</code></dd>",
             "<dt>Membros verificados</dt><dd>{}</dd>",
             "<dt>Prova temporal</dt><dd>{}</dd>",
-            "<dt>Attestations verificadas</dt><dd>{}</dd></dl>",
+            "<dt>Attestations verificadas</dt><dd>{}</dd>",
+            "<dt>Modo de confiança</dt><dd>{}</dd></dl>",
             "<h2>Verificações</h2><ul>{}</ul>",
             "<h2>Limitações</h2>",
             "<p>Este pacote demonstra a integridade e a rastreabilidade técnica ",
@@ -80,6 +82,7 @@ pub fn write_html_report(report: &VerificationReport, path: &Path) -> Result<()>
         report.members_verified,
         escape_html(report.temporal_proof),
         report.attestations_verified,
+        escape_html(report.trust_mode),
         checks
     );
     if let Some(parent) = path.parent().filter(|value| !value.as_os_str().is_empty()) {
@@ -128,6 +131,14 @@ struct PublicKeyRecord {
     key_id: String,
     algorithm: String,
     public_key_hex: String,
+    certificate_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct KeyCertificate {
+    document: serde_json::Value,
+    signature_hex: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -308,14 +319,44 @@ pub fn pack(source: &Path, output: &Path, server_seed: &[u8; 32]) -> Result<Pack
     })
 }
 
+#[cfg(test)]
 pub fn verify(package_path: &Path, trusted_server_key: &[u8; 32]) -> Result<VerificationReport> {
-    verify_internal(package_path, None, trusted_server_key)
+    verify_with_trust_anchor(package_path, &TrustAnchor::Operational(*trusted_server_key))
 }
 
+#[cfg(test)]
 pub fn verify_with_proof_bundle_and_trust(
     package_path: &Path,
     proof_bundle_path: &Path,
     trusted_server_key: &[u8; 32],
+    tsa_ca_bundle: Option<&Path>,
+    tsa_crl_bundle: Option<&Path>,
+) -> Result<VerificationReport> {
+    verify_with_proof_bundle_and_trust_anchor(
+        package_path,
+        proof_bundle_path,
+        &TrustAnchor::Operational(*trusted_server_key),
+        tsa_ca_bundle,
+        tsa_crl_bundle,
+    )
+}
+
+pub enum TrustAnchor {
+    Operational([u8; 32]),
+    Root([u8; 32]),
+}
+
+pub fn verify_with_trust_anchor(
+    package_path: &Path,
+    trust_anchor: &TrustAnchor,
+) -> Result<VerificationReport> {
+    verify_internal(package_path, None, trust_anchor)
+}
+
+pub fn verify_with_proof_bundle_and_trust_anchor(
+    package_path: &Path,
+    proof_bundle_path: &Path,
+    trust_anchor: &TrustAnchor,
     tsa_ca_bundle: Option<&Path>,
     tsa_crl_bundle: Option<&Path>,
 ) -> Result<VerificationReport> {
@@ -328,14 +369,14 @@ pub fn verify_with_proof_bundle_and_trust(
                 crl_bundle: tsa_crl_bundle,
             },
         )),
-        trusted_server_key,
+        trust_anchor,
     )
 }
 
 fn verify_internal(
     package_path: &Path,
     proof_bundle: Option<(&Path, TimestampTrust<'_>)>,
-    trusted_server_key: &[u8; 32],
+    trust_anchor: &TrustAnchor,
 ) -> Result<VerificationReport> {
     ensure!(package_path.is_file(), "package does not exist");
     let extracted = extract_safely(package_path)?;
@@ -346,26 +387,28 @@ fn verify_internal(
         package_index.schema_version == "0.1.0",
         "unsupported package index schema"
     );
+    let public_keys: PublicKeys = read_json(&extracted.path().join(PUBLIC_KEYS_PATH))?;
+    validate_public_keys(&public_keys)?;
+    let packaged_server_key =
+        decode_array::<32>(&public_keys.server.public_key_hex, "server public key")?;
+    let trust_mode = validate_trust_anchor(
+        extracted.path(),
+        &public_keys.server,
+        &packaged_server_key,
+        &package_index.created_at,
+        trust_anchor,
+    )?;
     let index_signature =
         read_hex_array::<64>(&extracted.path().join(PACKAGE_INDEX_SIGNATURE_PATH))?;
     verify_canonical(
         PACKAGE_INDEX_DOMAIN,
         &package_index,
         &index_signature,
-        trusted_server_key,
+        &packaged_server_key,
     )
     .context("invalid package index signature")?;
 
     verify_members(extracted.path(), &package_index)?;
-
-    let public_keys: PublicKeys = read_json(&extracted.path().join(PUBLIC_KEYS_PATH))?;
-    validate_public_keys(&public_keys)?;
-    let packaged_server_key =
-        decode_array::<32>(&public_keys.server.public_key_hex, "server public key")?;
-    ensure!(
-        packaged_server_key == *trusted_server_key,
-        "packaged server key is not the trusted server key"
-    );
 
     let manifest_path = extracted.path().join(MANIFEST_PATH);
     let manifest_value: serde_json::Value = read_json(&manifest_path)?;
@@ -380,7 +423,7 @@ fn verify_internal(
         MANIFEST_DOMAIN,
         &manifest_value,
         &manifest_signature,
-        trusted_server_key,
+        &packaged_server_key,
     )
     .context("invalid capture manifest signature")?;
 
@@ -395,7 +438,7 @@ fn verify_internal(
                 path,
                 &manifest.session_id,
                 &manifest_hash,
-                trusted_server_key,
+                &packaged_server_key,
                 trust,
             )
         })
@@ -415,6 +458,7 @@ fn verify_internal(
         attestations_verified: proof_result
             .as_ref()
             .map_or(0, |result| result.attestations_verified),
+        trust_mode,
         checks: vec![
             "safe_zip_structure",
             "package_index_signature",
@@ -543,6 +587,73 @@ fn validate_public_keys(keys: &PublicKeys) -> Result<()> {
         "key id cannot be empty"
     );
     Ok(())
+}
+
+fn validate_trust_anchor(
+    root: &Path,
+    server: &PublicKeyRecord,
+    packaged_server_key: &[u8; 32],
+    signed_at: &str,
+    trust_anchor: &TrustAnchor,
+) -> Result<&'static str> {
+    match trust_anchor {
+        TrustAnchor::Operational(trusted_key) => {
+            ensure!(
+                packaged_server_key == trusted_key,
+                "packaged server key is not the trusted operational key"
+            );
+            Ok("custom_operational_key")
+        }
+        TrustAnchor::Root(root_key) => {
+            let certificate_path = server
+                .certificate_path
+                .as_deref()
+                .ok_or_else(|| anyhow!("root trust requires an operational key certificate"))?;
+            let certificate: KeyCertificate = read_json(&checked_join(root, certificate_path)?)?;
+            ensure!(
+                json_string(&certificate.document, "schema_version")? == "0.1.0"
+                    && json_string(&certificate.document, "algorithm")? == "Ed25519"
+                    && json_string(&certificate.document, "purpose")? == "server_signing",
+                "unsupported operational key certificate"
+            );
+            ensure!(
+                json_string(&certificate.document, "key_id")? == server.key_id
+                    && json_string(&certificate.document, "public_key_hex")?
+                        == server.public_key_hex,
+                "operational key certificate does not match packaged key"
+            );
+            ensure!(
+                !json_string(&certificate.document, "issuer_key_id")?.is_empty(),
+                "operational key certificate issuer is empty"
+            );
+            let signature =
+                decode_array::<64>(&certificate.signature_hex, "key certificate signature")?;
+            verify_canonical(
+                KEY_CERTIFICATE_DOMAIN,
+                &certificate.document,
+                &signature,
+                root_key,
+            )
+            .context("invalid root signature on operational key certificate")?;
+            let package_time = chrono::DateTime::parse_from_rfc3339(signed_at)
+                .context("package index created_at is invalid")?;
+            let valid_from = chrono::DateTime::parse_from_rfc3339(json_string(
+                &certificate.document,
+                "valid_from",
+            )?)
+            .context("certificate valid_from is invalid")?;
+            let valid_until = chrono::DateTime::parse_from_rfc3339(json_string(
+                &certificate.document,
+                "valid_until",
+            )?)
+            .context("certificate valid_until is invalid")?;
+            ensure!(
+                package_time >= valid_from && package_time <= valid_until,
+                "operational key certificate was not valid when package was signed"
+            );
+            Ok("offline_root_delegation")
+        }
+    }
 }
 
 fn verify_capture_close(
@@ -1346,6 +1457,7 @@ mod tests {
             checks: vec!["member_hashes"],
             temporal_proof: "not_provided",
             attestations_verified: 0,
+            trust_mode: "custom_operational_key",
         };
         write_html_report(&report, &report_path).unwrap();
         let html = fs::read_to_string(report_path).unwrap();
@@ -1374,6 +1486,68 @@ mod tests {
         assert_eq!(report.result, "integral");
         assert_eq!(report.session_id, "session-test");
         assert!(report.members_verified >= 5);
+    }
+
+    #[test]
+    fn verifies_operational_key_delegated_by_offline_root() {
+        let temporary = tempfile::tempdir().unwrap();
+        let source = temporary.path().join("source");
+        let package_path = temporary.path().join("evidence.zip");
+        let operational_seed = [19_u8; 32];
+        let root_seed = [20_u8; 32];
+        let operational_key = SigningKey::from_bytes(&operational_seed)
+            .verifying_key()
+            .to_bytes();
+        let root_key = SigningKey::from_bytes(&root_seed)
+            .verifying_key()
+            .to_bytes();
+        create_fixture(&source, &operational_seed, &operational_key);
+        let now = Utc::now();
+        let certificate_document = json!({
+            "schema_version": "0.1.0",
+            "key_id": "server-test",
+            "algorithm": "Ed25519",
+            "public_key_hex": hex::encode(operational_key),
+            "purpose": "server_signing",
+            "issuer_key_id": "root-test",
+            "valid_from": (now - chrono::Duration::days(1))
+                .to_rfc3339_opts(SecondsFormat::Secs, true),
+            "valid_until": (now + chrono::Duration::days(90))
+                .to_rfc3339_opts(SecondsFormat::Secs, true)
+        });
+        let certificate = json!({
+            "signature_hex": hex::encode(
+                sign_canonical(
+                    KEY_CERTIFICATE_DOMAIN,
+                    &certificate_document,
+                    &root_seed
+                ).unwrap()
+            ),
+            "document": certificate_document
+        });
+        let certificate_path = "signatures/server-key-certificate.json";
+        fs::write(
+            source.join(certificate_path),
+            canonical_bytes(&certificate).unwrap(),
+        )
+        .unwrap();
+        let mut keys: serde_json::Value = read_json(&source.join(PUBLIC_KEYS_PATH)).unwrap();
+        keys["server"]["certificate_path"] = json!(certificate_path);
+        fs::write(
+            source.join(PUBLIC_KEYS_PATH),
+            canonical_bytes(&keys).unwrap(),
+        )
+        .unwrap();
+        pack(&source, &package_path, &operational_seed).unwrap();
+
+        let report = verify_with_trust_anchor(&package_path, &TrustAnchor::Root(root_key)).unwrap();
+        assert_eq!(report.trust_mode, "offline_root_delegation");
+        assert!(
+            verify_with_trust_anchor(&package_path, &TrustAnchor::Root([0_u8; 32]))
+                .unwrap_err()
+                .to_string()
+                .contains("invalid root signature")
+        );
     }
 
     #[test]

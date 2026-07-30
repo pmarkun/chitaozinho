@@ -19,6 +19,7 @@ DOMAINS = {
     "package_index": b"CHITAOZINHO/PACKAGE_INDEX/v1",
     "attestation": b"CHITAOZINHO/ATTESTATION/v1",
     "proof_bundle_index": b"CHITAOZINHO/PROOF_BUNDLE_INDEX/v1",
+    "key_certificate": b"CHITAOZINHO/KEY_CERTIFICATE/v1",
 }
 
 

@@ -13,6 +13,7 @@ export const DOMAINS = {
   packageIndex: "CHITAOZINHO/PACKAGE_INDEX/v1",
   attestation: "CHITAOZINHO/ATTESTATION/v1",
   proofBundleIndex: "CHITAOZINHO/PROOF_BUNDLE_INDEX/v1",
+  keyCertificate: "CHITAOZINHO/KEY_CERTIFICATE/v1",
 } as const;
 
 export function canonicalBytes(value: unknown): Uint8Array {

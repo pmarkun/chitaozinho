@@ -38,8 +38,10 @@ enum Command {
         tsa_ca_bundle: Option<PathBuf>,
         #[arg(long, requires = "tsa_ca_bundle")]
         tsa_crl_bundle: Option<PathBuf>,
-        #[arg(long)]
-        trusted_server_key_hex: String,
+        #[arg(long, required_unless_present = "trusted_root_key_hex")]
+        trusted_server_key_hex: Option<String>,
+        #[arg(long, required_unless_present = "trusted_server_key_hex")]
+        trusted_root_key_hex: Option<String>,
         #[arg(long)]
         json: bool,
         #[arg(long)]
@@ -71,19 +73,30 @@ fn main() -> Result<()> {
             tsa_ca_bundle,
             tsa_crl_bundle,
             trusted_server_key_hex,
+            trusted_root_key_hex,
             json,
             html_report,
         } => {
-            let key = package::decode_array::<32>(&trusted_server_key_hex, "trusted server key")?;
+            let trust =
+                match (trusted_server_key_hex, trusted_root_key_hex) {
+                    (Some(value), None) => package::TrustAnchor::Operational(
+                        package::decode_array::<32>(&value, "trusted server key")?,
+                    ),
+                    (None, Some(value)) => package::TrustAnchor::Root(package::decode_array::<32>(
+                        &value,
+                        "trusted root key",
+                    )?),
+                    _ => anyhow::bail!("choose exactly one trusted key mode"),
+                };
             let report = match proof_bundle {
-                Some(bundle) => package::verify_with_proof_bundle_and_trust(
+                Some(bundle) => package::verify_with_proof_bundle_and_trust_anchor(
                     &package,
                     &bundle,
-                    &key,
+                    &trust,
                     tsa_ca_bundle.as_deref(),
                     tsa_crl_bundle.as_deref(),
                 )?,
-                None => package::verify(&package, &key)?,
+                None => package::verify_with_trust_anchor(&package, &trust)?,
             };
             if let Some(path) = html_report {
                 package::write_html_report(&report, &path)?;
@@ -96,6 +109,7 @@ fn main() -> Result<()> {
                 println!("members={}", report.members_verified);
                 println!("temporal_proof={}", report.temporal_proof);
                 println!("attestations={}", report.attestations_verified);
+                println!("trust_mode={}", report.trust_mode);
                 for check in report.checks {
                     println!("check={} status=valid", check);
                 }
