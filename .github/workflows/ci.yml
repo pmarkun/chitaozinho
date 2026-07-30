@@ -1,0 +1,33 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: cachix/install-nix-action@v31.10.6
+      - name: Check TypeScript, Python, Rust and infrastructure
+        run: nix develop --command ./scripts/check
+      - name: Smoke PostgreSQL and Garage persistence
+        shell: bash
+        run: |
+          nix develop --command bash -lc '
+            set -euo pipefail
+            trap "./scripts/local-services stop" EXIT
+            ./scripts/local-services start
+            set -a
+            source .env.local-services
+            set +a
+            uv run alembic upgrade head
+            CHITAOZINHO_RUN_SERVICE_INTEGRATION=1 \
+              uv run pytest apps/api/tests/test_services_integration.py -q
+          '

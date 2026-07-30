@@ -24,6 +24,7 @@
               garage
               jq
               nodejs_22
+              opentofu
               openssl
               pkg-config
               pnpm

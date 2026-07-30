@@ -15,6 +15,7 @@ coverage/
 *.tsbuildinfo
 
 target/
+.terraform/
 
 .idea/
 .vscode/
