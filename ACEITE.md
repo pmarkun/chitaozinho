@@ -236,7 +236,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ### Tempo e provas externas
 
-- [ ] Relógio do cliente incorreto.
+- [x] Relógio do cliente incorreto.
 - [x] Reinício do relógio monotônico.
 - [x] TSA indisponível ou não confiável.
 - [x] Certificado fora da validade no `genTime`.

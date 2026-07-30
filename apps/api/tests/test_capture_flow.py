@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
-from datetime import UTC
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 from zipfile import ZipFile
@@ -89,7 +89,7 @@ def test_session_event_part_finalize_and_idempotency(
         "previous_entry_hash": None,
         "client_clock_id": "clock-1",
         "client_monotonic_time": 0,
-        "client_wall_time": "2026-07-30T15:00:00-03:00",
+        "client_wall_time": "2001-01-01T00:00:00-03:00",
         "server_challenge": session["server_challenge"],
     }
     rejected_genesis = client.post(
@@ -107,7 +107,7 @@ def test_session_event_part_finalize_and_idempotency(
         "previous_entry_hash": None,
         "client_clock_id": "clock-1",
         "client_monotonic_time": 0,
-        "client_wall_time": "2026-07-30T15:00:00-03:00",
+        "client_wall_time": "2001-01-01T00:00:00-03:00",
         "server_challenge": session["server_challenge"],
     }
     start_body = signed_entry(start_entry)
@@ -135,7 +135,7 @@ def test_session_event_part_finalize_and_idempotency(
         "previous_entry_hash": start_body["entry_hash"],
         "client_clock_id": "clock-2",
         "client_monotonic_time": 0,
-        "client_wall_time": "2026-07-30T15:00:01-03:00",
+        "client_wall_time": "2001-01-01T00:00:01-03:00",
         "server_challenge": session["server_challenge"],
     }
     rejected_clock = client.post(
@@ -172,7 +172,7 @@ def test_session_event_part_finalize_and_idempotency(
         "previous_entry_hash": start_body["entry_hash"],
         "client_clock_id": "clock-1",
         "client_monotonic_time": 1_000_000,
-        "client_wall_time": "2026-07-30T15:00:01-03:00",
+        "client_wall_time": "2001-01-01T00:00:01-03:00",
         "server_challenge": session["server_challenge"],
     }
     signed_part = signed_entry(part_entry)
@@ -223,7 +223,7 @@ def test_session_event_part_finalize_and_idempotency(
         "previous_entry_hash": signed_part["entry_hash"],
         "client_clock_id": "clock-1",
         "client_monotonic_time": 2_000_000,
-        "client_wall_time": "2026-07-30T15:00:02-03:00",
+        "client_wall_time": "2001-01-01T00:00:02-03:00",
         "server_challenge": session["server_challenge"],
     }
     completed_body = {
@@ -256,7 +256,7 @@ def test_session_event_part_finalize_and_idempotency(
         "previous_entry_hash": signed_entry(completed_entry)["entry_hash"],
         "client_clock_id": "clock-1",
         "client_monotonic_time": 3_000_000,
-        "client_wall_time": "2026-07-30T15:00:03-03:00",
+        "client_wall_time": "2001-01-01T00:00:03-03:00",
         "server_challenge": session["server_challenge"],
     }
     finish_body = signed_entry(finish_entry)
@@ -304,6 +304,16 @@ def test_session_event_part_finalize_and_idempotency(
     assert finalized.status_code == 200
     result = finalized.json()
     assert result["status"] == "complete"
+    assert result["manifest"]["capture"]["started_at_client"].startswith("2001-")
+    assert result["manifest"]["capture"]["ended_at_client"].startswith("2001-")
+    started_at_server = datetime.fromisoformat(
+        result["manifest"]["capture"]["started_at_server"].replace("Z", "+00:00")
+    )
+    ended_at_server = datetime.fromisoformat(
+        result["manifest"]["capture"]["ended_at_server"].replace("Z", "+00:00")
+    )
+    assert abs((datetime.now(UTC) - started_at_server).total_seconds()) < 10
+    assert started_at_server <= ended_at_server <= datetime.now(UTC)
     assert result["package_status"] == "not_generated"
     assert result["timestamp_status"] == "not_requested"
     assert result["blockchain_status"] == "not_submitted"

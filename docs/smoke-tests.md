@@ -68,3 +68,7 @@ This run proves the short functional flow. It does not satisfy the separate
 - A simulated process exit after committing finalization but before returning
   the HTTP response is recovered by a fresh API instance. Replaying the same
   signed `capture_close` returns the persisted final result.
+- A capture declaring client wall-clock values in 2001 remains valid, while
+  the separately recorded server start/end times stay anchored to the actual
+  request time. The client clock is preserved as a declaration, not trusted as
+  temporal proof.
