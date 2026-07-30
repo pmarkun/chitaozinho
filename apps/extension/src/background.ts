@@ -28,6 +28,7 @@ import {
   sessionParts,
 } from "./db";
 import { incrementalSha256Identifier, totalByteLength } from "./hash";
+import { decodeMessageBytes } from "./message-bytes";
 import type { ExtensionMessage, PartRecord, SessionRecord } from "./types";
 
 let operationQueue = Promise.resolve<unknown>(undefined);
@@ -103,9 +104,13 @@ async function handleMessage(message: ExtensionMessage): Promise<unknown> {
     case "RESUME_CAPTURE":
       return publicState(await resumeCapture());
     case "RECORDER_CHUNK":
-      if (!message.sessionId || !message.bytes)
+      if (!message.sessionId || !message.bytesBase64)
         throw new Error("invalid recorder chunk");
-      await persistAndUploadPart(message.sessionId, "recording", message.bytes);
+      await persistAndUploadPart(
+        message.sessionId,
+        "recording",
+        decodeMessageBytes(message.bytesBase64),
+      );
       return undefined;
     case "ADD_MARKER": {
       const session = requireActive(await currentSession());
@@ -288,7 +293,15 @@ async function captureInitialArtifacts(
 ) {
   await captureScreenshot(session, "screenshot-initial");
   let page:
-    { html: string; text: string; url: string; title: string } | undefined;
+    | {
+        html: string;
+        text: string;
+        url: string;
+        title: string;
+        screen: { width: number; height: number };
+        viewport: { width: number; height: number };
+      }
+    | undefined;
   try {
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId: session.tabId },
@@ -297,6 +310,8 @@ async function captureInitialArtifacts(
         text: document.body?.innerText.slice(0, 1_000_000) ?? "",
         url: location.href,
         title: document.title,
+        screen: { width: window.screen.width, height: window.screen.height },
+        viewport: { width: window.innerWidth, height: window.innerHeight },
       }),
     });
     page = result as typeof page;
@@ -328,8 +343,11 @@ async function captureInitialArtifacts(
         title: page?.title ?? tab.title ?? null,
         visible_text: page?.text ?? null,
         user_agent: navigator.userAgent,
-        screen: { width: screen.width, height: screen.height },
-        viewport: { width: tab.width, height: tab.height },
+        screen: page?.screen ?? null,
+        viewport: page?.viewport ?? {
+          width: tab.width ?? null,
+          height: tab.height ?? null,
+        },
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         provenance: "client_reported",
       }),

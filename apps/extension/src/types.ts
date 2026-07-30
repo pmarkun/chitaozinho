@@ -95,7 +95,7 @@ export interface ExtensionMessage {
   consent?: boolean;
   streamId?: string;
   sessionId?: string;
-  bytes?: ArrayBuffer;
+  bytesBase64?: string;
   mimeType?: string;
   note?: string;
   eventData?: Record<string, unknown>;

@@ -1,4 +1,5 @@
 import type { ExtensionMessage } from "./types";
+import { encodeMessageBytes } from "./message-bytes";
 
 let recorder: MediaRecorder | undefined;
 let stream: MediaStream | undefined;
@@ -80,7 +81,7 @@ async function sendChunk(blob: Blob, captureSessionId: string): Promise<void> {
   const response = await chrome.runtime.sendMessage({
     type: "RECORDER_CHUNK",
     sessionId: captureSessionId,
-    bytes,
+    bytesBase64: encodeMessageBytes(bytes),
     mimeType: blob.type,
   } satisfies ExtensionMessage);
   if (!response?.ok && recorder?.state === "recording") {
