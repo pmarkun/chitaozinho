@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -23,8 +24,9 @@ def test_rfc3161_query_contains_exact_manifest_digest(tmp_path: Path) -> None:
         check=True,
         capture_output=True,
         text=True,
-    ).stdout.replace(":", "").lower()
-    assert inspected.count("42") == 32
+    ).stdout
+    message_data = inspected.split("Message data:", 1)[1].split("Policy OID:", 1)[0]
+    assert len(re.findall(r"\b42\b", message_data.lower())) == 32
     assert "sha256" in inspected
 
 

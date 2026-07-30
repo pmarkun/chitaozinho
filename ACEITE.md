@@ -164,8 +164,8 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 ### RFC 3161
 
 - [x] Requisição usa o hash do manifesto assinado.
-- [ ] `.tsq`, `.tsr`, certificado, cadeia e política são preservados.
-- [ ] `genTime`, cadeia, validade e revogação são verificados.
+- [x] `.tsq`, `.tsr`, certificado, cadeia e política são preservados.
+- [x] `genTime`, cadeia, validade e revogação são verificados.
 - [x] Falha da TSA muda apenas `timestamp_status`.
 - [x] Retry usa exatamente o mesmo hash e registra cada tentativa.
 - [x] Attestation referencia o manifesto sem modificá-lo.
@@ -190,30 +190,30 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ### Gate da POC probatória
 
-- [ ] Timestamp RFC 3161 válido.
+- [x] Timestamp RFC 3161 válido.
 - [ ] Attestation válida sem alteração do manifesto.
-- [ ] Prova OpenTimestamps gerada.
-- [ ] Complemento atualizado e assinado.
+- [x] Prova OpenTimestamps gerada.
+- [x] Complemento atualizado e assinado.
 - [ ] Cópia de teste bloqueada em Object Lock.
 - [ ] CLI valida timestamp, Merkle, OpenTimestamps e cadeia de attestations.
-- [ ] Pacote funcional continua verificável sem TSA, OpenTimestamps ou backend.
+- [x] Pacote funcional continua verificável sem TSA, OpenTimestamps ou backend.
 
 ## 5. Segurança, privacidade e robustez
 
-- [ ] TLS obrigatório fora do desenvolvimento local.
+- [x] TLS obrigatório fora do desenvolvimento local.
 - [ ] Criptografia em repouso habilitada.
 - [ ] Chaves e secrets nunca aparecem em código ou logs.
 - [ ] Logs não incluem conteúdo, URL completa, tokens ou dados pessoais por padrão.
 - [ ] Telemetria é mínima e separada do conteúdo.
 - [ ] Backend indisponível não apaga o buffer local.
 - [ ] Downloads usam autorização e URLs expiráveis.
-- [ ] Sessões não podem ser enumeradas.
-- [ ] Limites de tamanho, duração, partes e taxa estão definidos.
+- [x] Sessões não podem ser enumeradas.
+- [x] Limites de tamanho, duração, partes e taxa estão definidos.
 - [ ] Uso de CPU, memória e disco é medido durante captura.
 - [ ] A captura não degrada significativamente a página observada.
 - [ ] Falhas de disco, rede, storage e processo possuem recuperação documentada.
-- [ ] Ameaças e limitações aparecem na interface e no relatório.
-- [ ] Nenhum dado pessoal é publicado em blockchain.
+- [x] Ameaças e limitações aparecem na interface e no relatório.
+- [x] Nenhum dado pessoal é publicado em blockchain.
 
 ## 6. Matriz mínima de testes
 
@@ -314,7 +314,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [ ] RNF-002 — respeitar finalidade e consentimento de uso dos dados.
 - [ ] RNF-003 — preservar buffer durante indisponibilidade.
 - [ ] RNF-004 — manter build identificável, changelog e logs seguros.
-- [ ] RNF-005 — verificar fora da plataforma.
+- [x] RNF-005 — verificar fora da plataforma.
 - [ ] RNF-006 — respeitar limites de desempenho e memória.
 - [ ] RNF-007 — suportar multipart e processamento assíncrono.
 - [ ] RNF-008 — atender WCAG 2.2 AA.

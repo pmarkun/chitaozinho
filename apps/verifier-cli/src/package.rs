@@ -877,10 +877,7 @@ fn verify_ots_document(root_hash: &str, proof_path: &Path, status: &str) -> Resu
     fs::write(&root_file, root_digest)?;
     match status {
         "pending_confirmation" | "submitted" => {
-            let output = Command::new("ots")
-                .arg("info")
-                .arg(proof_path)
-                .output()
+            let output = run_ots(&["info"], Some(proof_path), None)
                 .context("run OpenTimestamps proof inspection")?;
             ensure!(
                 output.status.success(),
@@ -899,11 +896,7 @@ fn verify_ots_document(root_hash: &str, proof_path: &Path, status: &str) -> Resu
             );
         }
         "confirmed" => {
-            let output = Command::new("ots")
-                .args(["verify", "-f"])
-                .arg(&root_file)
-                .arg(proof_path)
-                .output()
+            let output = run_ots(&["verify", "-f"], Some(&root_file), Some(proof_path))
                 .context("run OpenTimestamps verification")?;
             ensure!(
                 output.status.success(),
@@ -916,6 +909,35 @@ fn verify_ots_document(root_hash: &str, proof_path: &Path, status: &str) -> Resu
         other => bail!("unsupported blockchain status: {other}"),
     }
     Ok(())
+}
+
+fn run_ots(
+    arguments: &[&str],
+    first_path: Option<&Path>,
+    second_path: Option<&Path>,
+) -> io::Result<std::process::Output> {
+    let mut direct = Command::new("ots");
+    direct.args(arguments);
+    if let Some(path) = first_path {
+        direct.arg(path);
+    }
+    if let Some(path) = second_path {
+        direct.arg(path);
+    }
+    match direct.output() {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            let mut fallback = Command::new("uv");
+            fallback.args(["run", "ots"]).args(arguments);
+            if let Some(path) = first_path {
+                fallback.arg(path);
+            }
+            if let Some(path) = second_path {
+                fallback.arg(path);
+            }
+            fallback.output()
+        }
+        result => result,
+    }
 }
 
 fn verify_timestamp_query(path: &Path, expected_manifest_hash: &str) -> Result<()> {
