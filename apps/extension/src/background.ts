@@ -18,6 +18,7 @@ import {
   sendEvent,
   uploadPart,
 } from "./api";
+import { artifactObservation } from "./artifact-observation";
 import { advanceSession, nextEntry, signedEntry } from "./chain";
 import {
   allSessions,
@@ -287,6 +288,7 @@ async function startCapture(): Promise<SessionRecord> {
       "capture/recording.webm",
       "video/webm",
       "MediaRecorder",
+      ["offscreen", "tabCapture"],
       `tab recording unavailable: ${String(error)}`,
     );
     session = requireActive(await getSession(session.id));
@@ -369,6 +371,7 @@ async function captureInitialArtifacts(
       "capture/dom.html",
       "text/html",
       "DOM serialization",
+      ["activeTab", "scripting"],
     );
   } catch (error) {
     await declareUnavailable(
@@ -377,6 +380,7 @@ async function captureInitialArtifacts(
       "capture/dom.html",
       "text/html",
       "DOM serialization",
+      ["activeTab", "scripting"],
       `DOM access unavailable: ${String(error)}`,
     );
   }
@@ -401,6 +405,7 @@ async function captureInitialArtifacts(
     "capture/metadata.json",
     "application/json",
     "browser metadata",
+    ["activeTab", "scripting"],
   );
 }
 
@@ -420,6 +425,7 @@ async function captureScreenshot(
       `capture/${artifactId}.png`,
       "image/png",
       "captureVisibleTab",
+      ["activeTab"],
     );
   } catch (error) {
     await declareUnavailable(
@@ -428,6 +434,7 @@ async function captureScreenshot(
       `capture/${artifactId}.png`,
       "image/png",
       "captureVisibleTab",
+      ["activeTab"],
       `viewport screenshot unavailable: ${String(error)}`,
     );
   }
@@ -440,9 +447,17 @@ async function uploadWholeArtifact(
   path: string,
   mediaType: string,
   method: string,
+  permissions: string[],
 ): Promise<void> {
   await persistAndUploadPart(sessionId, artifactId, bytes);
-  await completeStoredArtifact(sessionId, artifactId, path, mediaType, method);
+  await completeStoredArtifact(
+    sessionId,
+    artifactId,
+    path,
+    mediaType,
+    method,
+    permissions,
+  );
 }
 
 async function persistAndUploadPart(
@@ -528,6 +543,7 @@ async function completeStoredArtifact(
   path: string,
   mediaType: string,
   method: string,
+  permissions: string[],
 ): Promise<void> {
   let session = requireActive(await getSession(sessionId));
   const parts = (await sessionParts(sessionId))
@@ -539,9 +555,19 @@ async function completeStoredArtifact(
   const partBytes = parts.map((part) => part.bytes);
   const artifactHash = incrementalSha256Identifier(partBytes);
   const artifactSize = totalByteLength(partBytes);
+  const endedAt = new Date().toISOString();
   const entry = nextEntry(session, "artifact_completed", {
     artifact_id: artifactId,
     artifact_hash: artifactHash,
+    event_data: {
+      ...artifactObservation(
+        method,
+        permissions,
+        parts[0].entry.client_wall_time,
+        endedAt,
+        "complete",
+      ),
+    },
   });
   const signed = await signedEntry(session, entry);
   await completeArtifact(sessionId, artifactId, {
@@ -590,6 +616,7 @@ async function stopCapture(
         "capture/recording.webm",
         "video/webm",
         "MediaRecorder",
+        ["offscreen", "tabCapture"],
       );
     } else {
       await declareUnavailable(
@@ -598,6 +625,7 @@ async function stopCapture(
         "capture/recording.webm",
         "video/webm",
         "MediaRecorder",
+        ["offscreen", "tabCapture"],
         "tab recording produced no data",
       );
     }
@@ -667,13 +695,25 @@ async function declareUnavailable(
   path: string,
   mediaType: string,
   method: string,
+  permissions: string[],
   reason: string,
 ): Promise<void> {
   let session = requireActive(await getSession(sessionId));
   const normalizedReason = reason.slice(0, 2_000);
+  const attemptedAt = new Date().toISOString();
   const entry = nextEntry(session, "artifact_unavailable", {
     artifact_id: artifactId,
-    event_data: { status: "unavailable", reason: normalizedReason },
+    event_data: {
+      ...artifactObservation(
+        method,
+        permissions,
+        attemptedAt,
+        attemptedAt,
+        "unavailable",
+      ),
+      status: "unavailable",
+      reason: normalizedReason,
+    },
   });
   const signed = await signedEntry(session, entry);
   await declareArtifactUnavailable(sessionId, artifactId, {
