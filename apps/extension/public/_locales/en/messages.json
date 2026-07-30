@@ -37,7 +37,7 @@
   },
   "newCaptureTitle": { "message": "New capture" },
   "newCaptureBody": {
-    "message": "Collects tab video, screenshots, DOM, visible text, and browser-reported metadata. It does not prove authorship or truthfulness."
+    "message": "Collects tab video, screenshots, DOM, visible text, and browser-reported metadata. Iframes are best effort, canvas/WebGL cover visible pixels only, and DRM content is unavailable. It does not prove authorship or truthfulness."
   },
   "sensitiveDataNotice": {
     "message": "Do not use for children's data, health or financial data, or trade secrets. Browse with context and respect third-party rights."

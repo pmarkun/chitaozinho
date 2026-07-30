@@ -37,7 +37,7 @@
   },
   "newCaptureTitle": { "message": "Nova captura" },
   "newCaptureBody": {
-    "message": "Coleta vídeo da aba, screenshots, DOM, texto visível e metadados declarados pelo navegador. Não prova autoria nem veracidade do conteúdo."
+    "message": "Coleta vídeo da aba, screenshots, DOM, texto visível e metadados declarados pelo navegador. Iframes são best-effort, canvas/WebGL cobrem só pixels visíveis e conteúdo DRM fica indisponível. Não prova autoria nem veracidade."
   },
   "sensitiveDataNotice": {
     "message": "Não use para dados de crianças, saúde, finanças ou segredos empresariais. Navegue mostrando contexto e respeite direitos de terceiros."

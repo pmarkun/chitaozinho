@@ -25,6 +25,7 @@ export interface SessionRecord {
   recordingActive: boolean;
   captureFinished: boolean;
   artifacts: ArtifactSummary[];
+  knownGaps?: string[];
   packageHash?: string;
   integrityStatus?: string;
   timestampStatus?: string;

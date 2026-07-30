@@ -16,6 +16,7 @@ import {
   sendEvent,
 } from "./api";
 import { artifactObservation } from "./artifact-observation";
+import { describeCaptureCoverage } from "./capture-coverage";
 import { advanceSession, nextEntry, signedEntry } from "./chain";
 import {
   allSessions,
@@ -353,19 +354,50 @@ async function captureInitialArtifacts(
         title: string;
         screen: { width: number; height: number };
         viewport: { width: number; height: number };
+        inventory: {
+          scriptingAccess: true;
+          iframeTotal: number;
+          iframeSameOriginAccessible: number;
+          canvasTotal: number;
+          protectedMediaTotal: number;
+        };
       }
     | undefined;
   try {
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId: session.tabId },
-      func: () => ({
-        html: document.documentElement.outerHTML.slice(0, 4_000_000),
-        text: document.body?.innerText.slice(0, 1_000_000) ?? "",
-        url: location.href,
-        title: document.title,
-        screen: { width: window.screen.width, height: window.screen.height },
-        viewport: { width: window.innerWidth, height: window.innerHeight },
-      }),
+      func: () => {
+        const iframes = [...document.querySelectorAll("iframe")];
+        const iframeSameOriginAccessible = iframes.filter((iframe) => {
+          try {
+            return Boolean(iframe.contentDocument?.documentElement);
+          } catch {
+            return false;
+          }
+        }).length;
+        const protectedMediaTotal = [
+          ...document.querySelectorAll("audio, video"),
+        ].filter(
+          (element) =>
+            "mediaKeys" in element &&
+            (element as HTMLMediaElement).mediaKeys !== null,
+        ).length;
+        return {
+          html: document.documentElement.outerHTML.slice(0, 4_000_000),
+          text: document.body?.innerText.slice(0, 1_000_000) ?? "",
+          url: location.href,
+          title: document.title,
+          screen: { width: window.screen.width, height: window.screen.height },
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          inventory: {
+            scriptingAccess: true as const,
+            iframeTotal: iframes.length,
+            iframeSameOriginAccessible,
+            canvasTotal: document.querySelectorAll("canvas").length,
+            protectedMediaTotal,
+          },
+        };
+      },
     });
     page = result as typeof page;
     if (!page) throw new Error("page script returned no result");
@@ -389,6 +421,15 @@ async function captureInitialArtifacts(
       `DOM access unavailable: ${String(error)}`,
     );
   }
+  const coverage = describeCaptureCoverage(
+    page?.inventory ?? {
+      scriptingAccess: false,
+      iframeTotal: null,
+      iframeSameOriginAccessible: null,
+      canvasTotal: null,
+      protectedMediaTotal: null,
+    },
+  );
   await uploadWholeArtifact(
     session.id,
     "metadata",
@@ -405,6 +446,7 @@ async function captureInitialArtifacts(
         },
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         provenance: "client_reported",
+        capture_coverage: coverage,
       }),
     ).buffer,
     "capture/metadata.json",
@@ -412,6 +454,11 @@ async function captureInitialArtifacts(
     "browser metadata",
     ["activeTab", "scripting"],
   );
+  const current = requireActive(await getSession(session.id));
+  current.knownGaps = [
+    ...new Set([...(current.knownGaps ?? []), ...coverage.limitations]),
+  ].sort();
+  await saveSession(current);
 }
 
 async function captureScreenshot(
@@ -615,12 +662,15 @@ async function stopCapture(
     artifacts: [...session.artifacts].sort((left, right) =>
       left.artifact_id.localeCompare(right.artifact_id),
     ),
-    known_gaps: session.artifacts
-      .filter((artifact) => artifact.status !== "captured")
-      .map(
-        (artifact) =>
-          `${artifact.artifact_id}: ${artifact.reason ?? artifact.status}`,
-      ),
+    known_gaps: [
+      ...(session.knownGaps ?? []),
+      ...session.artifacts
+        .filter((artifact) => artifact.status !== "captured")
+        .map(
+          (artifact) =>
+            `${artifact.artifact_id}: ${artifact.reason ?? artifact.status}`,
+        ),
+    ].sort(),
     client_key_id: session.keyId,
     client_public_key: base64UrlEncode(session.publicKey),
   };

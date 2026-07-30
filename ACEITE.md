@@ -255,7 +255,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 ### Captura e completude
 
 - [x] Artefato indisponível.
-- [ ] Captura parcial de iframe, canvas, WebGL, DRM ou conteúdo protegido.
+- [x] Captura parcial de iframe, canvas, WebGL, DRM ou conteúdo protegido.
 - [x] Queda durante gravação.
 - [x] Navegação durante captura.
 - [x] Página longa ou dinâmica.
