@@ -239,8 +239,8 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [ ] Relógio do cliente incorreto.
 - [x] Reinício do relógio monotônico.
 - [ ] TSA indisponível ou não confiável.
-- [ ] Certificado fora da validade no `genTime`.
-- [ ] Hash ou cadeia RFC 3161 divergente.
+- [x] Certificado fora da validade no `genTime`.
+- [x] Hash ou cadeia RFC 3161 divergente.
 - [x] Merkle proof, raiz ou `.ots` inválidos.
 - [x] Confirmação blockchain pendente.
 
