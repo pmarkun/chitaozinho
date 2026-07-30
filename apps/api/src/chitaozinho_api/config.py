@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     max_session_size: int = 5 * 1024 * 1024 * 1024
     max_session_duration_seconds: int = 2 * 60 * 60
     requests_per_minute: int = 600
+    worker_poll_seconds: float = 2.0
+    worker_stale_seconds: int = 5 * 60
     software_name: str = "Chitãozinho Client"
     software_version: str = "0.1.0"
     software_commit: str = "development"

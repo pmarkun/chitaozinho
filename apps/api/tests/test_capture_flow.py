@@ -328,6 +328,22 @@ def test_session_event_part_finalize_and_idempotency(
     assert replayed_finalize.status_code == 200
     assert replayed_finalize.json() == result
 
+    queued_job = client.post(
+        f"/v1/sessions/{session_id}/timestamp-jobs",
+        headers={"Idempotency-Key": "async-primary"},
+    )
+    assert queued_job.status_code == 202
+    replayed_job = client.post(
+        f"/v1/sessions/{session_id}/timestamp-jobs",
+        headers={"Idempotency-Key": "async-primary"},
+    )
+    assert replayed_job.status_code == 202
+    assert replayed_job.json() == queued_job.json()
+    assert (
+        client.get(f"/v1/jobs/{queued_job.json()['job_id']}").json()
+        == queued_job.json()
+    )
+
     timestamped = client.post(
         f"/v1/sessions/{session_id}/timestamp",
         headers={"Idempotency-Key": "timestamp-primary"},
@@ -369,8 +385,9 @@ def test_session_event_part_finalize_and_idempotency(
                 .order_by(Job.created_at)
             )
         )
-        assert len(jobs) == 2
-        assert all(job.status == "completed" and job.attempts == 1 for job in jobs)
+        assert len(jobs) == 3
+        assert sum(job.status == "completed" and job.attempts == 1 for job in jobs) == 2
+        assert sum(job.status == "pending" and job.attempts == 0 for job in jobs) == 1
 
     def fake_stamp(
         root_hash: str,

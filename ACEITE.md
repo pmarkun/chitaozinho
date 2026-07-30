@@ -271,7 +271,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [ ] Volumes do Railway não são usados como storage probatório.
 - [ ] Chaves de produção ficam em KMS/HSM ou solução equivalente aprovada.
 - [ ] Health checks, métricas, alertas e logs estruturados configurados.
-- [ ] Jobs são idempotentes e recuperáveis.
+- [x] Jobs são idempotentes e recuperáveis.
 - [ ] Runbooks cobrem TSA, OpenTimestamps, storage, banco e rotação de chaves.
 - [ ] SBOM e assinatura de builds são gerados por release.
 - [ ] Política de retenção e exclusão foi revisada juridicamente.
@@ -316,7 +316,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [ ] RNF-004 — manter build identificável, changelog e logs seguros.
 - [x] RNF-005 — verificar fora da plataforma.
 - [ ] RNF-006 — respeitar limites de desempenho e memória.
-- [ ] RNF-007 — suportar multipart e processamento assíncrono.
+- [x] RNF-007 — suportar multipart e processamento assíncrono.
 - [ ] RNF-008 — atender WCAG 2.2 AA.
 - [ ] RNF-009 — preparar pt-BR e inglês.
 - [ ] RNF-010 — oferecer build reproduzível do verificador.

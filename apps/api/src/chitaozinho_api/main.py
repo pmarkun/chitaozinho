@@ -60,6 +60,7 @@ from .schemas import (
     EntryResponse,
     FinalizeRequest,
     FinalizeResponse,
+    JobResponse,
     MerkleBatchRequest,
     MerkleBatchResponse,
     OtsComplementResponse,
@@ -856,6 +857,56 @@ def create_app(
         return attestation_response(attestation)
 
     @app.post(
+        "/v1/sessions/{session_id}/timestamp-jobs",
+        response_model=JobResponse,
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+    def enqueue_timestamp_job(
+        session_id: str,
+        idempotency_key: str = Header(min_length=1, max_length=128),
+        database: Session = Depends(get_session),
+    ) -> JobResponse:
+        capture_session = require_capture_session(database, session_id)
+        if capture_session.manifest_hash is None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "session must be finalized before timestamping",
+            )
+        try:
+            job, _created = get_or_create_job(
+                database,
+                kind="rfc3161_timestamp",
+                idempotency_key=sha256_identifier(
+                    f"timestamp-async:{session_id}:{idempotency_key}".encode()
+                ),
+                subject_id=session_id,
+                payload={"manifest_hash": capture_session.manifest_hash},
+            )
+        except ValueError as error:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                str(error),
+            ) from error
+        append_audit_event(
+            database,
+            "timestamp_job_queued",
+            subject_id=session_id,
+            details={"job_id": job.id},
+        )
+        database.commit()
+        return job_response(job)
+
+    @app.get("/v1/jobs/{job_id}", response_model=JobResponse)
+    def get_job(
+        job_id: str,
+        database: Session = Depends(get_session),
+    ) -> JobResponse:
+        job = database.get(Job, job_id)
+        if job is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "job not found")
+        return job_response(job)
+
+    @app.post(
         "/v1/merkle-batches",
         response_model=MerkleBatchResponse,
         status_code=status.HTTP_201_CREATED,
@@ -1449,6 +1500,17 @@ def ots_complement_response(complement: OtsComplement) -> OtsComplementResponse:
         batch_id=complement.batch_id,
         proof_hash=complement.proof_hash,
         status=complement.status,
+    )
+
+
+def job_response(job: Job) -> JobResponse:
+    return JobResponse(
+        job_id=job.id,
+        kind=job.kind,
+        status=job.status,
+        attempts=job.attempts,
+        result=job.result,
+        error=job.last_error,
     )
 
 

@@ -1,0 +1,88 @@
+from __future__ import annotations
+
+import time
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session, sessionmaker
+
+from .config import Settings
+from .database import create_database_engine
+from .jobs import mark_job_completed, mark_job_failed, mark_job_running
+from .models import CaptureSession, Job
+from .proof_service import timestamp_capture
+from .security import ServerSigner
+
+
+def claim_job(database: Session, settings: Settings) -> Job | None:
+    stale_before = datetime.now(UTC) - timedelta(
+        seconds=settings.worker_stale_seconds
+    )
+    statement = (
+        select(Job)
+        .where(
+            Job.kind == "rfc3161_timestamp",
+            or_(
+                Job.status.in_(["pending", "failed"]),
+                (Job.status == "running") & (Job.updated_at < stale_before),
+            ),
+            Job.available_at <= datetime.now(UTC),
+        )
+        .order_by(Job.created_at)
+        .limit(1)
+    )
+    if database.bind is not None and database.bind.dialect.name == "postgresql":
+        statement = statement.with_for_update(skip_locked=True)
+    return database.scalar(statement)
+
+
+def run_once(
+    factory: sessionmaker[Session],
+    settings: Settings,
+    signer: ServerSigner,
+) -> bool:
+    with factory() as database:
+        job = claim_job(database, settings)
+        if job is None:
+            return False
+        mark_job_running(database, job)
+        try:
+            capture_session = database.get(CaptureSession, job.subject_id)
+            if capture_session is None or capture_session.manifest_hash is None:
+                raise ValueError("timestamp job references an unfinished session")
+            if job.payload.get("manifest_hash") != capture_session.manifest_hash:
+                raise ValueError("timestamp job manifest hash is stale")
+            attestation = timestamp_capture(
+                database,
+                settings,
+                signer,
+                capture_session,
+            )
+            mark_job_completed(
+                database,
+                job,
+                {"attestation_id": attestation.id},
+            )
+        except Exception as error:
+            database.rollback()
+            current = database.get(Job, job.id)
+            if current is not None:
+                mark_job_failed(database, current, error)
+        return True
+
+
+def main() -> None:
+    settings = Settings()
+    signer = ServerSigner.from_settings(settings)
+    if signer is None:
+        raise RuntimeError("server signing key is not configured")
+    engine = create_database_engine(settings)
+    factory = sessionmaker(engine, expire_on_commit=False)
+    while True:
+        worked = run_once(factory, settings, signer)
+        if not worked:
+            time.sleep(settings.worker_poll_seconds)
+
+
+if __name__ == "__main__":
+    main()

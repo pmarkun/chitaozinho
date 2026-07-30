@@ -123,6 +123,15 @@ class AttestationResponse(StrictModel):
     signature_hex: str
 
 
+class JobResponse(StrictModel):
+    job_id: str
+    kind: str
+    status: str
+    attempts: int
+    result: dict[str, Any] | None
+    error: str | None
+
+
 class SessionStatusResponse(StrictModel):
     session_id: str
     capture_status: str
