@@ -232,7 +232,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Mesma sequência com bytes divergentes.
 - [x] Encerramento com partes ausentes.
 - [x] Reinício do cliente com buffer local.
-- [ ] Reinício do servidor durante finalização.
+- [x] Reinício do servidor durante finalização.
 
 ### Tempo e provas externas
 

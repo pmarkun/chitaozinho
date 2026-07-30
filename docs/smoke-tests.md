@@ -65,3 +65,6 @@ This run proves the short functional flow. It does not satisfy the separate
   upload count unchanged in IndexedDB. Retrying with the same signed entry
   stores one receipt, advances the upload count once and makes subsequent
   retries no-ops.
+- A simulated process exit after committing finalization but before returning
+  the HTTP response is recovered by a fresh API instance. Replaying the same
+  signed `capture_close` returns the persisted final result.

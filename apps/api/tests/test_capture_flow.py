@@ -7,6 +7,7 @@ from io import BytesIO
 from pathlib import Path
 from zipfile import ZipFile
 
+import chitaozinho_api.main as main_module
 import pytest
 from chitaozinho_api.config import Settings
 from chitaozinho_api.main import create_app
@@ -856,6 +857,115 @@ def test_finalization_rejects_uploaded_parts_without_artifact_result(
     assert finalized.json()["detail"] == (
         "artifact recording has uploaded parts but no immutable result"
     )
+
+
+def test_finalization_replay_survives_server_restart_after_commit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = Settings(
+        database_url=f"sqlite:///{tmp_path / 'restart.db'}",
+        storage_path=tmp_path / "artifacts",
+        proofs_path=tmp_path / "proofs",
+        server_key_id="server-test",
+        server_seed_hex=SERVER_SEED.hex(),
+    )
+    first_client = TestClient(
+        create_app(settings, create_tables=True),
+        raise_server_exceptions=False,
+    )
+    created = first_client.post("/v1/sessions").json()
+    session_id = created["session_id"]
+    assert (
+        first_client.post(
+            f"/v1/sessions/{session_id}/keys",
+            json={
+                "key_id": "client-test",
+                "public_key": base64url_encode(public_key(CLIENT_SEED)),
+            },
+        ).status_code
+        == 204
+    )
+
+    started_entry = {
+        "protocol_version": "0.1.0",
+        "entry_type": "capture_started",
+        "session_id": session_id,
+        "sequence": 0,
+        "previous_entry_hash": None,
+        "client_clock_id": "clock-restart",
+        "client_monotonic_time": 0,
+        "client_wall_time": "2026-07-30T15:00:00-03:00",
+        "server_challenge": created["server_challenge"],
+    }
+    started = signed_entry(started_entry)
+    assert (
+        first_client.post(
+            f"/v1/sessions/{session_id}/events",
+            headers={"Idempotency-Key": "restart-start"},
+            json=started,
+        ).status_code
+        == 201
+    )
+    finished_entry = {
+        **started_entry,
+        "entry_type": "capture_finished",
+        "sequence": 1,
+        "previous_entry_hash": started["entry_hash"],
+        "client_monotonic_time": 1_000,
+        "client_wall_time": "2026-07-30T15:00:01-03:00",
+    }
+    finished = signed_entry(finished_entry)
+    assert (
+        first_client.post(
+            f"/v1/sessions/{session_id}/events",
+            headers={"Idempotency-Key": "restart-finish"},
+            json=finished,
+        ).status_code
+        == 201
+    )
+    capture_close = {
+        "protocol_version": "0.1.0",
+        "session_id": session_id,
+        "session_root": finished["entry_hash"],
+        "last_entry_hash": finished["entry_hash"],
+        "entry_count": 2,
+        "artifacts": [],
+        "known_gaps": [],
+        "client_key_id": "client-test",
+        "client_public_key": base64url_encode(public_key(CLIENT_SEED)),
+    }
+    finalize_body = {
+        "capture_close": capture_close,
+        "signature_hex": sign_canonical(
+            DOMAINS["capture_close"],
+            capture_close,
+            CLIENT_SEED,
+        ).hex(),
+    }
+
+    with monkeypatch.context() as failure:
+        failure.setattr(
+            main_module,
+            "finalize_response",
+            lambda _capture_session: (_ for _ in ()).throw(
+                RuntimeError("simulated process exit after commit")
+            ),
+        )
+        lost_response = first_client.post(
+            f"/v1/sessions/{session_id}/finalize",
+            json=finalize_body,
+        )
+    assert lost_response.status_code == 500
+
+    restarted_client = TestClient(create_app(settings))
+    replayed = restarted_client.post(
+        f"/v1/sessions/{session_id}/finalize",
+        json=finalize_body,
+    )
+    assert replayed.status_code == 200
+    assert replayed.json()["status"] == "complete"
+    assert replayed.json()["manifest"]["session_id"] == session_id
 
 
 def test_server_key_is_required_for_session_creation(tmp_path: Path) -> None:
