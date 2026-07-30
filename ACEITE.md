@@ -139,9 +139,9 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ### Experiência e relatório
 
-- [ ] Tela inicial oferece nova captura, capturas existentes, verificação e configurações.
+- [x] Tela inicial oferece nova captura, capturas existentes, verificação e configurações.
 - [x] Antes da captura, interface mostra dados coletados, limites e riscos.
-- [ ] Após a captura, interface mostra integridade, completude e estados independentes.
+- [x] Após a captura, interface mostra integridade, completude e estados independentes.
 - [x] Download inclui pacote, hash externo e chaves públicas necessárias.
 - [x] Relatório HTML apresenta resultados `íntegro`, `íntegro, mas incompleto`, `inválido` ou `não verificável`.
 - [x] Relatório nunca afirma autoria, veracidade ou validade jurídica definitiva.
