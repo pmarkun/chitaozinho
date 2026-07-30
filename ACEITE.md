@@ -256,7 +256,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 - [x] Artefato indisponível.
 - [ ] Captura parcial de iframe, canvas, WebGL, DRM ou conteúdo protegido.
-- [ ] Queda durante gravação.
+- [x] Queda durante gravação.
 - [x] Navegação durante captura.
 - [x] Página longa ou dinâmica.
 
