@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+actionlint
+
 pnpm -r format
 pnpm -r lint
 pnpm -r typecheck
