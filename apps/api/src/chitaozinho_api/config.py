@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     cors_origin_regex: str = r"^chrome-extension://[a-p]{32}$"
     max_part_size: int = 8 * 1024 * 1024
     max_artifact_parts: int = 10_000
+    max_artifact_size: int = 2 * 1024 * 1024 * 1024
+    max_session_size: int = 5 * 1024 * 1024 * 1024
+    max_session_duration_seconds: int = 2 * 60 * 60
+    requests_per_minute: int = 600
     software_name: str = "Chitãozinho Client"
     software_version: str = "0.1.0"
     software_commit: str = "development"
@@ -41,3 +45,14 @@ class Settings(BaseSettings):
         "https://alice.btc.calendar.opentimestamps.org,"
         "https://bob.btc.calendar.opentimestamps.org"
     )
+
+    @model_validator(mode="after")
+    def production_safety(self) -> Settings:
+        if self.env not in {"development", "test"}:
+            if not self.public_base_url.startswith("https://"):
+                raise ValueError("HTTPS public_base_url is required outside local development")
+            if self.storage_backend != "s3":
+                raise ValueError("external S3 storage is required outside local development")
+            if self.server_seed_hex is None:
+                raise ValueError("server signing key is required outside local development")
+        return self

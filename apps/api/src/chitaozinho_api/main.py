@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import secrets
+import time
 import uuid
+from collections import defaultdict, deque
 from datetime import UTC, datetime
 from functools import partial
 from hashlib import sha256
@@ -19,7 +21,7 @@ from chitaozinho_protocol import (
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -106,6 +108,23 @@ def create_app(
     )
     app.state.session_factory = factory
     get_session = partial(session_dependency, factory)
+    request_times: dict[str, deque[float]] = defaultdict(deque)
+
+    @app.middleware("http")
+    async def rate_limit(request: Request, call_next):
+        if request.url.path.startswith("/v1/"):
+            client = request.client.host if request.client is not None else "unknown"
+            now = time.monotonic()
+            times = request_times[client]
+            while times and times[0] <= now - 60:
+                times.popleft()
+            if len(times) >= settings.requests_per_minute:
+                return Response(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    headers={"Retry-After": "60"},
+                )
+            times.append(now)
+        return await call_next(request)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -193,7 +212,7 @@ def create_app(
         idempotency_key: str = Header(min_length=1, max_length=128),
         database: Session = Depends(get_session),
     ) -> EntryResponse:
-        capture_session = require_ready_session(database, session_id)
+        capture_session = require_ready_session(database, session_id, settings)
         existing = database.scalar(
             select(ChainEntry).where(
                 ChainEntry.session_id == session_id,
@@ -273,7 +292,7 @@ def create_app(
         if part_number < 0 or part_number >= settings.max_artifact_parts:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid part number")
         active_signer = require_signer(signer)
-        capture_session = require_ready_session(database, session_id)
+        capture_session = require_ready_session(database, session_id, settings)
         chunks: list[bytes] = []
         total_size = 0
         async for chunk in request.stream():
@@ -345,6 +364,33 @@ def create_app(
             response.status_code = status.HTTP_200_OK
             return part_response(existing, receipt)
 
+        artifact_bytes = (
+            database.scalar(
+                select(func.coalesce(func.sum(ArtifactPart.size), 0)).where(
+                    ArtifactPart.session_id == session_id,
+                    ArtifactPart.artifact_id == artifact_id,
+                )
+            )
+            or 0
+        )
+        session_bytes = (
+            database.scalar(
+                select(func.coalesce(func.sum(ArtifactPart.size), 0)).where(
+                    ArtifactPart.session_id == session_id
+                )
+            )
+            or 0
+        )
+        if artifact_bytes + total_size > settings.max_artifact_size:
+            raise HTTPException(
+                status.HTTP_413_CONTENT_TOO_LARGE,
+                "artifact exceeds total size limit",
+            )
+        if session_bytes + total_size > settings.max_session_size:
+            raise HTTPException(
+                status.HTTP_413_CONTENT_TOO_LARGE,
+                "session exceeds total size limit",
+            )
         try:
             entry_payload = json.loads(base64url_decode(x_entry_json))
         except (ValueError, json.JSONDecodeError) as error:
@@ -456,7 +502,7 @@ def create_app(
         database: Session = Depends(get_session),
     ) -> ArtifactCompleteResponse:
         validate_identifier(artifact_id, "artifact id")
-        capture_session = require_ready_session(database, session_id)
+        capture_session = require_ready_session(database, session_id, settings)
         existing = database.scalar(
             select(Artifact).where(
                 Artifact.session_id == session_id,
@@ -576,7 +622,7 @@ def create_app(
         database: Session = Depends(get_session),
     ) -> ArtifactCompleteResponse:
         validate_identifier(artifact_id, "artifact id")
-        capture_session = require_ready_session(database, session_id)
+        capture_session = require_ready_session(database, session_id, settings)
         existing = database.scalar(
             select(Artifact).where(
                 Artifact.session_id == session_id,
@@ -668,7 +714,7 @@ def create_app(
                     "session already finalized with different declaration",
                 )
             return finalize_response(capture_session)
-        capture_session = require_ready_session(database, session_id)
+        capture_session = require_ready_session(database, session_id, settings)
         entries = list(
             database.scalars(
                 select(ChainEntry)
@@ -970,12 +1016,24 @@ def require_capture_session(database: Session, session_id: str) -> CaptureSessio
     return capture_session
 
 
-def require_ready_session(database: Session, session_id: str) -> CaptureSession:
+def require_ready_session(
+    database: Session,
+    session_id: str,
+    settings: Settings,
+) -> CaptureSession:
     capture_session = require_capture_session(database, session_id)
     if capture_session.client_public_key is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "session key is not registered")
     if capture_session.status in {"complete", "incomplete", "invalid_chain"}:
         raise HTTPException(status.HTTP_409_CONFLICT, "session is already closed")
+    created_at = capture_session.created_at
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=UTC)
+    if (datetime.now(UTC) - created_at).total_seconds() > settings.max_session_duration_seconds:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "session duration limit exceeded",
+        )
     return capture_session
 
 
