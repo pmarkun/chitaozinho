@@ -75,3 +75,27 @@ export async function sessionReceipts(
 ): Promise<ReceiptRecord[]> {
   return (await database).getAllFromIndex("receipts", "by-session", sessionId);
 }
+
+export async function deleteLocalSession(sessionId: string): Promise<void> {
+  const connection = await database;
+  const transaction = connection.transaction(
+    ["sessions", "parts", "receipts"],
+    "readwrite",
+  );
+  const partKeys = await transaction
+    .objectStore("parts")
+    .index("by-session")
+    .getAllKeys(sessionId);
+  const receiptKeys = await transaction
+    .objectStore("receipts")
+    .index("by-session")
+    .getAllKeys(sessionId);
+  await Promise.all([
+    transaction.objectStore("sessions").delete(sessionId),
+    ...partKeys.map((key) => transaction.objectStore("parts").delete(key)),
+    ...receiptKeys.map((key) =>
+      transaction.objectStore("receipts").delete(key),
+    ),
+  ]);
+  await transaction.done;
+}

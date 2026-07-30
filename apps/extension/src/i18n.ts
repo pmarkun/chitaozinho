@@ -6,6 +6,8 @@ export type MessageKey =
   | "captureComplete"
   | "captureConsent"
   | "connection"
+  | "discardCapture"
+  | "discardCaptureConfirmation"
   | "emailLabel"
   | "finishAndDownload"
   | "legalDisclaimer"

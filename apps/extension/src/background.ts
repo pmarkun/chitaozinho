@@ -20,6 +20,7 @@ import {
 import { advanceSession, nextEntry, signedEntry } from "./chain";
 import {
   currentSession,
+  deleteLocalSession,
   getSession,
   latestSession,
   savePart,
@@ -96,6 +97,20 @@ async function handleMessage(message: ExtensionMessage): Promise<unknown> {
       if (latest?.status === "complete") {
         await chrome.storage.local.set({ dismissedSessionId: latest.id });
       }
+      return null;
+    }
+    case "DISCARD_FAILED_CAPTURE": {
+      const latest = await currentSession();
+      if (
+        !latest ||
+        !["error", "interrupted"].includes(latest.status) ||
+        latest.captureFinished ||
+        latest.recordingActive
+      ) {
+        throw new Error("capture cannot be discarded in its current state");
+      }
+      await deleteLocalSession(latest.id);
+      await chrome.storage.local.set({ dismissedSessionId: latest.id });
       return null;
     }
     case "START_CAPTURE":

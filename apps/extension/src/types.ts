@@ -82,6 +82,7 @@ export interface ExtensionMessage {
   type:
     | "GET_STATE"
     | "DISMISS_RESULT"
+    | "DISCARD_FAILED_CAPTURE"
     | "RESUME_CAPTURE"
     | "START_CAPTURE"
     | "STOP_CAPTURE"

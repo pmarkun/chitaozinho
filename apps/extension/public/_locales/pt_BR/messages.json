@@ -26,6 +26,10 @@
   "startCapture": { "message": "Iniciar captura da aba" },
   "uploadedParts": { "message": "Partes enviadas" },
   "connection": { "message": "Conexão" },
+  "discardCapture": { "message": "Descartar captura local" },
+  "discardCaptureConfirmation": {
+    "message": "Descartar o buffer local desta captura? O registro parcial já enviado ao servidor será preservado. Esta ação não pode ser desfeita."
+  },
   "active": { "message": "ativa" },
   "session": { "message": "Sessão" },
   "unavailable": { "message": "Indisponíveis" },

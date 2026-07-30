@@ -100,4 +100,33 @@ describe("capture database", () => {
     );
     expect(await reopened.sessionReceipts("session-1")).toEqual([receipt]);
   });
+
+  it("deletes a failed session only after an explicit local discard", async () => {
+    const database = await import("./db");
+    const session: SessionRecord = {
+      id: "failed-session",
+      challenge: "challenge",
+      keyId: "key",
+      publicKey: new Uint8Array([1]),
+      privateKey: null,
+      clockId: "clock",
+      clockStartedAt: 1,
+      nextSequence: 0,
+      previousEntryHash: null,
+      tabId: 1,
+      windowId: 1,
+      startedAt: "2026-07-30T12:00:00.000Z",
+      status: "error",
+      uploadedParts: 0,
+      durationMs: 0,
+      recordingActive: false,
+      captureFinished: false,
+      artifacts: [],
+    };
+    await database.saveSession(session);
+
+    expect(await database.getSession(session.id)).toBeDefined();
+    await database.deleteLocalSession(session.id);
+    expect(await database.getSession(session.id)).toBeUndefined();
+  });
 });

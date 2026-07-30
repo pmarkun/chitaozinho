@@ -26,6 +26,10 @@
   "startCapture": { "message": "Start tab capture" },
   "uploadedParts": { "message": "Uploaded parts" },
   "connection": { "message": "Connection" },
+  "discardCapture": { "message": "Discard local capture" },
+  "discardCaptureConfirmation": {
+    "message": "Discard this capture's local buffer? The partial record already sent to the server will be preserved. This action cannot be undone."
+  },
   "active": { "message": "active" },
   "session": { "message": "Session" },
   "unavailable": { "message": "Unavailable" },

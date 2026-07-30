@@ -192,6 +192,20 @@ function App() {
               {t("retryFinalization")}
             </button>
           )}
+          {["error", "interrupted"].includes(capture.status) &&
+            !capture.captureFinished && (
+              <button
+                className="danger"
+                disabled={busy}
+                onClick={() => {
+                  if (window.confirm(t("discardCaptureConfirmation"))) {
+                    void act({ type: "DISCARD_FAILED_CAPTURE" });
+                  }
+                }}
+              >
+                {t("discardCapture")}
+              </button>
+            )}
           {capture.status === "complete" && (
             <>
               <p className="success">{t("captureComplete")}</p>
