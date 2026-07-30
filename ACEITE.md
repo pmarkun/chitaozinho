@@ -104,18 +104,18 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Manifest V3 válido e instalável.
 - [x] Usuário recebe explicação e registra consentimento antes da captura.
 - [ ] Captura de uma aba por pelo menos 60 segundos.
-- [ ] Vídeo WebM preservado sem recompressão.
-- [ ] Screenshot por viewport.
-- [ ] URL, título, user agent, resolução, viewport e timezone registrados como `client_reported`.
-- [ ] HTML/DOM e texto visível coletados quando permitidos.
+- [x] Vídeo WebM preservado sem recompressão.
+- [x] Screenshot por viewport.
+- [x] URL, título, user agent, resolução, viewport e timezone registrados como `client_reported`.
+- [x] HTML/DOM e texto visível coletados quando permitidos.
 - [ ] Navegação, rolagem, screenshots adicionais e marcadores geram eventos.
 - [ ] Cada artefato registra método, procedência, permissões, intervalo e completude.
 - [x] Artefatos indisponíveis ou parciais registram motivo explícito.
 - [x] Hash e upload de vídeo são incrementais.
 - [x] IndexedDB preserva buffer, partes, recibos e estado local.
-- [ ] Reinício da extensão cria novo `client_clock_id` e evento `clock_restarted`.
-- [ ] Indicadores de gravação, duração, upload, conexão e erros são visíveis.
-- [ ] `capture_close` é calculado e assinado antes de destruir a chave efêmera.
+- [x] Reinício da extensão cria novo `client_clock_id` e evento `clock_restarted`.
+- [x] Indicadores de gravação, duração, upload, conexão e erros são visíveis.
+- [x] `capture_close` é calculado e assinado antes de destruir a chave efêmera.
 
 ### API e persistência
 
@@ -205,7 +205,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Chaves e secrets nunca aparecem em código ou logs.
 - [x] Logs não incluem conteúdo, URL completa, tokens ou dados pessoais por padrão.
 - [x] Telemetria é mínima e separada do conteúdo.
-- [ ] Backend indisponível não apaga o buffer local.
+- [x] Backend indisponível não apaga o buffer local.
 - [ ] Downloads usam autorização e URLs expiráveis.
 - [x] Sessões não podem ser enumeradas.
 - [x] Limites de tamanho, duração, partes e taxa estão definidos.
@@ -231,13 +231,13 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Duplicação e retry idempotente.
 - [x] Mesma sequência com bytes divergentes.
 - [ ] Encerramento com partes ausentes.
-- [ ] Reinício do cliente com buffer local.
+- [x] Reinício do cliente com buffer local.
 - [ ] Reinício do servidor durante finalização.
 
 ### Tempo e provas externas
 
 - [ ] Relógio do cliente incorreto.
-- [ ] Reinício do relógio monotônico.
+- [x] Reinício do relógio monotônico.
 - [ ] TSA indisponível ou não confiável.
 - [ ] Certificado fora da validade no `genTime`.
 - [ ] Hash ou cadeia RFC 3161 divergente.
@@ -286,7 +286,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ### Requisitos funcionais
 
-- [ ] RF-001 — iniciar sessão pela extensão.
+- [x] RF-001 — iniciar sessão pela extensão.
 - [x] RF-002 — registrar consentimento.
 - [x] RF-003 — calcular SHA-256 no cliente.
 - [x] RF-004 — encadear eventos.
