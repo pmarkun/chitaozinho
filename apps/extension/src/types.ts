@@ -22,6 +22,7 @@ export interface SessionRecord {
   status: CaptureStatus;
   uploadedParts: number;
   durationMs: number;
+  recordingActive: boolean;
   artifacts: ArtifactSummary[];
   packageHash?: string;
   error?: string;
@@ -33,6 +34,7 @@ export interface ArtifactSummary {
   size: number;
   status: "captured" | "unavailable" | "failed" | "not_requested";
   artifact_hash?: string;
+  reason?: string;
 }
 
 export interface PartRecord {

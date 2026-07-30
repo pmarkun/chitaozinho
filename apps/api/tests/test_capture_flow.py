@@ -518,6 +518,148 @@ def test_artifact_identifier_cannot_escape_storage(client: TestClient) -> None:
     assert response.status_code in {404, 422}
 
 
+def test_unavailable_artifact_produces_verifiable_incomplete_package(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    created = client.post("/v1/sessions").json()
+    session_id = created["session_id"]
+    assert (
+        client.post(
+            f"/v1/sessions/{session_id}/keys",
+            json={
+                "key_id": "client-test",
+                "public_key": base64url_encode(public_key(CLIENT_SEED)),
+            },
+        ).status_code
+        == 204
+    )
+
+    def entry(
+        entry_type: str,
+        sequence: int,
+        previous_hash: str | None,
+        **fields: object,
+    ) -> dict:
+        return {
+            "protocol_version": "0.1.0",
+            "entry_type": entry_type,
+            "session_id": session_id,
+            "sequence": sequence,
+            "previous_entry_hash": previous_hash,
+            "client_clock_id": "clock-partial",
+            "client_monotonic_time": sequence * 1_000,
+            "client_wall_time": f"2026-07-30T15:00:0{sequence}-03:00",
+            "server_challenge": created["server_challenge"],
+            **fields,
+        }
+
+    started = signed_entry(entry("capture_started", 0, None))
+    assert (
+        client.post(
+            f"/v1/sessions/{session_id}/events",
+            headers={"Idempotency-Key": "partial-start"},
+            json=started,
+        ).status_code
+        == 201
+    )
+    reason = "protected browser page does not permit DOM access"
+    unavailable = signed_entry(
+        entry(
+            "artifact_unavailable",
+            1,
+            started["entry_hash"],
+            artifact_id="dom",
+            event_data={"status": "unavailable", "reason": reason},
+        )
+    )
+    declared = client.post(
+        f"/v1/sessions/{session_id}/artifacts/dom/unavailable",
+        json={
+            "entry": unavailable,
+            "path": "capture/dom.html",
+            "media_type": "text/html",
+            "method": "DOM serialization",
+            "provenance": "client_reported",
+            "status": "unavailable",
+            "reason": reason,
+        },
+    )
+    assert declared.status_code == 201
+    assert declared.json()["artifact_hash"] is None
+
+    finished = signed_entry(
+        entry("capture_finished", 2, unavailable["entry_hash"])
+    )
+    assert (
+        client.post(
+            f"/v1/sessions/{session_id}/events",
+            headers={"Idempotency-Key": "partial-finish"},
+            json=finished,
+        ).status_code
+        == 201
+    )
+    artifacts = [
+        {
+            "artifact_id": "dom",
+            "path": "capture/dom.html",
+            "size": 0,
+            "status": "unavailable",
+            "reason": reason,
+        }
+    ]
+    capture_close = {
+        "protocol_version": "0.1.0",
+        "session_id": session_id,
+        "session_root": finished["entry_hash"],
+        "last_entry_hash": finished["entry_hash"],
+        "entry_count": 3,
+        "artifacts": artifacts,
+        "known_gaps": [f"dom: {reason}"],
+        "client_key_id": "client-test",
+        "client_public_key": base64url_encode(public_key(CLIENT_SEED)),
+    }
+    finalized = client.post(
+        f"/v1/sessions/{session_id}/finalize",
+        json={
+            "capture_close": capture_close,
+            "signature_hex": sign_canonical(
+                DOMAINS["capture_close"],
+                capture_close,
+                CLIENT_SEED,
+            ).hex(),
+        },
+    )
+    assert finalized.status_code == 200
+    assert finalized.json()["status"] == "incomplete"
+    assert finalized.json()["manifest"]["artifacts"][0]["reason"] == reason
+    assert "artifact_hash" not in finalized.json()["manifest"]["artifacts"][0]
+
+    package = client.get(f"/v1/sessions/{session_id}/package")
+    package_path = tmp_path / "partial.zip"
+    package_path.write_bytes(package.content)
+    verified = subprocess.run(
+        [
+            "cargo",
+            "run",
+            "--quiet",
+            "--bin",
+            "chitaozinho-verify",
+            "--",
+            "verify",
+            str(package_path),
+            "--trusted-server-key-hex",
+            public_key(SERVER_SEED).hex(),
+            "--json",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert verified.returncode == 0, verified.stderr
+    assert json.loads(verified.stdout)["result"] == "integral_but_incomplete"
+
+
 def test_server_key_is_required_for_session_creation(tmp_path: Path) -> None:
     settings = Settings(
         database_url=f"sqlite:///{tmp_path / 'api.db'}",

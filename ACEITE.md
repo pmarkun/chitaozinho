@@ -110,7 +110,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [ ] HTML/DOM e texto visível coletados quando permitidos.
 - [ ] Navegação, rolagem, screenshots adicionais e marcadores geram eventos.
 - [ ] Cada artefato registra método, procedência, permissões, intervalo e completude.
-- [ ] Artefatos indisponíveis ou parciais registram motivo explícito.
+- [x] Artefatos indisponíveis ou parciais registram motivo explícito.
 - [ ] Hash e upload de vídeo são incrementais.
 - [ ] IndexedDB preserva buffer, partes, recibos e estado local.
 - [ ] Reinício da extensão cria novo `client_clock_id` e evento `clock_restarted`.
@@ -155,7 +155,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [ ] Pacote é baixado e verificado integralmente offline.
 - [ ] Alteração de um byte é detectada e localizada.
 - [ ] Remoção, duplicação e reordenação de evento são detectadas.
-- [ ] Captura incompleta permanece verificável e claramente identificada.
+- [x] Captura incompleta permanece verificável e claramente identificada.
 - [ ] Relatório HTML é gerado.
 - [ ] Vetores passam em TypeScript, Python e Rust.
 
@@ -254,7 +254,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ### Captura e completude
 
-- [ ] Artefato indisponível.
+- [x] Artefato indisponível.
 - [ ] Captura parcial de iframe, canvas, WebGL, DRM ou conteúdo protegido.
 - [ ] Queda durante gravação.
 - [ ] Navegação durante captura.

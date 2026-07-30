@@ -68,8 +68,20 @@ class ArtifactCompleteResponse(StrictModel):
     artifact_id: str
     part_count: int
     size: int
-    artifact_hash: str
+    artifact_hash: str | None
     status: str
+
+
+class ArtifactUnavailableRequest(StrictModel):
+    entry: EntryRequest
+    path: str = Field(min_length=1, max_length=1024)
+    media_type: str = Field(min_length=1, max_length=255)
+    method: str = Field(min_length=1, max_length=128)
+    provenance: str = Field(
+        pattern=r"^(client_reported|server_observed|externally_attested)$"
+    )
+    status: str = Field(pattern=r"^(unavailable|failed|not_requested)$")
+    reason: str = Field(min_length=1, max_length=2000)
 
 
 class FinalizeRequest(StrictModel):

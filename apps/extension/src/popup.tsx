@@ -12,6 +12,7 @@ interface PublicState {
   durationMs: number;
   packageHash?: string;
   error?: string;
+  unavailableArtifacts: number;
 }
 
 function App() {
@@ -108,7 +109,17 @@ function App() {
               <dt>Sessão</dt>
               <dd title={capture.id}>{capture.id.slice(0, 12)}…</dd>
             </div>
+            <div>
+              <dt>Indisponíveis</dt>
+              <dd>{capture.unavailableArtifacts}</dd>
+            </div>
           </dl>
+          {capture.unavailableArtifacts > 0 && (
+            <p className="notice">
+              A captura está parcial. O pacote registrará cada item indisponível
+              e o respectivo motivo.
+            </p>
+          )}
           {recording && (
             <div className="actions">
               <button

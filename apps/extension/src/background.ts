@@ -9,6 +9,7 @@ import {
 import {
   completeArtifact,
   createSession,
+  declareArtifactUnavailable,
   finalizeSession,
   packageUrl,
   registerKey,
@@ -68,6 +69,7 @@ async function handleMessage(message: ExtensionMessage): Promise<unknown> {
       const latest = await latestSession();
       if (
         latest?.status === "recording" &&
+        latest.recordingActive &&
         !(await chrome.offscreen.hasDocument())
       ) {
         latest.status = "interrupted";
@@ -162,6 +164,7 @@ async function startCapture(): Promise<SessionRecord> {
     status: "starting",
     uploadedParts: 0,
     durationMs: 0,
+    recordingActive: false,
     artifacts: [],
   };
   await saveSession(session);
@@ -172,16 +175,30 @@ async function startCapture(): Promise<SessionRecord> {
   });
   await captureInitialArtifacts(session, tab);
   session = (await getSession(session.id)) ?? session;
-  await ensureOffscreenDocument();
-  const streamId = await chrome.tabCapture.getMediaStreamId({
-    targetTabId: tab.id,
-  });
-  const started = await chrome.runtime.sendMessage({
-    type: "RECORDER_START",
-    streamId,
-    sessionId,
-  } satisfies ExtensionMessage);
-  if (started?.error) throw new Error(String(started.error));
+  try {
+    await ensureOffscreenDocument();
+    const streamId = await chrome.tabCapture.getMediaStreamId({
+      targetTabId: tab.id,
+    });
+    const started = await chrome.runtime.sendMessage({
+      type: "RECORDER_START",
+      streamId,
+      sessionId,
+    } satisfies ExtensionMessage);
+    if (started?.error) throw new Error(String(started.error));
+    session.recordingActive = true;
+  } catch (error) {
+    await declareUnavailable(
+      session.id,
+      "recording",
+      "capture/recording.webm",
+      "video/webm",
+      "MediaRecorder",
+      `tab recording unavailable: ${String(error)}`,
+    );
+    session = requireActive(await getSession(session.id));
+    session.recordingActive = false;
+  }
   session.status = "recording";
   await saveSession(session);
   await installScrollObserver(tab.id);
@@ -216,6 +233,7 @@ async function resumeCapture(): Promise<SessionRecord> {
     sessionId: session.id,
   } satisfies ExtensionMessage);
   if (started?.error) throw new Error(String(started.error));
+  session.recordingActive = true;
   session.status = "recording";
   await saveSession(session);
   await installScrollObserver(tab.id);
@@ -227,37 +245,46 @@ async function captureInitialArtifacts(
   tab: chrome.tabs.Tab,
 ) {
   await captureScreenshot(session, "screenshot-initial");
-  const [{ result }] = await chrome.scripting.executeScript({
-    target: { tabId: session.tabId },
-    func: () => ({
-      html: document.documentElement.outerHTML.slice(0, 4_000_000),
-      text: document.body?.innerText.slice(0, 1_000_000) ?? "",
-      url: location.href,
-      title: document.title,
-    }),
-  });
-  const page = result as {
-    html: string;
-    text: string;
-    url: string;
-    title: string;
-  };
-  await uploadWholeArtifact(
-    session.id,
-    "dom",
-    new TextEncoder().encode(page.html).buffer,
-    "capture/dom.html",
-    "text/html",
-    "DOM serialization",
-  );
+  let page:
+    { html: string; text: string; url: string; title: string } | undefined;
+  try {
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId: session.tabId },
+      func: () => ({
+        html: document.documentElement.outerHTML.slice(0, 4_000_000),
+        text: document.body?.innerText.slice(0, 1_000_000) ?? "",
+        url: location.href,
+        title: document.title,
+      }),
+    });
+    page = result as typeof page;
+    if (!page) throw new Error("page script returned no result");
+    await uploadWholeArtifact(
+      session.id,
+      "dom",
+      new TextEncoder().encode(page.html).buffer,
+      "capture/dom.html",
+      "text/html",
+      "DOM serialization",
+    );
+  } catch (error) {
+    await declareUnavailable(
+      session.id,
+      "dom",
+      "capture/dom.html",
+      "text/html",
+      "DOM serialization",
+      `DOM access unavailable: ${String(error)}`,
+    );
+  }
   await uploadWholeArtifact(
     session.id,
     "metadata",
     new TextEncoder().encode(
       JSON.stringify({
-        url: page.url,
-        title: page.title,
-        visible_text: page.text,
+        url: page?.url ?? tab.url ?? null,
+        title: page?.title ?? tab.title ?? null,
+        visible_text: page?.text ?? null,
         user_agent: navigator.userAgent,
         screen: { width: screen.width, height: screen.height },
         viewport: { width: tab.width, height: tab.height },
@@ -275,18 +302,29 @@ async function captureScreenshot(
   session: SessionRecord,
   artifactId: string,
 ): Promise<void> {
-  const dataUrl = await chrome.tabs.captureVisibleTab(session.windowId, {
-    format: "png",
-  });
-  const bytes = await (await fetch(dataUrl)).arrayBuffer();
-  await uploadWholeArtifact(
-    session.id,
-    artifactId,
-    bytes,
-    `capture/${artifactId}.png`,
-    "image/png",
-    "captureVisibleTab",
-  );
+  try {
+    const dataUrl = await chrome.tabs.captureVisibleTab(session.windowId, {
+      format: "png",
+    });
+    const bytes = await (await fetch(dataUrl)).arrayBuffer();
+    await uploadWholeArtifact(
+      session.id,
+      artifactId,
+      bytes,
+      `capture/${artifactId}.png`,
+      "image/png",
+      "captureVisibleTab",
+    );
+  } catch (error) {
+    await declareUnavailable(
+      session.id,
+      artifactId,
+      `capture/${artifactId}.png`,
+      "image/png",
+      "captureVisibleTab",
+      `viewport screenshot unavailable: ${String(error)}`,
+    );
+  }
 }
 
 async function uploadWholeArtifact(
@@ -424,18 +462,20 @@ async function stopCapture(): Promise<SessionRecord> {
   let session = requireActive(await currentSession());
   session.status = "finalizing";
   await saveSession(session);
-  const stopped = await chrome.runtime.sendMessage({
-    type: "RECORDER_STOP",
-  } satisfies ExtensionMessage);
-  if (stopped?.error) throw new Error(String(stopped.error));
-  session = requireActive(await getSession(session.id));
-  await completeStoredArtifact(
-    session.id,
-    "recording",
-    "capture/recording.webm",
-    "video/webm",
-    "MediaRecorder",
-  );
+  if (session.recordingActive) {
+    const stopped = await chrome.runtime.sendMessage({
+      type: "RECORDER_STOP",
+    } satisfies ExtensionMessage);
+    if (stopped?.error) throw new Error(String(stopped.error));
+    session = requireActive(await getSession(session.id));
+    await completeStoredArtifact(
+      session.id,
+      "recording",
+      "capture/recording.webm",
+      "video/webm",
+      "MediaRecorder",
+    );
+  }
   session = requireActive(await getSession(session.id));
   session = await appendEvent(session, "capture_finished", {
     duration_ms: Date.now() - new Date(session.startedAt).getTime(),
@@ -449,7 +489,12 @@ async function stopCapture(): Promise<SessionRecord> {
     artifacts: [...session.artifacts].sort((left, right) =>
       left.artifact_id.localeCompare(right.artifact_id),
     ),
-    known_gaps: [],
+    known_gaps: session.artifacts
+      .filter((artifact) => artifact.status !== "captured")
+      .map(
+        (artifact) =>
+          `${artifact.artifact_id}: ${artifact.reason ?? artifact.status}`,
+      ),
     client_key_id: session.keyId,
     client_public_key: base64UrlEncode(session.publicKey),
   };
@@ -474,6 +519,41 @@ async function stopCapture(): Promise<SessionRecord> {
     saveAs: true,
   });
   return session;
+}
+
+async function declareUnavailable(
+  sessionId: string,
+  artifactId: string,
+  path: string,
+  mediaType: string,
+  method: string,
+  reason: string,
+): Promise<void> {
+  let session = requireActive(await getSession(sessionId));
+  const normalizedReason = reason.slice(0, 2_000);
+  const entry = nextEntry(session, "artifact_unavailable", {
+    artifact_id: artifactId,
+    event_data: { status: "unavailable", reason: normalizedReason },
+  });
+  const signed = await signedEntry(session, entry);
+  await declareArtifactUnavailable(sessionId, artifactId, {
+    entry: signed,
+    path,
+    media_type: mediaType,
+    method,
+    provenance: "client_reported",
+    status: "unavailable",
+    reason: normalizedReason,
+  });
+  session = advanceSession(session, signed.entry_hash);
+  session.artifacts.push({
+    artifact_id: artifactId,
+    path,
+    size: 0,
+    status: "unavailable",
+    reason: normalizedReason,
+  });
+  await saveSession(session);
 }
 
 async function appendEvent(
@@ -541,6 +621,9 @@ function publicState(
         : session.durationMs,
     packageHash: session.packageHash,
     error: session.error,
+    unavailableArtifacts: session.artifacts.filter(
+      (artifact) => artifact.status !== "captured",
+    ).length,
   };
 }
 

@@ -50,6 +50,7 @@ from .proof_service import create_merkle_batch, timestamp_capture, upgrade_merkl
 from .schemas import (
     ArtifactCompleteRequest,
     ArtifactCompleteResponse,
+    ArtifactUnavailableRequest,
     AttestationResponse,
     CreateSessionResponse,
     EntryRequest,
@@ -559,6 +560,83 @@ def create_app(
         return artifact_response(artifact)
 
     @app.post(
+        "/v1/sessions/{session_id}/artifacts/{artifact_id}/unavailable",
+        response_model=ArtifactCompleteResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def declare_unavailable_artifact(
+        session_id: str,
+        artifact_id: str,
+        body: ArtifactUnavailableRequest,
+        database: Session = Depends(get_session),
+    ) -> ArtifactCompleteResponse:
+        validate_identifier(artifact_id, "artifact id")
+        capture_session = require_ready_session(database, session_id)
+        existing = database.scalar(
+            select(Artifact).where(
+                Artifact.session_id == session_id,
+                Artifact.artifact_id == artifact_id,
+            )
+        )
+        if existing is not None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "artifact already has an immutable result",
+            )
+        validate_entry(database, capture_session, body.entry)
+        entry_payload = body.entry.entry
+        if (
+            entry_payload.get("entry_type") != "artifact_unavailable"
+            or entry_payload.get("artifact_id") != artifact_id
+            or entry_payload.get("event_data")
+            != {"status": body.status, "reason": body.reason}
+        ):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "entry does not describe unavailable artifact",
+            )
+        artifact = Artifact(
+            session_id=session_id,
+            artifact_id=artifact_id,
+            path=validate_artifact_path(body.path),
+            size=0,
+            part_count=0,
+            artifact_hash=None,
+            media_type=body.media_type,
+            status=body.status,
+            method=body.method,
+            provenance=body.provenance,
+            completed_entry_hash=body.entry.entry_hash,
+            reason=body.reason,
+        )
+        entry = ChainEntry(
+            session_id=session_id,
+            sequence=capture_session.next_sequence,
+            entry_type="artifact_unavailable",
+            entry_hash=body.entry.entry_hash,
+            payload=entry_payload,
+            signature_hex=body.entry.signature_hex,
+            idempotency_key=f"artifact-unavailable:{artifact_id}",
+            created_at=datetime.now(UTC),
+        )
+        database.add_all([artifact, entry])
+        capture_session.next_sequence += 1
+        capture_session.status = "capturing"
+        capture_session.updated_at = datetime.now(UTC)
+        append_audit_event(
+            database,
+            "artifact_unavailable",
+            subject_id=session_id,
+            details={
+                "artifact_id": artifact_id,
+                "status": body.status,
+                "reason": body.reason,
+            },
+        )
+        database.commit()
+        return artifact_response(artifact)
+
+    @app.post(
         "/v1/sessions/{session_id}/finalize",
         response_model=FinalizeResponse,
     )
@@ -874,6 +952,7 @@ ENTRY_TYPES = {
     "capture_started",
     "artifact_part",
     "artifact_completed",
+    "artifact_unavailable",
     "navigation",
     "scroll",
     "marker",
@@ -976,6 +1055,14 @@ def validate_entry(
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "artifact completion entry is incomplete",
+        )
+    if entry["entry_type"] == "artifact_unavailable" and not {
+        "artifact_id",
+        "event_data",
+    }.issubset(entry):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "unavailable artifact entry is incomplete",
         )
     expected_previous = None
     if capture_session.next_sequence > 0:
@@ -1133,7 +1220,12 @@ def validate_capture_close(
             "path": artifact.path,
             "size": artifact.size,
             "status": artifact.status,
-            "artifact_hash": artifact.artifact_hash,
+            **(
+                {"artifact_hash": artifact.artifact_hash}
+                if artifact.artifact_hash is not None
+                else {}
+            ),
+            **({"reason": artifact.reason} if artifact.reason is not None else {}),
         }
         for artifact in artifacts
     ]
@@ -1188,7 +1280,12 @@ def build_manifest(
                 "status": artifact.status,
                 "method": artifact.method,
                 "provenance": artifact.provenance,
-                "artifact_hash": artifact.artifact_hash,
+                **(
+                    {"artifact_hash": artifact.artifact_hash}
+                    if artifact.artifact_hash is not None
+                    else {}
+                ),
+                **({"reason": artifact.reason} if artifact.reason is not None else {}),
             }
             for artifact in artifacts
         ],

@@ -23,8 +23,9 @@ const session: SessionRecord = {
   startedAt: "2026-07-30T00:00:00Z",
   status: "recording",
   uploadedParts: 0,
-  durationMs: 0,
-  artifacts: [],
+    durationMs: 0,
+    recordingActive: false,
+    artifacts: [],
 };
 
 test("creates the genesis entry with normalized sequence and monotonic time", () => {

@@ -109,12 +109,13 @@ class Artifact(Base):
     path: Mapped[str] = mapped_column(Text, nullable=False)
     size: Mapped[int] = mapped_column(Integer, nullable=False)
     part_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    artifact_hash: Mapped[str] = mapped_column(String(71), nullable=False)
+    artifact_hash: Mapped[str | None] = mapped_column(String(71))
     media_type: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     method: Mapped[str] = mapped_column(String(128), nullable=False)
     provenance: Mapped[str] = mapped_column(String(32), nullable=False)
     completed_entry_hash: Mapped[str] = mapped_column(String(71), nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text)
 
 
 class Receipt(Base):

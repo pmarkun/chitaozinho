@@ -103,6 +103,23 @@ export async function completeArtifact(
   );
 }
 
+export async function declareArtifactUnavailable(
+  sessionId: string,
+  artifactId: string,
+  body: Record<string, unknown>,
+): Promise<void> {
+  await checked(
+    await fetch(
+      `${API_BASE_URL}/v1/sessions/${sessionId}/artifacts/${artifactId}/unavailable`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    ),
+  );
+}
+
 export async function finalizeSession(
   sessionId: string,
   captureClose: Record<string, unknown>,

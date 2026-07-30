@@ -22,6 +22,7 @@
         "capture_started",
         "artifact_part",
         "artifact_completed",
+        "artifact_unavailable",
         "navigation",
         "scroll",
         "marker",
@@ -61,6 +62,12 @@
       "if": { "properties": { "entry_type": { "const": "artifact_completed" } } },
       "then": {
         "required": ["artifact_id", "artifact_hash"]
+      }
+    },
+    {
+      "if": { "properties": { "entry_type": { "const": "artifact_unavailable" } } },
+      "then": {
+        "required": ["artifact_id", "event_data"]
       }
     }
   ],
