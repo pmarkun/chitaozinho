@@ -450,6 +450,7 @@ def test_session_event_part_finalize_and_idempotency(
 
     proof_bundle = client.get(f"/v1/sessions/{session_id}/proof-bundle")
     assert proof_bundle.status_code == 200
+    assert proof_bundle.headers["X-Storage-Status"] == "stored"
     assert proof_bundle.headers["X-Proof-Bundle-SHA256"] == sha256_identifier(
         proof_bundle.content
     )
@@ -481,6 +482,7 @@ def test_session_event_part_finalize_and_idempotency(
     package = client.get(f"/v1/sessions/{session_id}/package")
     assert package.status_code == 200
     assert package.headers["content-type"] == "application/zip"
+    assert package.headers["X-Storage-Status"] == "stored"
     package_path = tmp_path / "capture.zip"
     package_path.write_bytes(package.content)
     verified = subprocess.run(
@@ -512,6 +514,7 @@ def test_session_event_part_finalize_and_idempotency(
     assert current.json()["package_status"] == "available"
     assert current.json()["timestamp_status"] == "pending"
     assert current.json()["blockchain_status"] == "confirmed"
+    assert current.json()["storage_status"] == "stored"
 
     with client.app.state.session_factory() as database:
         audit_events = list(

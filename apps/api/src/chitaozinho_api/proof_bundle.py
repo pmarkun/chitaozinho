@@ -14,7 +14,9 @@ from sqlalchemy.orm import Session
 from .audit import append_audit_event
 from .config import Settings
 from .models import Attestation, CaptureSession
+from .retention import protect_final_artifact
 from .security import ServerSigner
+from .storage import DurableStorage
 
 INDEX_PATH = "proof-bundle-index.json"
 INDEX_SIGNATURE_PATH = "signatures/proof-bundle-index.server.sig"
@@ -24,9 +26,10 @@ ATTESTATIONS_PATH = "attestations.jsonl"
 def ensure_proof_bundle(
     database: Session,
     settings: Settings,
+    storage: DurableStorage,
     signer: ServerSigner,
     capture_session: CaptureSession,
-) -> tuple[Path, str]:
+) -> tuple[Path, str, str]:
     if capture_session.manifest_hash is None:
         raise ValueError("session has no immutable manifest")
     attestations = list(
@@ -46,7 +49,17 @@ def ensure_proof_bundle(
         / f"{latest_hash}.zip"
     )
     if target.exists():
-        return target, sha256_identifier(target.read_bytes())
+        bundle_hash = sha256_identifier(target.read_bytes())
+        storage_status = protect_final_artifact(
+            database,
+            settings,
+            storage,
+            capture_session,
+            name=f"proof-bundle-{latest_hash}.zip",
+            path=target,
+            digest=bundle_hash,
+        )
+        return target, bundle_hash, storage_status
     members = proof_bundle_members(settings, attestations)
     index = {
         "schema_version": "0.1.0",
@@ -99,7 +112,16 @@ def ensure_proof_bundle(
             },
         )
         database.commit()
-        return target, bundle_hash
+        storage_status = protect_final_artifact(
+            database,
+            settings,
+            storage,
+            capture_session,
+            name=f"proof-bundle-{latest_hash}.zip",
+            path=target,
+            digest=bundle_hash,
+        )
+        return target, bundle_hash, storage_status
     finally:
         temporary.unlink(missing_ok=True)
 

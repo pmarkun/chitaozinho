@@ -186,7 +186,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [ ] Prazo de retenção de teste é mínimo e explícito.
 - [ ] Sobrescrita e exclusão antecipada são recusadas.
 - [ ] Manifestos, assinaturas, recibos, provas e relatórios são protegidos.
-- [ ] Falha de retenção não é apresentada como sucesso.
+- [x] Falha de retenção não é apresentada como sucesso.
 
 ### Gate da POC probatória
 
@@ -201,7 +201,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 ## 5. Segurança, privacidade e robustez
 
 - [x] TLS obrigatório fora do desenvolvimento local.
-- [ ] Criptografia em repouso habilitada.
+- [x] Criptografia em repouso habilitada.
 - [ ] Chaves e secrets nunca aparecem em código ou logs.
 - [ ] Logs não incluem conteúdo, URL completa, tokens ou dados pessoais por padrão.
 - [ ] Telemetria é mínima e separada do conteúdo.
@@ -268,7 +268,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [ ] PostgreSQL possui backups e restauração testada.
 - [ ] Migrações possuem validação e rollback.
 - [ ] S3 externo com Object Lock é usado para evidências.
-- [ ] Volumes do Railway não são usados como storage probatório.
+- [x] Volumes do Railway não são usados como storage probatório.
 - [ ] Chaves de produção ficam em KMS/HSM ou solução equivalente aprovada.
 - [ ] Health checks, métricas, alertas e logs estruturados configurados.
 - [x] Jobs são idempotentes e recuperáveis.
@@ -293,7 +293,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] RF-009 — solicitar timestamp RFC 3161.
 - [x] RF-010 — gerar prova Merkle.
 - [x] RF-011 — ancorar via OpenTimestamps.
-- [ ] RF-012 — armazenar artefatos finais em WORM.
+- [x] RF-012 — armazenar artefatos finais em WORM.
 - [x] RF-013 — gerar ZIP autocontido.
 - [x] RF-014 — recalcular hashes localmente.
 - [x] RF-015 — verificar offline e sem autenticação.

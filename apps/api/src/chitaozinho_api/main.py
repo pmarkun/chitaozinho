@@ -103,6 +103,7 @@ def create_app(
         expose_headers=[
             "X-Package-SHA256",
             "X-Proof-Bundle-SHA256",
+            "X-Storage-Status",
             "Content-Disposition",
         ],
         max_age=600,
@@ -784,8 +785,9 @@ def create_app(
                 "session must be finalized before packaging",
             )
         try:
-            package_path, package_hash = ensure_package(
+            package_path, package_hash, storage_status = ensure_package(
                 database,
+                settings,
                 storage,
                 active_signer,
                 capture_session,
@@ -799,7 +801,10 @@ def create_app(
             package_path,
             media_type="application/zip",
             filename=f"chitaozinho-{session_id}.zip",
-            headers={"X-Package-SHA256": package_hash},
+            headers={
+                "X-Package-SHA256": package_hash,
+                "X-Storage-Status": storage_status,
+            },
         )
 
     @app.post(
@@ -986,9 +991,10 @@ def create_app(
         active_signer = require_signer(signer)
         capture_session = require_capture_session(database, session_id)
         try:
-            bundle_path, bundle_hash = ensure_proof_bundle(
+            bundle_path, bundle_hash, storage_status = ensure_proof_bundle(
                 database,
                 settings,
+                storage,
                 active_signer,
                 capture_session,
             )
@@ -1001,7 +1007,10 @@ def create_app(
             bundle_path,
             media_type="application/zip",
             filename=f"chitaozinho-proofs-{session_id}.zip",
-            headers={"X-Proof-Bundle-SHA256": bundle_hash},
+            headers={
+                "X-Proof-Bundle-SHA256": bundle_hash,
+                "X-Storage-Status": storage_status,
+            },
         )
 
     @app.get(

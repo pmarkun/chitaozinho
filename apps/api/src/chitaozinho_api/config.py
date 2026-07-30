@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     max_artifact_size: int = 2 * 1024 * 1024 * 1024
     max_session_size: int = 5 * 1024 * 1024 * 1024
     max_session_duration_seconds: int = 2 * 60 * 60
+    retention_days: int = Field(default=90, ge=1, le=36500)
     requests_per_minute: int = 600
     worker_poll_seconds: float = 2.0
     worker_stale_seconds: int = 5 * 60

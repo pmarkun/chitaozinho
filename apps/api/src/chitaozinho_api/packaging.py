@@ -14,21 +14,34 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .audit import append_audit_event
+from .config import Settings
 from .models import Artifact, ArtifactPart, CaptureSession, ChainEntry, Receipt
+from .retention import protect_final_artifact
 from .security import ServerSigner
 from .storage import DurableStorage
 
 
 def ensure_package(
     database: Session,
+    settings: Settings,
     storage: DurableStorage,
     signer: ServerSigner,
     capture_session: CaptureSession,
-) -> tuple[Path, str]:
+) -> tuple[Path, str, str]:
     target = storage.package_path(capture_session.id)
     hash_target = target.with_suffix(".zip.sha256")
     if target.exists() and hash_target.exists():
-        return target, hash_target.read_text().split()[0]
+        package_hash = hash_target.read_text().split()[0]
+        storage_status = protect_final_artifact(
+            database,
+            settings,
+            storage,
+            capture_session,
+            name="evidence-package.zip",
+            path=target,
+            digest=package_hash,
+        )
+        return target, package_hash, storage_status
     target.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(dir=target.parent, prefix=".package-")
     os.close(descriptor)
@@ -81,7 +94,16 @@ def ensure_package(
             details={"package_hash": package_hash},
         )
         database.commit()
-        return target, package_hash
+        storage_status = protect_final_artifact(
+            database,
+            settings,
+            storage,
+            capture_session,
+            name="evidence-package.zip",
+            path=target,
+            digest=package_hash,
+        )
+        return target, package_hash, storage_status
     finally:
         temporary.unlink(missing_ok=True)
 
