@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Chitãozinho",
+  "description": "Captura e preservação verificável de evidências digitais.",
+  "version": "0.1.0",
+  "minimum_chrome_version": "116",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Chitãozinho"
+  },
+  "background": {
+    "service_worker": "assets/background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "activeTab",
+    "downloads",
+    "offscreen",
+    "scripting",
+    "storage",
+    "tabCapture"
+  ],
+  "host_permissions": ["http://127.0.0.1:8000/*", "http://localhost:8000/*"]
+}

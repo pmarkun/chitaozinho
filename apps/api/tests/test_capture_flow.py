@@ -75,6 +75,24 @@ def test_session_event_part_finalize_and_idempotency(
     )
     assert registered.status_code == 204
 
+    invalid_genesis = {
+        "protocol_version": "0.1.0",
+        "entry_type": "marker",
+        "session_id": session_id,
+        "sequence": 0,
+        "previous_entry_hash": None,
+        "client_clock_id": "clock-1",
+        "client_monotonic_time": 0,
+        "client_wall_time": "2026-07-30T15:00:00-03:00",
+        "server_challenge": session["server_challenge"],
+    }
+    rejected_genesis = client.post(
+        f"/v1/sessions/{session_id}/events",
+        headers={"Idempotency-Key": "invalid-genesis"},
+        json=signed_entry(invalid_genesis),
+    )
+    assert rejected_genesis.status_code == 422
+
     start_entry = {
         "protocol_version": "0.1.0",
         "entry_type": "capture_started",
@@ -102,6 +120,24 @@ def test_session_event_part_finalize_and_idempotency(
     )
     assert replayed.status_code == 200
     assert replayed.json()["status"] == "already_recorded"
+
+    invalid_clock_change = {
+        "protocol_version": "0.1.0",
+        "entry_type": "marker",
+        "session_id": session_id,
+        "sequence": 1,
+        "previous_entry_hash": start_body["entry_hash"],
+        "client_clock_id": "clock-2",
+        "client_monotonic_time": 0,
+        "client_wall_time": "2026-07-30T15:00:01-03:00",
+        "server_challenge": session["server_challenge"],
+    }
+    rejected_clock = client.post(
+        f"/v1/sessions/{session_id}/events",
+        headers={"Idempotency-Key": "invalid-clock"},
+        json=signed_entry(invalid_clock_change),
+    )
+    assert rejected_clock.status_code == 422
 
     divergent = client.post(
         f"/v1/sessions/{session_id}/events",

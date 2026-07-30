@@ -71,7 +71,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] RFC 8785/JCS implementado de forma equivalente nas três linguagens.
 - [x] Base64URL, hexadecimal, RFC 3339 e tempo monotônico normalizados.
 - [x] Prefixos de domínio de todas as assinaturas documentados.
-- [ ] Sequência global, entrada gênese e mudança de `client_clock_id` implementadas.
+- [x] Sequência global, entrada gênese e mudança de `client_clock_id` implementadas.
 - [x] `part_hash`, `artifact_hash`, `entry_hash`, `receipt_hash` e `session_root` implementados conforme a SPEC.
 
 ### Vetores de teste

@@ -17,6 +17,7 @@ from chitaozinho_protocol import (
     verify_canonical,
 )
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlalchemy import Engine, select
 from sqlalchemy.exc import IntegrityError
@@ -58,6 +59,21 @@ def create_app(
         Base.metadata.create_all(engine)
 
     app = FastAPI(title="Chitãozinho API", version="0.1.0")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=settings.cors_origin_regex,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT"],
+        allow_headers=[
+            "Content-Type",
+            "Idempotency-Key",
+            "X-Entry-Json",
+            "X-Entry-Hash",
+            "X-Entry-Signature",
+        ],
+        expose_headers=["X-Package-SHA256", "Content-Disposition"],
+        max_age=600,
+    )
     app.state.session_factory = factory
     get_session = partial(session_dependency, factory)
 
@@ -719,6 +735,11 @@ def validate_entry(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "entry session id mismatch")
     if entry.get("sequence") != capture_session.next_sequence:
         raise HTTPException(status.HTTP_409_CONFLICT, "entry sequence is not the next sequence")
+    if capture_session.next_sequence == 0 and entry["entry_type"] != "capture_started":
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "the genesis entry must be capture_started",
+        )
     if entry.get("server_challenge") != capture_session.server_challenge:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "server challenge mismatch")
     try:
@@ -761,6 +782,14 @@ def validate_entry(
         if previous_entry is None:
             raise HTTPException(status.HTTP_409_CONFLICT, "previous entry is missing")
         expected_previous = previous_entry.entry_hash
+        if (
+            previous_entry.payload["client_clock_id"] != entry["client_clock_id"]
+            and entry["entry_type"] != "clock_restarted"
+        ):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "a new client clock must begin with clock_restarted",
+            )
         previous_same_clock = database.scalar(
             select(ChainEntry)
             .where(

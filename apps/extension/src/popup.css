@@ -1,0 +1,135 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  color: #17211b;
+  background: #f5f7f2;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 360px;
+}
+main {
+  padding: 18px;
+}
+header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+header div {
+  display: grid;
+}
+header small {
+  color: #637069;
+}
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  color: white;
+  background: #185c3a;
+  border-radius: 9px;
+  font-weight: 800;
+}
+h1 {
+  font-size: 20px;
+  margin: 0 0 10px;
+}
+p {
+  line-height: 1.45;
+  color: #4d5b53;
+}
+.notice {
+  padding: 10px;
+  border-left: 3px solid #bd7a18;
+  background: #fff9e9;
+}
+.consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 16px 0;
+  line-height: 1.35;
+}
+button {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 11px 12px;
+  background: #185c3a;
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.secondary {
+  background: #e2ebe5;
+  color: #17442f;
+}
+.danger {
+  background: #a9382e;
+}
+.actions {
+  display: grid;
+  gap: 8px;
+}
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.status-row time {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #bd7a18;
+}
+.dot.recording {
+  background: #d33b30;
+  box-shadow: 0 0 0 4px #f7d8d5;
+}
+dl {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+dl div {
+  display: flex;
+  justify-content: space-between;
+}
+dt {
+  color: #637069;
+}
+dd {
+  margin: 0;
+  font-weight: 650;
+}
+.success {
+  padding: 10px;
+  color: #185c3a;
+  background: #e3f2e8;
+  border-radius: 8px;
+}
+.error {
+  color: #9c2c24;
+  overflow-wrap: anywhere;
+}
+footer {
+  margin-top: 18px;
+  color: #78837d;
+  font-size: 11px;
+  line-height: 1.4;
+}

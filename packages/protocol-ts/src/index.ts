@@ -78,6 +78,17 @@ export async function signCanonical(
   );
 }
 
+export async function signCanonicalWithKey(
+  domain: string,
+  value: unknown,
+  privateKey: CryptoKey,
+): Promise<Uint8Array> {
+  const message = concatBytes(encoder.encode(domain), hashCanonical(value));
+  return new Uint8Array(
+    await crypto.subtle.sign("Ed25519", privateKey, asArrayBuffer(message)),
+  );
+}
+
 export async function verifyCanonical(
   domain: string,
   value: unknown,
