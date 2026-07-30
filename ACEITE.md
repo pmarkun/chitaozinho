@@ -206,7 +206,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Logs não incluem conteúdo, URL completa, tokens ou dados pessoais por padrão.
 - [x] Telemetria é mínima e separada do conteúdo.
 - [x] Backend indisponível não apaga o buffer local.
-- [ ] Downloads usam autorização e URLs expiráveis.
+- [x] Downloads usam autorização e URLs expiráveis.
 - [x] Sessões não podem ser enumeradas.
 - [x] Limites de tamanho, duração, partes e taxa estão definidos.
 - [ ] Uso de CPU, memória e disco é medido durante captura.

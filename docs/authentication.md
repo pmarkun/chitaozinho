@@ -16,6 +16,13 @@ Public authentication works as follows:
 6. state-changing cookie requests require the configured extension origin, and
    sessions and jobs are scoped to their owner.
 
+Package downloads use a separate, short-lived bearer URL. Only the session
+owner can request it; its HMAC binds the opaque session ID and expiration, and
+the package endpoints reject missing, altered, expired or cross-session
+tokens. Responses use `Cache-Control: private, no-store`. The default lifetime
+is five minutes and can be reduced or increased, up to one hour, with
+`CHITAOZINHO_DOWNLOAD_URL_TTL_SECONDS`.
+
 Audit events use an opaque user ID and never include email, token, cookie or
 SMTP credentials. The extension sends requests with browser credentials and
 detects successful authentication after the user returns from the email link.

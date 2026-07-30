@@ -40,6 +40,7 @@ from .auth import (
 )
 from .config import Settings
 from .database import create_database_engine, session_dependency
+from .download_tokens import create_download_token, verify_download_token
 from .jobs import (
     get_or_create_job,
     mark_job_completed,
@@ -73,6 +74,7 @@ from .schemas import (
     ArtifactUnavailableRequest,
     AttestationResponse,
     CreateSessionResponse,
+    DownloadUrlsResponse,
     EntryRequest,
     EntryResponse,
     FinalizeRequest,
@@ -148,6 +150,23 @@ def create_app(
             and request.url.path.startswith("/v1/")
             and not request.url.path.startswith("/v1/auth/")
         ):
+            download_match = re.fullmatch(
+                r"/v1/sessions/([A-Za-z0-9_-]{1,128})/"
+                r"(?:package|package\.sha256)",
+                request.url.path,
+            )
+            if download_match is not None:
+                if not verify_download_token(
+                    settings,
+                    request.query_params.get("download_token"),
+                    download_match.group(1),
+                ):
+                    return JSONResponse(
+                        {"detail": "valid download token required"},
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                    )
+                request.state.user_id = None
+                return await call_next(request)
             token = request.cookies.get(COOKIE_NAME)
             authorization = request.headers.get("Authorization")
             bearer_auth = (
@@ -1049,6 +1068,31 @@ def create_app(
         database.commit()
         return finalize_response(capture_session)
 
+    @app.post(
+        "/v1/sessions/{session_id}/download-urls",
+        response_model=DownloadUrlsResponse,
+    )
+    def create_session_download_urls(
+        session_id: str,
+        database: Session = Depends(get_session),
+    ) -> DownloadUrlsResponse:
+        capture_session = require_capture_session(database, session_id)
+        if capture_session.manifest is None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "session must be finalized before creating download URLs",
+            )
+        token, expires_at = create_download_token(settings, session_id)
+        base = settings.public_base_url.rstrip("/")
+        query = f"download_token={token}"
+        return DownloadUrlsResponse(
+            package_url=f"{base}/v1/sessions/{session_id}/package?{query}",
+            checksum_url=(
+                f"{base}/v1/sessions/{session_id}/package.sha256?{query}"
+            ),
+            expires_at=expires_at,
+        )
+
     @app.get("/v1/sessions/{session_id}/package")
     def download_package(
         session_id: str,
@@ -1081,6 +1125,7 @@ def create_app(
             headers={
                 "X-Package-SHA256": package_hash,
                 "X-Storage-Status": storage_status,
+                "Cache-Control": "private, no-store",
             },
         )
 
@@ -1117,6 +1162,7 @@ def create_app(
             headers={
                 "X-Package-SHA256": package_hash,
                 "X-Storage-Status": storage_status,
+                "Cache-Control": "private, no-store",
             },
         )
 

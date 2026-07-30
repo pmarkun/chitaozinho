@@ -3,9 +3,21 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import chitaozinho_api.main as main_module
+import pytest
 from chitaozinho_api.config import Settings
+from chitaozinho_api.download_tokens import (
+    create_download_token,
+    verify_download_token,
+)
 from chitaozinho_api.main import create_app
-from chitaozinho_api.models import AccessToken, AuditEvent, MagicLinkToken, User
+from chitaozinho_api.models import (
+    AccessToken,
+    AuditEvent,
+    CaptureSession,
+    MagicLinkToken,
+    User,
+)
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
@@ -161,6 +173,94 @@ def test_expired_magic_link_and_delivery_failure_fail_closed(
         )
         assert failure is not None
         assert failure.details == {"error_type": "RuntimeError"}
+
+
+def test_download_urls_are_owner_authorized_bound_and_expiring(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    delivered: list[str] = []
+    settings = auth_settings(tmp_path, database_name="downloads.db")
+    app = create_app(
+        settings,
+        magic_link_sender=lambda _email, link: delivered.append(link),
+        create_tables=True,
+    )
+    owner = TestClient(app)
+    assert (
+        owner.post(
+            "/v1/auth/magic-links",
+            json={"email": "owner@example.com"},
+        ).status_code
+        == 202
+    )
+    assert (
+        owner.post(
+            "/v1/auth/magic-links/exchange",
+            json={"token": delivered[0].split("#", 1)[1]},
+        ).status_code
+        == 204
+    )
+    extension_origin = {
+        "Origin": "chrome-extension://abcdefghijklmnopabcdefghijklmnop"
+    }
+    created = owner.post("/v1/sessions", headers=extension_origin)
+    assert created.status_code == 201
+    session_id = created.json()["session_id"]
+    with app.state.session_factory() as database:
+        capture = database.get(CaptureSession, session_id)
+        assert capture is not None
+        capture.manifest = {}
+        database.commit()
+
+    package_path = tmp_path / "authorized.zip"
+    package_path.write_bytes(b"synthetic authorized package")
+    checksum_path = package_path.with_suffix(".zip.sha256")
+    checksum_path.write_text("ab" * 32 + "  authorized.zip\n")
+
+    def fake_ensure_package(*_arguments):
+        return package_path, "sha256:" + ("ab" * 32), "stored"
+
+    monkeypatch.setattr(main_module, "ensure_package", fake_ensure_package)
+    issued = owner.post(
+        f"/v1/sessions/{session_id}/download-urls",
+        headers=extension_origin,
+    )
+    assert issued.status_code == 200
+    urls = issued.json()
+    assert urls["package_url"].startswith(
+        f"http://testserver/v1/sessions/{session_id}/package?download_token="
+    )
+    assert urls["checksum_url"].startswith(
+        f"http://testserver/v1/sessions/{session_id}/package.sha256?download_token="
+    )
+
+    anonymous = TestClient(app)
+    package = anonymous.get(urls["package_url"])
+    assert package.status_code == 200
+    assert package.content == package_path.read_bytes()
+    assert package.headers["cache-control"] == "private, no-store"
+    checksum = anonymous.get(urls["checksum_url"])
+    assert checksum.status_code == 200
+    assert checksum.text == checksum_path.read_text()
+    assert (
+        owner.get(f"/v1/sessions/{session_id}/package").status_code
+        == 401
+    )
+    assert anonymous.get(urls["package_url"] + "x").status_code == 401
+    assert (
+        anonymous.get(urls["package_url"].replace(session_id, "other-session"))
+        .status_code
+        == 401
+    )
+
+    expired, _ = create_download_token(
+        settings,
+        session_id,
+        now=datetime.now(UTC)
+        - timedelta(seconds=settings.download_url_ttl_seconds + 1),
+    )
+    assert not verify_download_token(settings, expired, session_id)
 
 
 def auth_settings(

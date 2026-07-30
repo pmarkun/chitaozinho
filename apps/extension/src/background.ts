@@ -11,8 +11,6 @@ import {
   createSession,
   declareArtifactUnavailable,
   finalizeSession,
-  packageHashUrl,
-  packageUrl,
   preparePackage,
   registerKey,
   sendEvent,
@@ -116,13 +114,14 @@ async function handleMessage(message: ExtensionMessage): Promise<unknown> {
       if (!stored || stored.status !== "complete") {
         throw new Error("completed capture not found");
       }
+      const packageInfo = await preparePackage(stored.id);
       await chrome.downloads.download({
-        url: packageUrl(stored.id),
+        url: packageInfo.packageUrl,
         filename: `chitaozinho-${stored.id}.zip`,
         saveAs: true,
       });
       await chrome.downloads.download({
-        url: packageHashUrl(stored.id),
+        url: packageInfo.checksumUrl,
         filename: `chitaozinho-${stored.id}.zip.sha256`,
         saveAs: false,
       });
@@ -646,12 +645,12 @@ async function stopCapture(
   session.packageHash = packageInfo.packageHash;
   await saveSession(session);
   await chrome.downloads.download({
-    url: packageUrl(session.id),
+    url: packageInfo.packageUrl,
     filename: `chitaozinho-${session.id}.zip`,
     saveAs: true,
   });
   await chrome.downloads.download({
-    url: packageHashUrl(session.id),
+    url: packageInfo.checksumUrl,
     filename: `chitaozinho-${session.id}.zip.sha256`,
     saveAs: false,
   });

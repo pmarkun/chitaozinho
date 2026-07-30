@@ -110,6 +110,12 @@ class FinalizeResponse(StrictModel):
     manifest: dict[str, Any]
 
 
+class DownloadUrlsResponse(StrictModel):
+    package_url: str
+    checksum_url: str
+    expires_at: datetime
+
+
 class MerkleBatchRequest(StrictModel):
     session_ids: list[str] = Field(min_length=1, max_length=100)
     submit_ots: bool = False

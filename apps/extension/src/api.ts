@@ -143,23 +143,42 @@ export async function finalizeSession(
   ).json();
 }
 
-export function packageUrl(sessionId: string): string {
-  return `${API_BASE_URL}/v1/sessions/${sessionId}/package`;
+interface DownloadUrls {
+  packageUrl: string;
+  checksumUrl: string;
+  expiresAt: string;
 }
 
-export function packageHashUrl(sessionId: string): string {
-  return `${API_BASE_URL}/v1/sessions/${sessionId}/package.sha256`;
+export async function createDownloadUrls(
+  sessionId: string,
+): Promise<DownloadUrls> {
+  const response = await checked(
+    await apiFetch(`${API_BASE_URL}/v1/sessions/${sessionId}/download-urls`, {
+      method: "POST",
+    }),
+  );
+  const body = (await response.json()) as Record<string, unknown>;
+  return {
+    packageUrl: String(body.package_url),
+    checksumUrl: String(body.checksum_url),
+    expiresAt: String(body.expires_at),
+  };
 }
 
 export async function preparePackage(sessionId: string): Promise<{
   packageHash: string;
   storageStatus: string;
+  packageUrl: string;
+  checksumUrl: string;
 }> {
-  const response = await checked(await apiFetch(packageHashUrl(sessionId)));
+  const urls = await createDownloadUrls(sessionId);
+  const response = await checked(await apiFetch(urls.checksumUrl));
   const digest = (await response.text()).trim().split(/\s+/, 1)[0];
   return {
     packageHash: digest.startsWith("sha256:") ? digest : `sha256:${digest}`,
     storageStatus: response.headers.get("X-Storage-Status") ?? "unknown",
+    packageUrl: urls.packageUrl,
+    checksumUrl: urls.checksumUrl,
   };
 }
 
