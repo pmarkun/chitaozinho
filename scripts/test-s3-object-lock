@@ -1,0 +1,193 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import base64
+import json
+import os
+import sys
+import uuid
+from datetime import UTC, datetime, timedelta
+from hashlib import sha256
+from pathlib import Path
+from typing import Any
+
+import boto3
+from botocore.exceptions import ClientError
+
+ARTIFACTS = {
+    "capture-manifest.json": b'{"synthetic":true,"type":"manifest"}\n',
+    "capture-manifest.server.sig": b"synthetic-signature\n",
+    "chain/receipts.jsonl": b'{"synthetic":true,"type":"receipt"}\n',
+    "proofs/attestation.json": b'{"synthetic":true,"type":"proof"}\n',
+    "reports/verification.html": b"<!doctype html><title>Synthetic report</title>\n",
+}
+
+
+def require_environment(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(f"{name} is required")
+    return value
+
+
+def client_error_code(error: ClientError) -> str:
+    return str(error.response.get("Error", {}).get("Code", ""))
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Create retained synthetic evidence in an isolated AWS S3 Object Lock "
+            "test bucket and verify overwrite/delete refusal."
+        )
+    )
+    parser.add_argument("--output", type=Path, required=True)
+    arguments = parser.parse_args()
+
+    if os.environ.get("CHITAOZINHO_RUN_OBJECT_LOCK_TEST") != "I_ACCEPT_24H_RETENTION":
+        raise RuntimeError(
+            "set CHITAOZINHO_RUN_OBJECT_LOCK_TEST=I_ACCEPT_24H_RETENTION "
+            "after explicitly authorizing the irreversible test"
+        )
+
+    bucket = require_environment("CHITAOZINHO_S3_BUCKET")
+    region = require_environment("CHITAOZINHO_S3_REGION")
+    kms_key_id = require_environment("CHITAOZINHO_S3_KMS_KEY_ID")
+    if region != "sa-east-1":
+        raise RuntimeError("the acceptance bucket must be in sa-east-1")
+
+    client = boto3.client("s3", region_name=region)
+    versioning = client.get_bucket_versioning(Bucket=bucket)
+    if versioning.get("Status") != "Enabled":
+        raise RuntimeError("bucket versioning is not enabled")
+    lock = client.get_object_lock_configuration(Bucket=bucket).get("ObjectLockConfiguration", {})
+    default_retention = lock.get("Rule", {}).get("DefaultRetention", {})
+    if (
+        lock.get("ObjectLockEnabled") != "Enabled"
+        or default_retention.get("Mode") != "COMPLIANCE"
+        or default_retention.get("Days") != 1
+    ):
+        raise RuntimeError("bucket must have Object Lock enabled with one-day COMPLIANCE retention")
+
+    run_id = uuid.uuid4().hex
+    prefix = f"acceptance/{run_id}"
+    retain_until = datetime.now(UTC) + timedelta(days=1, minutes=5)
+    objects: list[dict[str, Any]] = []
+
+    for name, content in ARTIFACTS.items():
+        key = f"{prefix}/{name}"
+        digest = sha256(content).digest()
+        response = client.put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=content,
+            ContentLength=len(content),
+            ChecksumSHA256=base64.b64encode(digest).decode("ascii"),
+            Metadata={"sha256": f"sha256:{digest.hex()}", "synthetic": "true"},
+            ObjectLockMode="COMPLIANCE",
+            ObjectLockRetainUntilDate=retain_until,
+            ServerSideEncryption="aws:kms",
+            SSEKMSKeyId=kms_key_id,
+            IfNoneMatch="*",
+        )
+        version_id = response.get("VersionId")
+        if not version_id:
+            raise RuntimeError(f"S3 returned no VersionId for {name}")
+        head = client.head_object(Bucket=bucket, Key=key, VersionId=version_id)
+        if (
+            head.get("ObjectLockMode") != "COMPLIANCE"
+            or head.get("ObjectLockRetainUntilDate") is None
+            or head["ObjectLockRetainUntilDate"] < retain_until
+            or head.get("ServerSideEncryption") != "aws:kms"
+            or head.get("SSEKMSKeyId") != kms_key_id
+            or head.get("Metadata", {}).get("sha256") != f"sha256:{digest.hex()}"
+        ):
+            raise RuntimeError(f"retention or encryption verification failed for {name}")
+        objects.append(
+            {
+                "name": name,
+                "key": key,
+                "version_id": version_id,
+                "sha256": f"sha256:{digest.hex()}",
+                "retain_until": head["ObjectLockRetainUntilDate"]
+                .astimezone(UTC)
+                .isoformat()
+                .replace("+00:00", "Z"),
+            }
+        )
+
+    protected = objects[0]
+    overwrite_refused = False
+    try:
+        client.put_object(
+            Bucket=bucket,
+            Key=protected["key"],
+            Body=b"changed synthetic content",
+            IfNoneMatch="*",
+            ServerSideEncryption="aws:kms",
+            SSEKMSKeyId=kms_key_id,
+        )
+    except ClientError as error:
+        overwrite_refused = client_error_code(error) in {
+            "PreconditionFailed",
+            "412",
+        }
+    if not overwrite_refused:
+        raise RuntimeError("conditional overwrite was not refused")
+
+    delete_refused = False
+    try:
+        client.delete_object(
+            Bucket=bucket,
+            Key=protected["key"],
+            VersionId=protected["version_id"],
+        )
+    except ClientError as error:
+        delete_refused = client_error_code(error) in {"AccessDenied", "403"}
+    if not delete_refused:
+        raise RuntimeError("early deletion of the retained version was not refused")
+
+    preserved = client.head_object(
+        Bucket=bucket,
+        Key=protected["key"],
+        VersionId=protected["version_id"],
+    )
+    if preserved.get("ObjectLockMode") != "COMPLIANCE":
+        raise RuntimeError("protected version was not preserved after negative tests")
+
+    report = {
+        "schema_version": "0.1.0",
+        "tested_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "bucket": bucket,
+        "region": region,
+        "versioning": "Enabled",
+        "object_lock": {
+            "mode": "COMPLIANCE",
+            "default_retention_days": 1,
+        },
+        "kms_key_id": kms_key_id,
+        "synthetic_only": True,
+        "objects": objects,
+        "overwrite_refused": overwrite_refused,
+        "early_version_delete_refused": delete_refused,
+        "cleanup": (
+            "Objects intentionally remain locked until retain_until; remove them "
+            "only after retention expires."
+        ),
+    }
+    encoded = json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True).encode() + b"\n"
+    arguments.output.parent.mkdir(parents=True, exist_ok=True)
+    arguments.output.write_bytes(encoded)
+    print(f"report={arguments.output}")
+    print(f"report_sha256=sha256:{sha256(encoded).hexdigest()}")
+    print(f"retained_objects={len(objects)}")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except Exception as error:
+        print(f"Object Lock acceptance failed: {error}", file=sys.stderr)
+        sys.exit(1)
