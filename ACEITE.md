@@ -323,15 +323,15 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ## 9. Definição final de pronto
 
-- [ ] Testes relevantes passam.
-- [ ] Lint, typecheck e build passam.
-- [ ] Documentação acompanha o comportamento implementado.
-- [ ] Logs e falhas são auditáveis sem expor conteúdo sensível.
-- [ ] Originais nunca são alterados.
-- [ ] Limitações são informadas ao usuário.
-- [ ] Artefatos são verificáveis pela CLI.
-- [ ] Compatibilidade de schema foi preservada ou versionada.
-- [ ] Vetores compartilhados passam.
-- [ ] Diff foi revisado.
-- [ ] Mudanças foram divididas em commits atômicos.
-- [ ] Riscos e itens não validados foram registrados.
+- [x] Testes relevantes passam.
+- [x] Lint, typecheck e build passam.
+- [x] Documentação acompanha o comportamento implementado.
+- [x] Logs e falhas são auditáveis sem expor conteúdo sensível.
+- [x] Originais nunca são alterados.
+- [x] Limitações são informadas ao usuário.
+- [x] Artefatos são verificáveis pela CLI.
+- [x] Compatibilidade de schema foi preservada ou versionada.
+- [x] Vetores compartilhados passam.
+- [x] Diff foi revisado.
+- [x] Mudanças foram divididas em commits atômicos.
+- [x] Riscos e itens não validados foram registrados.
