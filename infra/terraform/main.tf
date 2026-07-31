@@ -101,7 +101,7 @@ resource "aws_s3_bucket_public_access_block" "evidence" {
   restrict_public_buckets = true
 }
 
-data "aws_iam_policy_document" "secure_transport" {
+data "aws_iam_policy_document" "evidence_bucket" {
   statement {
     sid    = "DenyInsecureTransport"
     effect = "Deny"
@@ -120,9 +120,87 @@ data "aws_iam_policy_document" "secure_transport" {
       values   = ["false"]
     }
   }
+
+  statement {
+    sid    = "DenyUnencryptedObjectUploads"
+    effect = "Deny"
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.evidence.arn}/*"]
+
+    condition {
+      test     = "StringNotEquals"
+      variable = "s3:x-amz-server-side-encryption"
+      values   = ["aws:kms"]
+    }
+  }
+
+  statement {
+    sid    = "DenyWrongEncryptionKey"
+    effect = "Deny"
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.evidence.arn}/*"]
+
+    condition {
+      test     = "StringNotEquals"
+      variable = "s3:x-amz-server-side-encryption-aws-kms-key-id"
+      values   = [aws_kms_key.evidence.arn]
+    }
+  }
 }
 
 resource "aws_s3_bucket_policy" "secure_transport" {
   bucket = aws_s3_bucket.evidence.id
-  policy = data.aws_iam_policy_document.secure_transport.json
+  policy = data.aws_iam_policy_document.evidence_bucket.json
+}
+
+data "aws_iam_policy_document" "runtime" {
+  statement {
+    sid = "InspectEvidenceBucket"
+    actions = [
+      "s3:GetBucketLocation",
+      "s3:ListBucket",
+    ]
+    resources = [aws_s3_bucket.evidence.arn]
+  }
+
+  statement {
+    sid = "ReadAndAppendEvidence"
+    actions = [
+      "s3:GetObject",
+      "s3:GetObjectRetention",
+      "s3:GetObjectVersion",
+      "s3:PutObject",
+      "s3:PutObjectRetention",
+    ]
+    resources = ["${aws_s3_bucket.evidence.arn}/*"]
+  }
+
+  statement {
+    sid = "UseEvidenceEncryptionKey"
+    actions = [
+      "kms:Decrypt",
+      "kms:DescribeKey",
+      "kms:Encrypt",
+      "kms:GenerateDataKey",
+    ]
+    resources = [aws_kms_key.evidence.arn]
+  }
+
+  statement {
+    sid       = "DecryptOperationalSigningSeed"
+    actions   = ["kms:Decrypt"]
+    resources = [aws_kms_key.signing_envelope.arn]
+  }
 }

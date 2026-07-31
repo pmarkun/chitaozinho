@@ -23,3 +23,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 
 tofu -chdir=infra/terraform fmt -check
+tofu -chdir=infra/terraform init -backend=false -input=false -lockfile=readonly
+tofu -chdir=infra/terraform validate
+python -m json.tool infra/railway/api.json >/dev/null
+python -m json.tool infra/railway/worker.json >/dev/null

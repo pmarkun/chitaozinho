@@ -6,6 +6,9 @@ The S3 module creates a bucket in `sa-east-1` with versioning, Object Lock and
 a dedicated customer-managed KMS key with automatic rotation enabled at
 creation, default `COMPLIANCE` retention, encryption at rest,
 complete public-access blocking, TLS-only access and `prevent_destroy`.
+The bucket policy also rejects uploads that do not explicitly request the
+dedicated KMS key. The `runtime_iam_policy_json` output is the minimum policy
+to attach to the credentials shared by the Railway API and worker.
 
 ```sh
 nix develop --command tofu -chdir=infra/terraform init -backend=false

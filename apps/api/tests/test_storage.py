@@ -136,6 +136,20 @@ def test_s3_final_artifact_uses_and_verifies_configured_kms_key(
         )
 
 
+def test_s3_parts_request_configured_kms_key() -> None:
+    kms_key_id = "arn:aws:kms:sa-east-1:123456789012:key/test-key"
+    client = FakePartClient()
+    storage = S3DurableStorage.__new__(S3DurableStorage)
+    storage.bucket = "evidence-test"
+    storage.kms_key_id = kms_key_id
+    storage.client = client
+
+    storage.put_part("session", "recording", 0, b"synthetic part")
+
+    assert client.put_arguments["ServerSideEncryption"] == "aws:kms"
+    assert client.put_arguments["SSEKMSKeyId"] == kms_key_id
+
+
 def test_retention_failure_is_explicit_and_audited(tmp_path: Path) -> None:
     engine = create_engine(f"sqlite:///{tmp_path / 'retention.db'}")
     Base.metadata.create_all(engine)
@@ -213,3 +227,15 @@ class FakeObjectLockClient:
         self.put_arguments = arguments
         self.uploaded = arguments["Body"].read()
         return {"VersionId": "version-1"}
+
+
+class FakePartClient:
+    def __init__(self) -> None:
+        self.put_arguments: dict = {}
+
+    def list_objects_v2(self, **_arguments) -> dict:
+        return {"Contents": []}
+
+    def put_object(self, **arguments) -> dict:
+        self.put_arguments = arguments
+        return {}

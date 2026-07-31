@@ -155,11 +155,18 @@ class S3DurableStorage:
             if not compare_digest(self.read(key), data):
                 raise FileExistsError(key)
             return key
+        encryption: dict[str, str] = {}
+        if self.kms_key_id is not None:
+            encryption = {
+                "ServerSideEncryption": "aws:kms",
+                "SSEKMSKeyId": self.kms_key_id,
+            }
         self.client.put_object(
             Bucket=self.bucket,
             Key=key,
             Body=data,
             ContentLength=len(data),
+            **encryption,
         )
         return key
 
