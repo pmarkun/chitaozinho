@@ -144,9 +144,13 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ### Experiência e relatório
 
-- [x] Tela inicial oferece nova captura, capturas existentes, verificação e configurações.
-- [x] Antes da captura, interface mostra dados coletados, limites e riscos.
+- [ ] Tela inicial prioriza claramente a criação de uma nova evidência.
+- [ ] Antes da captura, interface explica o que será registrado e confirma autorização.
+- [ ] Durante a captura, ações usam linguagem simples e detalhes técnicos ficam recolhidos.
 - [x] Após a captura, interface mostra integridade, completude e estados independentes.
+- [ ] Conclusão oferece download e acesso direto ao verificador completo.
+- [ ] Histórico identifica evidências por título, domínio, data e estado.
+- [ ] Erros são acionáveis e não exibem respostas técnicas brutas por padrão.
 - [x] Download inclui pacote, hash externo e chaves públicas necessárias.
 - [x] Relatório HTML apresenta resultados `íntegro`, `íntegro, mas incompleto`, `inválido` ou `não verificável`.
 - [x] Relatório nunca afirma autoria, veracidade ou validade jurídica definitiva.
@@ -161,9 +165,12 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Resultado detalha integridade, completude, confiança e prova temporal.
 - [x] Relatórios HTML e JSON podem ser exportados.
 - [x] Pacotes hostis respeitam limites e falham de forma localizada no navegador.
-- [x] Metodologia pública explica captura, hashes, assinaturas, recibos, fontes
-  de tempo, retenção e limitações.
-- [x] `README.txt`, metodologia e guia de verificação acompanham o pacote.
+- [ ] Página pública possui início, validação e metodologia com URLs próprias.
+- [ ] Validação prioriza o ZIP e recolhe comprovantes e opções avançadas.
+- [ ] Metodologia pública apresenta as garantias de captura, hashes,
+  assinaturas, recibos, fontes de tempo, retenção e verificação independente.
+- [ ] Ressalvas genéricas aparecem somente no escopo da atestação da metodologia e relatório.
+- [ ] `README.txt`, metodologia v0.2 e guia de verificação acompanham o pacote.
 - [x] Índice assinado cobre todos os documentos metodológicos.
 - [ ] Administrador autenticado lista sessões e estados de forma paginada.
 - [ ] Administrador pode baixar pacote, checksum e complemento.

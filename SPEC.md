@@ -1288,20 +1288,19 @@ Telemetria deve ser mínima e separada do conteúdo capturado.
 
 ### 22.1 Tela inicial
 
-- Nova captura.
-- Minhas capturas.
-- Verificar pacote.
-- Configurações.
+- A ação principal é criar uma nova evidência.
+- Minhas evidências e validação são ações secundárias.
+- Configurações ficam em acesso discreto.
+- A interface apresenta o valor do produto antes dos detalhes técnicos.
 
 ### 22.2 Antes da captura
 
 Mostrar:
 
-- o que será coletado;
-- o que não será provado;
+- o que será registrado e como isso fortalece a evidência;
 - o prazo de retenção;
-- riscos de capturar conteúdo de terceiros;
-- recomendação de navegar mostrando contexto.
+- recomendação de navegar mostrando contexto;
+- confirmação de que o usuário está autorizado a registrar o conteúdo.
 
 ### 22.3 Durante a captura
 
@@ -1309,12 +1308,12 @@ Mostrar:
 
 - indicador visível de gravação;
 - duração;
-- status de upload;
-- quantidade de blocos enviados;
-- alertas de conexão;
-- botão de screenshot adicional;
-- botão de marcador de evento;
-- botão de finalizar.
+- confirmação de salvamento e proteção contínuos;
+- alertas acionáveis quando houver falha;
+- botão para registrar imagem;
+- botão para marcar momento importante;
+- botão para finalizar e gerar a evidência;
+- status de upload, blocos, lacunas e identificadores em detalhes técnicos.
 
 ### 22.4 Após a captura
 
@@ -1324,9 +1323,9 @@ Mostrar:
 - status do timestamp;
 - status da blockchain;
 - hash do pacote;
-- botão de download;
-- relatório;
-- limitações.
+- confirmação do download;
+- botões para baixar novamente e validar a evidência;
+- relatório e detalhes técnicos expansíveis.
 
 ### 22.5 Validação web
 
@@ -1338,7 +1337,19 @@ Mostrar:
 - exportação de relatório HTML e JSON;
 - funcionamento pelo link público e sem rede após obtenção do mesmo build.
 
-### 22.6 Administração
+### 22.6 Comunicação pública e metodologia
+
+- A página pública apresenta o Chitãozinho como ferramenta de produção de
+  evidência digital íntegra, rastreável e verificável.
+- A metodologia enumera as garantias de captura, integridade, sequência,
+  recibos, tempo, preservação e verificação independente.
+- Ressalvas genéricas não são repetidas nas interfaces operacionais.
+- Um único trecho de “Escopo da atestação” aparece ao final da metodologia e
+  do relatório técnico.
+- Estados incompletos, pendentes, inválidos ou não verificáveis continuam
+  explícitos sempre que correspondam ao pacote analisado.
+
+### 22.7 Administração
 
 - listagem paginada de capturas;
 - filtros por sessão, data e estados, sem busca por conteúdo capturado;
