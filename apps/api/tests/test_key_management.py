@@ -79,6 +79,18 @@ def test_root_signs_operational_key_certificate(tmp_path: Path) -> None:
     assert signer.certificate == certificate
     assert signer.revocation_list == revocation_list
 
+    inline_signer = ServerSigner.from_settings(
+        Settings(
+            server_key_id="server-test",
+            server_seed_hex=operational_seed.hex(),
+            server_certificate_json=json.dumps(certificate),
+            server_revocation_list_json=json.dumps(revocation_list),
+            server_root_public_json=root_public_path.read_text(),
+        )
+    )
+    assert inline_signer is not None
+    assert inline_signer.public_key == signer.public_key
+
     with pytest.raises(ValueError, match="does not match"):
         ServerSigner.from_settings(
             Settings(

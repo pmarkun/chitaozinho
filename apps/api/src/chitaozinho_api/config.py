@@ -40,8 +40,23 @@ class Settings(BaseSettings):
     server_seed_kms_key_id: str | None = Field(default=None, min_length=1)
     server_seed_kms_region: str = "sa-east-1"
     server_certificate_path: Path | None = None
+    server_certificate_json: str | None = Field(
+        default=None,
+        max_length=65_536,
+        repr=False,
+    )
     server_revocation_list_path: Path | None = None
+    server_revocation_list_json: str | None = Field(
+        default=None,
+        max_length=1_048_576,
+        repr=False,
+    )
     server_root_public_path: Path | None = None
+    server_root_public_json: str | None = Field(
+        default=None,
+        max_length=16_384,
+        repr=False,
+    )
     public_base_url: str = "http://127.0.0.1:8000"
     auth_mode: str = "development"
     auth_token_pepper: str | None = Field(default=None, min_length=32, repr=False)
@@ -103,15 +118,24 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "KMS-encrypted server signing seed is required outside local development"
                 )
-            if self.server_certificate_path is None:
+            if (
+                self.server_certificate_path is None
+                and self.server_certificate_json is None
+            ):
                 raise ValueError(
                     "root-signed server certificate is required outside local development"
                 )
-            if self.server_revocation_list_path is None:
+            if (
+                self.server_revocation_list_path is None
+                and self.server_revocation_list_json is None
+            ):
                 raise ValueError(
                     "root-signed key revocation list is required outside local development"
                 )
-            if self.server_root_public_path is None:
+            if (
+                self.server_root_public_path is None
+                and self.server_root_public_json is None
+            ):
                 raise ValueError(
                     "offline root public key is required outside local development"
                 )
@@ -132,4 +156,24 @@ class Settings(BaseSettings):
             and self.server_seed_kms_ciphertext_b64 is not None
         ):
             raise ValueError("configure only one server signing seed source")
+        trust_sources = [
+            (
+                self.server_certificate_path,
+                self.server_certificate_json,
+                "server certificate",
+            ),
+            (
+                self.server_revocation_list_path,
+                self.server_revocation_list_json,
+                "server revocation list",
+            ),
+            (
+                self.server_root_public_path,
+                self.server_root_public_json,
+                "server root public key",
+            ),
+        ]
+        for path, inline, label in trust_sources:
+            if path is not None and inline is not None:
+                raise ValueError(f"configure only one {label} source")
         return self

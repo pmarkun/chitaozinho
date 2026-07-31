@@ -4,6 +4,7 @@ import base64
 import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import boto3
@@ -71,10 +72,10 @@ class ServerSigner:
             encoding=serialization.Encoding.Raw,
             format=serialization.PublicFormat.Raw,
         )
-        certificate = (
-            json.loads(settings.server_certificate_path.read_text())
-            if settings.server_certificate_path is not None
-            else None
+        certificate = load_json_document(
+            settings.server_certificate_path,
+            settings.server_certificate_json,
+            "server certificate",
         )
         if certificate is not None:
             document = certificate.get("document", {})
@@ -85,10 +86,10 @@ class ServerSigner:
                 or document.get("purpose") != "server_signing"
             ):
                 raise ValueError("server certificate does not match operational key")
-        revocation_list = (
-            json.loads(settings.server_revocation_list_path.read_text())
-            if settings.server_revocation_list_path is not None
-            else None
+        revocation_list = load_json_document(
+            settings.server_revocation_list_path,
+            settings.server_revocation_list_json,
+            "server revocation list",
         )
         if revocation_list is not None:
             document = revocation_list.get("document", {})
@@ -100,7 +101,12 @@ class ServerSigner:
                 raise ValueError("invalid server key revocation list")
         if certificate is not None:
             validate_certificate_time(certificate, now or datetime.now(UTC))
-        if settings.server_root_public_path is not None:
+        root_public = load_json_document(
+            settings.server_root_public_path,
+            settings.server_root_public_json,
+            "offline root public key",
+        )
+        if root_public is not None:
             if certificate is None or revocation_list is None:
                 raise ValueError(
                     "root trust requires a certificate and revocation list"
@@ -109,6 +115,7 @@ class ServerSigner:
                 settings,
                 certificate,
                 revocation_list,
+                root_public,
                 now or datetime.now(UTC),
             )
         return cls(
@@ -129,6 +136,27 @@ def server_seed_encryption_context(server_key_id: str) -> dict[str, str]:
         "purpose": "server-signing-seed",
         "server_key_id": server_key_id,
     }
+
+
+def load_json_document(
+    path: Path | None,
+    inline: str | None,
+    label: str,
+) -> dict | None:
+    if path is None and inline is None:
+        return None
+    try:
+        if inline is not None:
+            raw = inline
+        else:
+            assert path is not None
+            raw = path.read_text()
+        document = json.loads(raw)
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"invalid {label} JSON") from error
+    if not isinstance(document, dict):
+        raise ValueError(f"invalid {label} JSON")
+    return document
 
 
 def parse_rfc3339(value: object, label: str) -> datetime:
@@ -160,9 +188,9 @@ def validate_root_signed_trust(
     settings: Settings,
     certificate: dict,
     revocation_list: dict,
+    root: dict,
     now: datetime,
 ) -> None:
-    root = json.loads(settings.server_root_public_path.read_text())
     if (
         root.get("schema_version") != "0.1.0"
         or root.get("algorithm") != "Ed25519"

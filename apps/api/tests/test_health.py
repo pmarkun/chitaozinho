@@ -151,6 +151,11 @@ def test_non_local_environment_fails_closed_without_tls_and_external_storage() -
             auth_mode="magic_link",
             auth_token_pepper="x" * 32,
         )
+    with pytest.raises(ValidationError, match="only one server certificate"):
+        Settings(
+            server_certificate_path=Path("server-certificate.json"),
+            server_certificate_json="{}",
+        )
 
 
 def test_settings_repr_redacts_credentials_and_key_material() -> None:

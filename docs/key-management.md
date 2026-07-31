@@ -89,3 +89,10 @@ signed revocation snapshot. Every package preserves both. The verifier checks
 the root signatures, certificate validity and revocation time at package
 signing. Direct operational-key trust remains available only as an explicit
 development mode.
+
+In Railway, configure the public documents directly as
+`CHITAOZINHO_SERVER_CERTIFICATE_JSON`,
+`CHITAOZINHO_SERVER_REVOCATION_LIST_JSON` and
+`CHITAOZINHO_SERVER_ROOT_PUBLIC_JSON`. File-based deployments may use the
+corresponding `_PATH` variables. Configure exactly one source for each
+document; startup fails on missing, ambiguous or invalid JSON.
