@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import uuid
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+from urllib.parse import urlsplit
+
+import boto3
+from botocore.exceptions import ClientError
+
+
+def require_environment(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(f"{name} is required")
+    return value
+
+
+def retention_days(environment: str, configured: str) -> int:
+    try:
+        days = int(configured)
+    except ValueError as error:
+        raise ValueError("retention days must be an integer") from error
+    if environment == "test":
+        if days != 1:
+            raise ValueError("test retention must be exactly one day")
+    elif environment in {"staging", "production"}:
+        if days < 90:
+            raise ValueError("staging and production retention must be at least 90 days")
+    else:
+        raise ValueError("bucket environment must be test, staging or production")
+    return days
+
+
+def validate_ceph_endpoint(value: str) -> str:
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname is None
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError("Ceph RGW endpoint must be an HTTPS origin")
+    return value.rstrip("/")
+
+
+def write_report(path: Path, report: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+        json.dump(report, output, ensure_ascii=False, indent=2, sort_keys=True)
+        output.write("\n")
+        output.flush()
+        os.fsync(output.fileno())
+
+
+def replace_report(path: Path, report: dict[str, Any]) -> None:
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        write_report(temporary, report)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Create a new Ceph RGW evidence bucket with immutable defaults."
+    )
+    parser.add_argument("--output", required=True, type=Path)
+    arguments = parser.parse_args()
+
+    if os.environ.get("CHITAOZINHO_PROVISION_CEPH_BUCKET") != "I_ACCEPT_NEW_IMMUTABLE_BUCKET":
+        raise RuntimeError(
+            "set CHITAOZINHO_PROVISION_CEPH_BUCKET=I_ACCEPT_NEW_IMMUTABLE_BUCKET "
+            "after authorizing creation of a new retained bucket"
+        )
+    if os.environ.get("CHITAOZINHO_STORAGE_PROVIDER") != "ceph":
+        raise RuntimeError("the storage provider must be ceph")
+
+    environment = require_environment("CHITAOZINHO_ENV")
+    days = retention_days(
+        environment,
+        require_environment("CHITAOZINHO_RETENTION_DAYS"),
+    )
+    bucket = require_environment("CHITAOZINHO_S3_BUCKET")
+    endpoint = validate_ceph_endpoint(require_environment("CHITAOZINHO_S3_ENDPOINT_URL"))
+    region = require_environment("CHITAOZINHO_S3_REGION")
+    kms_key_id = require_environment("CHITAOZINHO_S3_KMS_KEY_ID")
+    access_key = require_environment("CHITAOZINHO_S3_ACCESS_KEY_ID")
+    secret_key = require_environment("CHITAOZINHO_S3_SECRET_ACCESS_KEY")
+    ca_bundle = os.environ.get("CHITAOZINHO_S3_CA_BUNDLE")
+    if region != "ceph":
+        raise ValueError("Ceph RGW region must be ceph")
+
+    started_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    report = {
+        "schema_version": "0.1.0",
+        "status": "started",
+        "started_at": started_at,
+        "environment": environment,
+        "endpoint": endpoint,
+        "bucket": bucket,
+        "retention": {"mode": "COMPLIANCE", "days": days},
+        "kms_key_id": kms_key_id,
+    }
+    write_report(arguments.output, report)
+
+    client = boto3.client(
+        "s3",
+        endpoint_url=endpoint,
+        region_name=region,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        verify=ca_bundle or True,
+    )
+    try:
+        client.head_bucket(Bucket=bucket)
+    except ClientError as error:
+        code = str(error.response.get("Error", {}).get("Code", ""))
+        if code not in {"404", "NoSuchBucket", "NotFound"}:
+            raise
+    else:
+        raise FileExistsError(
+            "refusing to modify an existing bucket; Object Lock must be enabled at creation"
+        )
+
+    client.create_bucket(Bucket=bucket, ObjectLockEnabledForBucket=True)
+    client.put_bucket_versioning(
+        Bucket=bucket,
+        VersioningConfiguration={"Status": "Enabled"},
+    )
+    client.put_object_lock_configuration(
+        Bucket=bucket,
+        ObjectLockConfiguration={
+            "ObjectLockEnabled": "Enabled",
+            "Rule": {
+                "DefaultRetention": {
+                    "Mode": "COMPLIANCE",
+                    "Days": days,
+                }
+            },
+        },
+    )
+    client.put_bucket_encryption(
+        Bucket=bucket,
+        ServerSideEncryptionConfiguration={
+            "Rules": [
+                {
+                    "ApplyServerSideEncryptionByDefault": {
+                        "SSEAlgorithm": "aws:kms",
+                        "KMSMasterKeyID": kms_key_id,
+                    }
+                }
+            ]
+        },
+    )
+
+    versioning = client.get_bucket_versioning(Bucket=bucket)
+    lock = client.get_object_lock_configuration(Bucket=bucket)["ObjectLockConfiguration"]
+    encryption = client.get_bucket_encryption(Bucket=bucket)["ServerSideEncryptionConfiguration"]
+    expected_lock = {
+        "ObjectLockEnabled": "Enabled",
+        "Rule": {
+            "DefaultRetention": {
+                "Mode": "COMPLIANCE",
+                "Days": days,
+            }
+        },
+    }
+    expected_encryption = {
+        "Rules": [
+            {
+                "ApplyServerSideEncryptionByDefault": {
+                    "SSEAlgorithm": "aws:kms",
+                    "KMSMasterKeyID": kms_key_id,
+                }
+            }
+        ]
+    }
+    if (
+        versioning.get("Status") != "Enabled"
+        or lock != expected_lock
+        or encryption != expected_encryption
+    ):
+        raise RuntimeError("Ceph RGW did not preserve the required bucket configuration")
+
+    completed = {
+        **report,
+        "status": "complete",
+        "completed_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "versioning": "Enabled",
+        "object_lock": expected_lock,
+        "encryption": expected_encryption,
+        "next_step": "run scripts/test-s3-object-lock with synthetic evidence",
+    }
+    replace_report(arguments.output, completed)
+    print(f"bucket={bucket}")
+    print(f"report={arguments.output}")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except Exception as error:
+        print(f"Ceph bucket provisioning failed: {error}", file=sys.stderr)
+        sys.exit(1)
