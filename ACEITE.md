@@ -272,7 +272,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [ ] Chaves de produção ficam em KMS/HSM ou solução equivalente aprovada.
 - [ ] Health checks, métricas, alertas e logs estruturados configurados.
   - [x] `/healthz` e `/readyz` separam vida e prontidão das dependências.
-  - [x] `/metrics` expõe contadores e duração sem identificadores sensíveis.
+  - [x] `/metrics` autenticado expõe tráfego e saúde agregada dos jobs sem identificadores sensíveis.
   - [x] Logs da API e do worker são estruturados e usam somente metadados seguros.
   - [ ] Monitor externo e alertas estão conectados aos ambientes publicados.
 - [x] Jobs são idempotentes e recuperáveis.

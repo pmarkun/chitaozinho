@@ -100,7 +100,7 @@ This run proves the short functional flow. It does not satisfy the separate
 
 ## 2026-07-30 — Backend and infrastructure safety gates
 
-- The full repository gate passed with 64 Python tests, three opt-in service
+- The full repository gate passed with 66 Python tests, three opt-in service
   tests skipped in the unit pass, 15 extension tests, four TypeScript protocol
   tests and 21 Rust tests.
 - Six mocked OpenTofu plans prove that the isolated test uses one-day
@@ -115,6 +115,14 @@ This run proves the short functional flow. It does not satisfy the separate
   capture completion or protection time.
 - Timestamp failures persist only the exception type, emit structured worker
   events without provider messages and retry with bounded exponential backoff.
+- A real local TLS server exercised the public-environment probe. The probe
+  accepted TLS 1.2 or 1.3, checked health and readiness, rejected unauthenticated
+  metrics and session lookup, accepted the dedicated metrics token and made no
+  mutating requests.
+- The monitoring contract validates five versioned alerts for target
+  availability, 5xx ratio, mean latency, ready-job backlog and stale running
+  jobs. Public metrics require a dedicated secret and expose only aggregate
+  job states.
 - OSV Scanner and Trivy passed for locked dependencies, committed secrets,
   Docker, Terraform and workflow configuration. The documented exact
   `brace-expansion@1.1.18` advisory exception remains the only exception.
