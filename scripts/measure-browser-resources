@@ -19,40 +19,78 @@ if [[ -z "${output}" ]]; then
 fi
 
 clock_ticks="$(getconf CLK_TCK)"
-if [[ ! -e "${output}" ]]; then
+if [[ ! -s "${output}" ]]; then
   printf 'timestamp,phase,chrome_processes,cpu_percent,rss_mib,read_mib,write_mib\n' \
     >"${output}"
 fi
 
-read_totals() {
-  local count=0 cpu=0 rss=0 reads=0 writes=0 pid value
+declare -A previous_cpu_by_pid=()
+declare -A previous_read_by_pid=()
+declare -A previous_write_by_pid=()
+processes=0
+rss=0
+cpu_delta=0
+read_delta=0
+write_delta=0
+
+sample_processes() {
+  local pid cpu_value rss_value read_value write_value
+  local -A seen=()
+  processes=0
+  rss=0
+  cpu_delta=0
   while read -r pid; do
     [[ -r "/proc/${pid}/stat" ]] || continue
-    value="$(awk '{print $14 + $15}' "/proc/${pid}/stat" 2>/dev/null || true)"
-    [[ -n "${value}" ]] || continue
-    cpu=$((cpu + value))
-    value="$(awk '/^VmRSS:/ {print $2}' "/proc/${pid}/status" 2>/dev/null || true)"
-    rss=$((rss + ${value:-0}))
-    value="$(awk '/^read_bytes:/ {print $2}' "/proc/${pid}/io" 2>/dev/null || true)"
-    reads=$((reads + ${value:-0}))
-    value="$(awk '/^write_bytes:/ {print $2}' "/proc/${pid}/io" 2>/dev/null || true)"
-    writes=$((writes + ${value:-0}))
-    count=$((count + 1))
+    cpu_value="$(
+      awk '{print $14 + $15}' "/proc/${pid}/stat" 2>/dev/null || true
+    )"
+    [[ -n "${cpu_value}" ]] || continue
+    rss_value="$(
+      awk '/^VmRSS:/ {print $2}' "/proc/${pid}/status" 2>/dev/null || true
+    )"
+    read_value="$(
+      awk '/^read_bytes:/ {print $2}' "/proc/${pid}/io" 2>/dev/null || true
+    )"
+    write_value="$(
+      awk '/^write_bytes:/ {print $2}' "/proc/${pid}/io" 2>/dev/null || true
+    )"
+    seen["${pid}"]=1
+    if [[ -v "previous_cpu_by_pid[${pid}]" ]] &&
+      ((cpu_value >= previous_cpu_by_pid["${pid}"])); then
+      cpu_delta=$((cpu_delta + cpu_value - previous_cpu_by_pid["${pid}"]))
+    fi
+    if [[ -v "previous_read_by_pid[${pid}]" ]] &&
+      ((read_value >= previous_read_by_pid["${pid}"])); then
+      read_delta=$((read_delta + read_value - previous_read_by_pid["${pid}"]))
+    fi
+    if [[ -v "previous_write_by_pid[${pid}]" ]] &&
+      ((write_value >= previous_write_by_pid["${pid}"])); then
+      write_delta=$((write_delta + write_value - previous_write_by_pid["${pid}"]))
+    fi
+    previous_cpu_by_pid["${pid}"]="${cpu_value}"
+    previous_read_by_pid["${pid}"]="${read_value}"
+    previous_write_by_pid["${pid}"]="${write_value}"
+    rss=$((rss + ${rss_value:-0}))
+    processes=$((processes + 1))
   done < <(ps -eo pid=,comm= | awk '$2 == "chrome" {print $1}')
-  printf '%s %s %s %s %s\n' "${count}" "${cpu}" "${rss}" "${reads}" "${writes}"
+  for pid in "${!previous_cpu_by_pid[@]}"; do
+    if [[ ! -v "seen[${pid}]" ]]; then
+      unset \
+        "previous_cpu_by_pid[${pid}]" \
+        "previous_read_by_pid[${pid}]" \
+        "previous_write_by_pid[${pid}]"
+    fi
+  done
 }
 
-read -r _ previous_cpu _ initial_reads initial_writes < <(read_totals)
+sample_processes
 previous_time="$(date +%s%N)"
 
 for ((sample = 1; sample <= duration; sample++)); do
   sleep 1
   current_time="$(date +%s%N)"
-  read -r processes cpu rss reads writes < <(read_totals)
+  sample_processes
   elapsed_ns=$((current_time - previous_time))
-  cpu_delta=$((cpu - previous_cpu))
-  read_delta=$((reads - initial_reads))
-  write_delta=$((writes - initial_writes))
   cpu_percent="$(
     awk -v delta="${cpu_delta}" -v ticks="${clock_ticks}" -v ns="${elapsed_ns}" \
       'BEGIN { printf "%.2f", 100 * delta / ticks / (ns / 1000000000) }'
@@ -68,7 +106,6 @@ for ((sample = 1; sample <= duration; sample++)); do
     "${rss_mib}" \
     "${read_mib}" \
     "${write_mib}" >>"${output}"
-  previous_cpu="${cpu}"
   previous_time="${current_time}"
 done
 

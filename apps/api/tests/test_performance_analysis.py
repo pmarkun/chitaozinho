@@ -93,3 +93,30 @@ def test_browser_resource_report_rejects_thresholds_and_missing_samples(
     )
     assert missing.returncode == 2
     assert "at least 2 samples" in missing.stderr
+
+
+def test_browser_resource_report_rejects_negative_process_counters(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "resources.csv"
+    path.write_text(
+        HEADER
+        + "2026-07-30T12:00:00Z,baseline,10,-1,100,0,0\n"
+        + "2026-07-30T12:00:01Z,capture,10,1,100,0,0\n"
+    )
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            str(path),
+            "--minimum-samples",
+            "1",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 2
+    assert "negative counter" in completed.stderr

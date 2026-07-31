@@ -75,6 +75,12 @@ def analyze(path: Path, *, minimum_samples: int = 20) -> dict:
         raise ValueError("unexpected browser resource CSV columns")
     if any(int(row["chrome_processes"]) <= 0 for row in rows):
         raise ValueError("browser resource sample has no Chrome processes")
+    if any(
+        float(row[column]) < 0
+        for row in rows
+        for column in ("cpu_percent", "read_mib", "write_mib")
+    ):
+        raise ValueError("browser resource sample contains a negative counter")
     baseline = phase_stats(rows, "baseline")
     capture = phase_stats(rows, "capture")
     if baseline.samples < minimum_samples or capture.samples < minimum_samples:
