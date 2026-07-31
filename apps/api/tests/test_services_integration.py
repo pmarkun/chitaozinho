@@ -20,7 +20,6 @@ from chitaozinho_api.jobs import (
 from chitaozinho_api.models import (
     Attestation,
     AuditEvent,
-    Base,
     CaptureSession,
     Job,
     TimestampAttempt,
@@ -44,7 +43,6 @@ def test_postgres_and_garage_persist_without_overwrite() -> None:
     assert settings.storage_backend == "s3"
 
     engine = create_database_engine(settings)
-    Base.metadata.create_all(engine)
     session_id = uuid.uuid4().hex
     now = datetime.now(UTC)
     with Session(engine) as database:
