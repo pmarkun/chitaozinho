@@ -187,3 +187,21 @@ This run proves the short functional flow. It does not satisfy the separate
 - Raw RFC 3161 and OpenTimestamps token verification remains delegated to the
   offline CLI; the web report labels this limitation instead of claiming a
   fully verified external temporal proof.
+
+## 2026-07-31 — Railway web-verifier staging
+
+- The authorized staging deploy is available at
+  `https://verifier-web-staging.up.railway.app`.
+- Railway deployment `6c9e041c-3b64-484b-aed9-6505e9bcf727` completed with
+  the committed `/railway.json`, `/health`, bounded restarts and image digest
+  `sha256:1d95031450c5debb4840a0146afbfea9e04bc536f0bb3030c35a344168641e2c`.
+- The public endpoint served HTTPS with HSTS, CSP `connect-src 'none'`,
+  clickjacking protection, a restrictive permissions policy and `nosniff`.
+- Chromium validated the real session `70fcb6f37872476e981a2b5ce58fff60`
+  as `integral` using its checksum and separately supplied operational key.
+  No request occurred after file selection.
+- After the online load, the same public build reloaded successfully with the
+  browser offline.
+- Only the secret-free verifier is deployed. API and worker remain undeployed
+  until external Ceph RGW, OpenBao, SMTP and the public trust documents are
+  provisioned.

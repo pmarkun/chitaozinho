@@ -48,3 +48,7 @@ python -m http.server 4174 --directory apps/verifier-web/dist
 ```
 
 Abra `http://127.0.0.1:4174`. Os pacotes selecionados permanecem no navegador.
+
+O mesmo build está publicado em staging:
+<https://verifier-web-staging.up.railway.app>. A validação continua local ao
+navegador e o service worker permite reabrir a aplicação offline.

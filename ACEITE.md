@@ -155,13 +155,13 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ### Validador web, metodologia e administração
 
-- [ ] Mesmo build do validador funciona pelo link público e offline.
+- [x] Mesmo build do validador funciona pelo link público e offline.
 - [x] ZIP principal, checksum e complemento são processados somente no
   navegador, sem upload ou telemetria dos arquivos.
 - [x] Resultado detalha integridade, completude, confiança e prova temporal.
 - [x] Relatórios HTML e JSON podem ser exportados.
 - [x] Pacotes hostis respeitam limites e falham de forma localizada no navegador.
-- [ ] Metodologia pública explica captura, hashes, assinaturas, recibos, fontes
+- [x] Metodologia pública explica captura, hashes, assinaturas, recibos, fontes
   de tempo, retenção e limitações.
 - [x] `README.txt`, metodologia e guia de verificação acompanham o pacote.
 - [x] Índice assinado cobre todos os documentos metodológicos.
@@ -287,8 +287,8 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 ## 7. Produção
 
 - [x] API e workers empacotados em imagens OCI reproduzíveis.
-- [ ] Serviços publicados no Railway somente após autorização explícita.
-- [ ] Ambientes de staging e produção são separados.
+- [x] Serviços publicados no Railway somente após autorização explícita.
+- [x] Ambientes de staging e produção são separados.
 - [ ] PostgreSQL possui backups e restauração testada.
 - [x] Migrações possuem validação e rollback.
 - [ ] Ceph RGW externo ao Railway com Object Lock é usado para evidências.
@@ -336,9 +336,9 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] RF-023 — manter estados independentes.
 - [x] RF-024 — gerar attestations append-only.
 - [x] RF-025 — limitar recursos e rejeitar pacotes inseguros.
-- [ ] RF-026 — validar no mesmo build web online/offline sem upload.
+- [x] RF-026 — validar no mesmo build web online/offline sem upload.
 - [ ] RF-027 — administrar evidências de forma autenticada e somente leitura.
-- [ ] RF-028 — publicar e incorporar metodologia versionada ao pacote.
+- [x] RF-028 — publicar e incorporar metodologia versionada ao pacote.
 
 ### Requisitos não funcionais
 
