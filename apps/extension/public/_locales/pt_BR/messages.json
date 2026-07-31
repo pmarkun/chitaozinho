@@ -11,6 +11,7 @@
   "back": { "message": "Voltar" },
   "noCaptures": { "message": "Nenhuma captura local encontrada." },
   "downloadAgain": { "message": "Baixar novamente" },
+  "duration": { "message": "Duração da captura" },
   "verifyPackageBody": {
     "message": "Selecione um ZIP para calcular seu SHA-256 localmente, sem enviar o arquivo."
   },

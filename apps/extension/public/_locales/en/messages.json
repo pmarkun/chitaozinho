@@ -11,6 +11,7 @@
   "back": { "message": "Back" },
   "noCaptures": { "message": "No local captures found." },
   "downloadAgain": { "message": "Download again" },
+  "duration": { "message": "Capture duration" },
   "verifyPackageBody": {
     "message": "Select a ZIP to calculate its SHA-256 locally without uploading the file."
   },

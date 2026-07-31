@@ -315,15 +315,24 @@ function App() {
 
       {authenticated && capture && (
         <section>
-          <div className="status-row" role="status" aria-live="polite">
+          <div className="status-row">
             <span
               className={`dot ${recording ? "recording" : ""}`}
               aria-hidden="true"
             />
-            <strong data-view-heading tabIndex={-1}>
+            <strong
+              data-view-heading
+              tabIndex={-1}
+              role="status"
+              aria-live="polite"
+            >
               {statusLabel(capture.status)}
             </strong>
-            <time>{formatDuration(capture.durationMs)}</time>
+            <time
+              aria-label={`${t("duration")}: ${formatDuration(capture.durationMs)}`}
+            >
+              {formatDuration(capture.durationMs)}
+            </time>
           </div>
           <dl>
             <div>

@@ -13,6 +13,7 @@ export type MessageKey =
   | "discardCapture"
   | "discardCaptureConfirmation"
   | "downloadAgain"
+  | "duration"
   | "emailLabel"
   | "finishAndDownload"
   | "fullVerificationNotice"

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const css = readFileSync(new URL("./popup.css", import.meta.url), "utf8");
+const popup = readFileSync(new URL("./popup.tsx", import.meta.url), "utf8");
 
 describe("popup accessibility guards", () => {
   it("keeps normal text and focus indicators above WCAG AA contrast", () => {
@@ -32,6 +33,15 @@ describe("popup accessibility guards", () => {
     expect(css).toMatch(
       /outline:\s*3px solid var\(--focus-ring\);\s*outline-offset:\s*2px;/,
     );
+  });
+
+  it("does not announce the capture timer every second", () => {
+    expect(popup).toContain('<div className="status-row">');
+    expect(popup).not.toMatch(/className="status-row"[^>]*role="status"/);
+    expect(popup).toMatch(
+      /<strong[\s\S]*?role="status"[\s\S]*?aria-live="polite"/,
+    );
+    expect(popup).toContain('aria-label={`${t("duration")}:');
   });
 });
 
