@@ -9,6 +9,11 @@ Prometheus. Os logs HTTP são JSON e incluem somente `request_id`, método, rota
 parametrizada, status e duração; o access log padrão do Uvicorn fica desativado
 para não registrar URLs ou queries sensíveis.
 
+O worker emite JSON para início, conclusão e falha de jobs usando apenas
+`job_id`, `subject_id`, tipo, estado, tentativas e tipo da exceção. A mensagem
+da exceção não é persistida nem registrada, evitando vazar URLs, tokens ou
+conteúdo retornado por provedores.
+
 Antes de produção, conecte o endpoint e os logs a um monitor externo e configure
 alertas para indisponibilidade de `/readyz`, respostas 5xx e aumento sustentado
 de duração. As métricas ficam em memória e reiniciam com cada processo.

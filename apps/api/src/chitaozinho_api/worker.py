@@ -10,6 +10,7 @@ from .config import Settings
 from .database import create_database_engine
 from .jobs import mark_job_completed, mark_job_failed, mark_job_running
 from .models import CaptureSession, Job
+from .observability import emit_worker_log
 from .proof_service import timestamp_capture
 from .security import ServerSigner
 
@@ -46,6 +47,14 @@ def run_once(
         if job is None:
             return False
         mark_job_running(database, job)
+        emit_worker_log(
+            event="job_started",
+            job_id=job.id,
+            job_kind=job.kind,
+            status=job.status,
+            attempts=job.attempts,
+            subject_id=job.subject_id,
+        )
         try:
             capture_session = database.get(CaptureSession, job.subject_id)
             if capture_session is None or capture_session.manifest_hash is None:
@@ -63,11 +72,28 @@ def run_once(
                 job,
                 {"attestation_id": attestation.id},
             )
+            emit_worker_log(
+                event="job_completed",
+                job_id=job.id,
+                job_kind=job.kind,
+                status=job.status,
+                attempts=job.attempts,
+                subject_id=job.subject_id,
+            )
         except Exception as error:
             database.rollback()
             current = database.get(Job, job.id)
             if current is not None:
                 mark_job_failed(database, current, error)
+                emit_worker_log(
+                    event="job_failed",
+                    job_id=current.id,
+                    job_kind=current.kind,
+                    status=current.status,
+                    attempts=current.attempts,
+                    subject_id=current.subject_id,
+                    error_type=type(error).__name__,
+                )
         return True
 
 

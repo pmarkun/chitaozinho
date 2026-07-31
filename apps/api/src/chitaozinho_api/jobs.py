@@ -97,6 +97,6 @@ def mark_job_completed(database: Session, job: Job, result: dict) -> None:
 
 def mark_job_failed(database: Session, job: Job, error: Exception) -> None:
     job.status = "failed"
-    job.last_error = f"{type(error).__name__}: {error}"[:2000]
+    job.last_error = type(error).__name__
     job.updated_at = datetime.now(UTC)
     database.commit()

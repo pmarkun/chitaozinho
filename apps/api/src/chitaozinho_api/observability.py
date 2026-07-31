@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 LOGGER = logging.getLogger("chitaozinho.request")
+WORKER_LOGGER = logging.getLogger("chitaozinho.worker")
 METRICS_CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
 
 
@@ -35,6 +36,35 @@ def emit_request_log(
             },
             separators=(",", ":"),
         ),
+    )
+
+
+def emit_worker_log(
+    *,
+    event: str,
+    job_id: str,
+    job_kind: str,
+    status: str,
+    attempts: int,
+    subject_id: str | None,
+    error_type: str | None = None,
+) -> None:
+    level = logging.ERROR if status == "failed" else logging.INFO
+    record = {
+        "timestamp": datetime.now(UTC).isoformat(),
+        "level": logging.getLevelName(level).lower(),
+        "event": event,
+        "job_id": job_id,
+        "job_kind": job_kind,
+        "status": status,
+        "attempts": attempts,
+        "subject_id": subject_id,
+    }
+    if error_type is not None:
+        record["error_type"] = error_type
+    WORKER_LOGGER.log(
+        level,
+        json.dumps(record, separators=(",", ":")),
     )
 
 

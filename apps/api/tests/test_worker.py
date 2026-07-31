@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import logging
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -66,3 +68,51 @@ def test_worker_recovers_abandoned_persistent_timestamp_job(
         assert job.attempts == 2
         assert job.result is not None
         assert database.scalar(select(func.count(TimestampAttempt.id))) == 1
+
+
+def test_worker_failure_is_structured_without_exception_message(
+    caplog,
+    tmp_path: Path,
+) -> None:
+    caplog.set_level(logging.INFO, logger="chitaozinho.worker")
+    settings = Settings(
+        database_url=f"sqlite:///{tmp_path / 'failed-worker.db'}",
+        proofs_path=tmp_path / "proofs",
+        storage_path=tmp_path / "artifacts",
+        server_key_id="server-worker",
+        server_seed_hex=("33" * 32),
+    )
+    engine = create_database_engine(settings)
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(engine, expire_on_commit=False)
+    with factory() as database:
+        job, _created = get_or_create_job(
+            database,
+            kind="rfc3161_timestamp",
+            idempotency_key="failed-worker-job",
+            subject_id="missing-session",
+            payload={"manifest_hash": "token=top-secret"},
+        )
+        job_id = job.id
+
+    signer = ServerSigner.from_settings(settings)
+    assert signer is not None
+    assert run_once(factory, settings, signer)
+
+    with factory() as database:
+        failed = database.get(Job, job_id)
+        assert failed is not None
+        assert failed.status == "failed"
+        assert failed.last_error == "ValueError"
+
+    records = [
+        json.loads(record.message)
+        for record in caplog.records
+        if record.name == "chitaozinho.worker"
+    ]
+    assert [record["event"] for record in records] == [
+        "job_started",
+        "job_failed",
+    ]
+    assert records[-1]["error_type"] == "ValueError"
+    assert "top-secret" not in json.dumps(records)
