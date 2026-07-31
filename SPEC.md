@@ -93,7 +93,7 @@ A primeira entrega deve validar o fluxo completo sem depender de infraestrutura 
 - Geração de pacote ZIP probatório.
 - CLI local de verificação.
 - Relatório HTML de verificação.
-- PostgreSQL e storage S3 compatível locais para desenvolvimento.
+- PostgreSQL e Garage, via protocolo S3 compatível, para desenvolvimento local.
 
 ### 3.2 POC probatória completa
 
@@ -102,7 +102,7 @@ Após o fluxo funcional estar validado:
 - carimbo de tempo RFC 3161;
 - árvore de Merkle e ancoragem via OpenTimestamps/Bitcoin;
 - attestations e complementos assinados;
-- armazenamento S3 com Object Lock em ambiente de teste;
+- armazenamento Ceph RGW com Object Lock em ambiente de teste;
 - validação integrada de indisponibilidade e retomada dos serviços externos.
 
 ### 3.3 Fora da POC
@@ -241,7 +241,7 @@ Todo relatório deve incluir:
         │       ├───────────────┐
         ▼                       ▼
 ┌───────────────┐       ┌────────────────┐
-│ PostgreSQL    │       │ S3/Object Lock │
+│ PostgreSQL    │       │ Ceph RGW       │
 │ append-only   │       │ WORM           │
 └───────────────┘       └────────────────┘
         │
@@ -323,7 +323,7 @@ Tecnologias sugeridas:
 - PostgreSQL;
 - jobs persistidos no PostgreSQL na primeira versão;
 - Redis e worker dedicado apenas quando carga ou isolamento justificarem;
-- S3 compatível com Object Lock;
+- Ceph RGW compatível com S3 e Object Lock;
 - libsodium ou biblioteca Ed25519 consolidada;
 - Docker/OCI.
 
@@ -1443,8 +1443,11 @@ Resultado esperado: falha explícita e localizada.
 
 ### Storage
 
-- Garage para desenvolvimento e AWS S3 com Object Lock em `sa-east-1` na etapa probatória.
-- Em produção, serviço que suporte retenção compliance de forma verificável.
+- Garage para desenvolvimento e Ceph RGW Squid `19.2.5` self-hosted na etapa
+  probatória e em produção.
+- Object Lock em modo `COMPLIANCE`, versionamento e SSE-KMS com OpenBao/Vault
+  como backend do RGW.
+- O cluster Ceph é externo ao Railway e operado separadamente da aplicação.
 
 ### Criptografia
 
@@ -1473,7 +1476,7 @@ Resultado esperado: falha explícita e localizada.
 
 - Docker Compose para desenvolvimento.
 - `nix develop` como entrada padrão do ambiente local.
-- Terraform para produção.
+- especificações declarativas `cephadm` para o Ceph RGW.
 - GitHub Actions para CI.
 - SBOM por release.
 - Assinatura de builds.
@@ -1483,7 +1486,7 @@ Resultado esperado: falha explícita e localizada.
 - Railway para API, workers e serviços auxiliares.
 - PostgreSQL gerenciado com backups e migrações controladas.
 - Redis apenas se adotado pelo processamento assíncrono.
-- S3 externo com Object Lock para evidências; volumes locais do Railway não são armazenamento probatório.
+- Ceph RGW externo com Object Lock para evidências; volumes locais do Railway não são armazenamento probatório.
 - TSA e OpenTimestamps como integrações externas.
 - Variáveis de ambiente e secret store para configuração; nenhum segredo no repositório.
 
@@ -1505,7 +1508,8 @@ Resultado esperado: falha explícita e localizada.
 │   └── evidence-format/
 ├── infra/
 │   ├── docker/
-│   ├── terraform/
+│   ├── ceph/
+│   ├── railway/
 │   └── monitoring/
 ├── docs/
 │   ├── threat-model.md
@@ -1587,9 +1591,12 @@ Resultado esperado: falha explícita e localizada.
 - Canvas e WebGL cobertos visualmente; iframes em best-effort; DRM e conteúdo protegido marcados como indisponíveis.
 - Qualquer TSA RFC 3161 confiável pode ser usada na POC; opções brasileiras devem ser comparadas antes de produção.
 - Trust store da TSA explícito e versionado, com atualizações assinadas.
-- Garage local e AWS S3 com Object Lock em `sa-east-1`. MinIO não é usado por estar abandonado e possuir vulnerabilidades críticas conhecidas.
+- Garage local e Ceph RGW Squid `19.2.5` self-hosted com Object Lock. A imagem
+  OCI é fixada por digest; o RGW usa OpenBao/Vault para SSE-KMS.
 - Retenção mínima no teste, 90 dias no gratuito, 5 anos no individual e configurável no institucional.
-- Chave raiz offline; chaves operacionais em KMS/HSM na produção, rotacionadas a cada 90 dias, com revogações assinadas.
+- Chave raiz offline; chaves operacionais montadas por secret store self-hosted
+  ou protegidas por KMS/HSM equivalente, rotacionadas a cada 90 dias, com
+  revogações assinadas.
 - Calendários públicos OpenTimestamps; agregação a cada hora ou 100 sessões.
 - POC restrita a conteúdo público ou sintético. LGPD, dados sensíveis e legal hold exigem revisão jurídica antes de produção.
 - Formato, schemas, verificador, componentes e histórico de chaves públicos.
@@ -1612,7 +1619,7 @@ Resultado esperado: falha explícita e localizada.
 11. Tratar blockchain como camada adicional, não como fonte única de confiança.
 12. Nunca afirmar que o sistema comprova autoria ou veracidade material.
 13. Usar chave efêmera por sessão para o cliente na POC.
-14. Armazenar evidências finais em S3 Object Lock somente na etapa probatória e de produção.
+14. Armazenar evidências finais em Ceph RGW Object Lock somente na etapa probatória e de produção.
 15. Usar Railway para serviços, nunca como storage probatório.
 
 ---
@@ -1660,6 +1667,9 @@ A POC funcional deve permitir que uma pessoa:
 11. baixe um pacote ZIP;
 12. verifique esse pacote offline e detecte adulterações.
 
-A etapa probatória completa adiciona RFC 3161, attestations, Merkle, OpenTimestamps e teste de Object Lock sem alterar o manifesto ou o pacote original. A produção executa API e workers no Railway e mantém as evidências em storage S3 externo com retenção apropriada.
+A etapa probatória completa adiciona RFC 3161, attestations, Merkle,
+OpenTimestamps e teste de Object Lock sem alterar o manifesto ou o pacote
+original. A produção executa API e workers no Railway e mantém as evidências em
+Ceph RGW self-hosted, externo ao Railway, com retenção apropriada.
 
 O produto deve provar integridade, continuidade de coleta e existência temporal dos bytes registrados, sem prometer comprovação automática de autoria, veracidade ou validade jurídica definitiva.

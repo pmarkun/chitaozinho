@@ -3,7 +3,7 @@
 A `vX.Y.Z` tag must match the shared Rust, Python and extension version. The
 release workflow builds a Linux verifier, the unpacked-extension ZIP and an OCI
 API archive from a clean checkout. It emits artifact SPDX JSON SBOMs, a source
-dependency SBOM covering the Rust, Python, npm, Terraform and workflow
+dependency SBOM covering the Rust, Python, npm, Ceph and workflow
 manifests, and SHA-256 checksums.
 
 Every artifact, SBOM and checksum file receives a Sigstore bundle created by

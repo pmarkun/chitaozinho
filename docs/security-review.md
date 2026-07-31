@@ -4,7 +4,7 @@ Every CI run scans the tracked source tree only:
 
 - OSV Scanner checks locked Rust, Python and npm dependencies, with Rust call
   analysis;
-- Trivy checks Terraform, Docker and workflow configuration for high/critical
+- Trivy checks Ceph, Docker and workflow configuration for high/critical
   misconfigurations and scans committed files for secrets.
 
 The gate has one exact OSV exception:
@@ -37,7 +37,7 @@ Scope reviewed:
   verification and package generation;
 - hostile ZIP handling, resource limits, external command invocation, structured
   logging and secret redaction;
-- public-environment, Railway, Terraform, monitoring, backup and recovery gates.
+- public-environment, Railway, Ceph, monitoring, backup and recovery gates.
 
 Two defense-in-depth findings were fixed during the review:
 
@@ -53,11 +53,11 @@ TLS 1.2 or 1.3 must negotiate, while TLS 1.0 and 1.1 must fail (`8b6d9bd`).
 The POC controls cover post-capture alteration, substitution, reordering,
 removal, interruption, false completeness and untrusted verifier builds.
 Object deletion and administrator/backend compromise remain only partially
-mitigated until the isolated AWS Object Lock test passes. Browser, operating
+mitigated until the isolated Ceph Object Lock test passes. Browser, operating
 system, account and pre-capture compromise remain explicitly outside the
 platform's proof boundary, as required by the threat model.
 
 The code-level review is complete with no known unresolved high or critical
 finding. The production security-review gate remains open until staging exists
-and an independent reviewer checks provider IAM, live TLS, KMS/HSM, Object Lock,
-monitoring and the deployed image identity.
+and an independent reviewer checks RGW capabilities, live TLS, secret
+management, Object Lock, monitoring and the deployed image identity.

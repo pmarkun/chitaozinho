@@ -78,7 +78,7 @@ This run proves the short functional flow. It does not satisfy the separate
 - The local release harness generated the verifier, extension ZIP and OCI API
   archive plus artifact and source SPDX 2.3 SBOMs.
 - The source SBOM catalogued 833 package/manifests across the locked Rust,
-  Python, npm, Terraform and workflow dependency graph.
+  Python, npm, Ceph and workflow dependency graph.
 - Every entry in `SHA256SUMS` verified. Its SHA-256 was
   `d38ecee8cc7b2993e1be400a40eae25c403d7fb1cbef91df65cdbed0769c2db2`.
 - An ephemeral local Cosign key signed the checksum file into a Sigstore bundle
@@ -139,14 +139,13 @@ This run proves the short functional flow. It does not satisfy the separate
 - The full repository gate passed with 74 Python tests, three opt-in service
   tests skipped in the unit pass, 19 extension tests, four TypeScript protocol
   tests and 21 Rust tests.
-- Six mocked OpenTofu plans prove that the isolated test uses one-day
-  `COMPLIANCE` retention, staging and production require at least 90 days,
-  Object Lock is enabled at bucket creation, and unknown environments or
-  regions outside `sa-east-1` are rejected.
-- Public startup now rejects SQLite, custom S3 endpoints, short retention,
-  unknown environments and broad extension CORS. It requires PostgreSQL, AWS
-  S3 in `sa-east-1`, KMS-backed keys, magic-link authentication and exact
-  Chromium extension IDs.
+- The Ceph configuration guard pins Squid `19.2.5` by multi-architecture image
+  digest and requires TLS, Vault-backed SSE-KMS, one-day isolated retention and
+  at least 90 days for runtime environments.
+- Public startup now rejects SQLite, non-HTTPS RGW endpoints, short retention,
+  unknown storage providers and broad extension CORS. It requires PostgreSQL,
+  Ceph RGW, SSE-KMS, a mounted operational signing seed, magic-link
+  authentication and exact Chromium extension IDs.
 - Final evidence receives the full configured retention from the later of
   capture completion or protection time.
 - Timestamp failures persist only the exception type, emit structured worker
@@ -160,5 +159,5 @@ This run proves the short functional flow. It does not satisfy the separate
   jobs. Public metrics require a dedicated secret and expose only aggregate
   job states.
 - OSV Scanner and Trivy passed for locked dependencies, committed secrets,
-  Docker, Terraform and workflow configuration. The documented exact
+  Docker, Ceph and workflow configuration. The documented exact
   `brace-expansion@1.1.18` advisory exception remains the only exception.

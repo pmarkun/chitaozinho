@@ -28,9 +28,13 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 - [x] **DEC-013 — TSA:** a POC pode usar uma TSA RFC 3161 confiável; o gate para comparar opções brasileiras antes de produção está em [`docs/tsa-evaluation.md`](docs/tsa-evaluation.md).
 - [x] **DEC-014 — Trust store:** raízes TSA explícitas e versionadas; atualizações do trust store devem ser assinadas.
-- [x] **DEC-015 — Storage:** Garage local e AWS S3 com Object Lock em `sa-east-1`. MinIO foi descartado porque o pacote disponível está abandonado e possui vulnerabilidades críticas conhecidas.
+- [x] **DEC-015 — Storage:** Garage local e Ceph RGW Squid `19.2.5`
+  self-hosted com Object Lock, imagem fixada por digest e OpenBao/Vault como
+  backend SSE-KMS.
 - [x] **DEC-016 — Retenção:** mínimo aceito no teste, 90 dias no gratuito, 5 anos no individual e prazo configurável no institucional.
-- [x] **DEC-017 — Chave raiz:** gerada e mantida offline; chaves operacionais de produção protegidas por KMS/HSM.
+- [x] **DEC-017 — Chave raiz:** gerada e mantida offline; chaves operacionais
+  de produção injetadas por secret store self-hosted ou protegidas por KMS/HSM
+  equivalente.
 - [x] **DEC-018 — Rotação e revogação:** rotação operacional a cada 90 dias e lista de revogação assinada.
 - [x] **DEC-019 — OpenTimestamps:** calendários públicos; agregação a cada hora ou 100 sessões, o que ocorrer primeiro.
 
@@ -40,7 +44,9 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] **DEC-021 — Dados sensíveis:** dados reais de crianças, saúde e finanças ficam proibidos até política e revisão jurídica específicas.
 - [x] **DEC-022 — Legal hold:** não será ativado antes de responsáveis, autorização, auditoria e liberação serem revisados juridicamente.
 - [x] **DEC-023 — Transparência:** formato, schemas, verificador, código dos componentes e histórico de chaves serão públicos; auditorias serão publicadas quando disponíveis.
-- [x] **DEC-024 — Railway:** staging primeiro; produção somente após POC probatória, revisão de segurança e autorização explícita; evidências permanecem no S3 externo.
+- [x] **DEC-024 — Railway:** staging primeiro; produção somente após POC
+  probatória, revisão de segurança e autorização explícita; evidências
+  permanecem no Ceph RGW externo.
 
 ## 1. Fundação do repositório
 
@@ -267,7 +273,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [ ] Ambientes de staging e produção são separados.
 - [ ] PostgreSQL possui backups e restauração testada.
 - [x] Migrações possuem validação e rollback.
-- [ ] S3 externo com Object Lock é usado para evidências.
+- [ ] Ceph RGW externo ao Railway com Object Lock é usado para evidências.
 - [x] Volumes do Railway não são usados como storage probatório.
 - [ ] Chaves de produção ficam em KMS/HSM ou solução equivalente aprovada.
 - [ ] Health checks, métricas, alertas e logs estruturados configurados.

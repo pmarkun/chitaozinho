@@ -41,7 +41,7 @@ rollback de deploy e qualquer ação em produção exigem autorização explíci
 - Se a proteção final falhar, mantenha `retention_failed`; não promova o estado
   para `locked`.
 - Garage é somente desenvolvimento. Evidência de staging/produção permanece no
-  S3 externo, não em volume Railway.
+  Ceph RGW externo, não em volume Railway.
 
 Em falta de disco local, interrompa novos testes, preserve `data/` e confirme o
 filesystem afetado antes de liberar espaço recuperável. Nunca apague partes,
@@ -89,4 +89,4 @@ pacotes, provas, banco ou audit trail para recuperar capacidade.
 - Execute migração e smoke funcional antes de promover a mesma imagem.
 - Em falha de aplicação, restaure a versão anterior da imagem; em falha de
   dados, use apenas o restore isolado validado.
-- Railway executa API e worker. Evidências finais continuam no S3 externo.
+- Railway executa API e worker. Evidências finais continuam no Ceph RGW externo.

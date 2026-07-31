@@ -1,7 +1,8 @@
 # Evidence retention
 
 Local development stores final artifacts durably and reports `stored`; it never
-claims WORM retention. Outside local development, configuration requires S3.
+claims WORM retention. Outside local development, configuration requires Ceph
+RGW through its S3-compatible API.
 
 For every generated evidence package and proof bundle, the API:
 
@@ -18,7 +19,7 @@ Any exception or incomplete response records an append-only
 messages, credentials and object contents are not recorded.
 
 `CHITAOZINHO_RETENTION_DAYS` defaults to 90. Staging and production reject
-shorter values, SQLite, custom S3 endpoints and regions outside `sa-east-1`;
+shorter values, SQLite, non-HTTPS RGW endpoints and providers other than Ceph;
 local development remains unrestricted for reversible tests. Changing a live
 policy or testing COMPLIANCE deletion requires an explicit, separate
 operational approval.
