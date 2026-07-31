@@ -8,12 +8,11 @@ from pathlib import Path
 import pytest
 from chitaozinho_api.config import Settings
 from chitaozinho_api.key_management import (
-    encrypt_operational_seed,
     issue_operational_certificate,
     issue_revocation_list,
     public_key_from_seed,
 )
-from chitaozinho_api.security import ServerSigner, server_seed_encryption_context
+from chitaozinho_api.security import ServerSigner
 from chitaozinho_protocol import DOMAINS, verify_canonical
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from jsonschema import Draft202012Validator, FormatChecker
@@ -234,30 +233,6 @@ def test_server_refuses_expired_long_lived_revoked_and_tampered_keys(
         ServerSigner.from_settings(settings, now=now + timedelta(days=90))
 
 
-def test_server_signer_decrypts_kms_envelope_with_bound_context() -> None:
-    seed = bytes([51]) * 32
-    ciphertext = b"synthetic-kms-ciphertext"
-    kms_key_id = "arn:aws:kms:sa-east-1:123456789012:key/signing-envelope"
-    kms = FakeKmsClient(seed, kms_key_id)
-    settings = Settings(
-        server_key_id="server-kms-test",
-        server_seed_kms_ciphertext_b64=base64.b64encode(ciphertext).decode(),
-        server_seed_kms_key_id=kms_key_id,
-    )
-
-    signer = ServerSigner.from_settings(settings, kms_client=kms)
-
-    assert signer is not None
-    assert signer.public_key == public_key_from_seed(seed)
-    assert seed.hex() not in repr(signer)
-    assert kms.decrypt_arguments == {
-        "CiphertextBlob": ciphertext,
-        "KeyId": kms_key_id,
-        "EncryptionAlgorithm": "SYMMETRIC_DEFAULT",
-        "EncryptionContext": server_seed_encryption_context("server-kms-test"),
-    }
-
-
 def test_server_signer_reads_private_mounted_seed(tmp_path: Path) -> None:
     seed = bytes([53]) * 32
     seed_path = tmp_path / "server.seed"
@@ -315,37 +290,6 @@ def test_server_signer_uses_pinned_openbao_transit_key() -> None:
         signer.sign(DOMAINS["receipt"], document)
 
 
-def test_server_signer_rejects_invalid_kms_results() -> None:
-    kms_key_id = "arn:aws:kms:sa-east-1:123456789012:key/signing-envelope"
-    settings = Settings(
-        server_key_id="server-kms-test",
-        server_seed_kms_ciphertext_b64=base64.b64encode(b"ciphertext").decode(),
-        server_seed_kms_key_id=kms_key_id,
-    )
-
-    with pytest.raises(ValueError, match="unexpected key"):
-        ServerSigner.from_settings(
-            settings,
-            kms_client=FakeKmsClient(bytes([52]) * 32, "different-key"),
-        )
-    with pytest.raises(ValueError, match="exactly 32 bytes"):
-        ServerSigner.from_settings(
-            settings,
-            kms_client=FakeKmsClient(b"short", kms_key_id),
-        )
-
-
-class FakeKmsClient:
-    def __init__(self, plaintext: bytes, key_id: str) -> None:
-        self.plaintext = plaintext
-        self.key_id = key_id
-        self.decrypt_arguments: dict = {}
-
-    def decrypt(self, **arguments) -> dict:
-        self.decrypt_arguments = arguments
-        return {"Plaintext": self.plaintext, "KeyId": self.key_id}
-
-
 class FakeTransitClient:
     def __init__(self, seed: bytes, key_version: int) -> None:
         self.private_key = Ed25519PrivateKey.from_private_bytes(seed)
@@ -387,35 +331,3 @@ class FakeTransitClient:
                 )
             }
         }
-
-
-class FakeKmsEncryptClient:
-    def __init__(self, ciphertext: bytes, key_id: str) -> None:
-        self.ciphertext = ciphertext
-        self.key_id = key_id
-        self.encrypt_arguments: dict = {}
-
-    def encrypt(self, **arguments) -> dict:
-        self.encrypt_arguments = arguments
-        return {"CiphertextBlob": self.ciphertext, "KeyId": self.key_id}
-
-
-def test_operational_seed_encryption_uses_same_bound_context() -> None:
-    seed = bytes([61]) * 32
-    kms_key_id = "arn:aws:kms:sa-east-1:123456789012:key/signing-envelope"
-    kms = FakeKmsEncryptClient(b"kms-ciphertext", kms_key_id)
-
-    ciphertext = encrypt_operational_seed(
-        seed=seed,
-        kms_client=kms,
-        kms_key_id=kms_key_id,
-        operational_key_id="server-rotation-1",
-    )
-
-    assert ciphertext == b"kms-ciphertext"
-    assert kms.encrypt_arguments == {
-        "KeyId": kms_key_id,
-        "Plaintext": seed,
-        "EncryptionAlgorithm": "SYMMETRIC_DEFAULT",
-        "EncryptionContext": server_seed_encryption_context("server-rotation-1"),
-    }

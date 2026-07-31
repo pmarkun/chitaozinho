@@ -39,14 +39,6 @@ class Settings(BaseSettings):
         repr=False,
     )
     server_seed_path: Path | None = None
-    server_seed_kms_ciphertext_b64: str | None = Field(
-        default=None,
-        min_length=4,
-        max_length=16_384,
-        repr=False,
-    )
-    server_seed_kms_key_id: str | None = Field(default=None, min_length=1)
-    server_seed_kms_region: str = "sa-east-1"
     openbao_addr: str | None = None
     openbao_token: str | None = Field(default=None, min_length=16, repr=False)
     openbao_transit_mount: str = Field(
@@ -177,7 +169,7 @@ class Settings(BaseSettings):
                 or openbao.fragment
             ):
                 raise ValueError("OpenBao address must be an HTTPS origin")
-            if self.server_seed_path is not None or self.server_seed_kms_ciphertext_b64 is not None:
+            if self.server_seed_path is not None:
                 raise ValueError("server signing key material must remain in OpenBao Transit")
             if self.server_certificate_path is None and self.server_certificate_json is None:
                 raise ValueError(
@@ -231,7 +223,6 @@ class Settings(BaseSettings):
         seed_sources = [
             self.server_seed_hex is not None,
             self.server_seed_path is not None,
-            self.server_seed_kms_ciphertext_b64 is not None,
             self.openbao_addr is not None,
         ]
         if sum(seed_sources) > 1:

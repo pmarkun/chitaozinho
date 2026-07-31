@@ -1,20 +1,15 @@
 from __future__ import annotations
 
 import argparse
-import base64
 import json
 import os
 import secrets
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
 
-import boto3
 from chitaozinho_protocol import DOMAINS, canonical_bytes, sign_canonical
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
-from .security import server_seed_encryption_context
 
 
 def issue_operational_certificate(
@@ -140,29 +135,6 @@ def require_new_paths(*paths: Path) -> None:
         raise FileExistsError(f"refusing to overwrite: {', '.join(existing)}")
 
 
-def encrypt_operational_seed(
-    *,
-    seed: bytes,
-    kms_client: Any,
-    kms_key_id: str,
-    operational_key_id: str,
-) -> bytes:
-    if len(seed) != 32:
-        raise ValueError("Ed25519 operational seed must contain 32 bytes")
-    response = kms_client.encrypt(
-        KeyId=kms_key_id,
-        Plaintext=seed,
-        EncryptionAlgorithm="SYMMETRIC_DEFAULT",
-        EncryptionContext=server_seed_encryption_context(operational_key_id),
-    )
-    if response.get("KeyId") != kms_key_id:
-        raise ValueError("KMS encrypted operational seed with an unexpected key")
-    ciphertext = response.get("CiphertextBlob")
-    if not isinstance(ciphertext, bytes) or not ciphertext:
-        raise ValueError("KMS did not return operational seed ciphertext")
-    return ciphertext
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Offline Chitãozinho key tooling")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -172,11 +144,6 @@ def main() -> None:
     mounted_parser = subparsers.add_parser("generate-operational-file")
     mounted_parser.add_argument("--output-dir", type=Path, required=True)
     mounted_parser.add_argument("--operational-key-id", required=True)
-    operational_parser = subparsers.add_parser("generate-operational-envelope")
-    operational_parser.add_argument("--output-dir", type=Path, required=True)
-    operational_parser.add_argument("--operational-key-id", required=True)
-    operational_parser.add_argument("--kms-key-arn", required=True)
-    operational_parser.add_argument("--region", default="sa-east-1")
     issue_parser = subparsers.add_parser("issue-operational")
     issue_parser.add_argument("--root-seed-file", type=Path, required=True)
     issue_parser.add_argument("--root-key-id", required=True)
@@ -192,12 +159,6 @@ def main() -> None:
     revocation_parser.add_argument("--issued-at", required=True)
     revocation_parser.add_argument("--revocations-file", type=Path, required=True)
     revocation_parser.add_argument("--output", type=Path, required=True)
-    encrypt_parser = subparsers.add_parser("encrypt-operational")
-    encrypt_parser.add_argument("--seed-file", type=Path, required=True)
-    encrypt_parser.add_argument("--kms-key-arn", required=True)
-    encrypt_parser.add_argument("--operational-key-id", required=True)
-    encrypt_parser.add_argument("--region", default="sa-east-1")
-    encrypt_parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args()
     if arguments.command == "generate-root":
         root_seed_path = arguments.output_dir / "root.seed"
@@ -237,62 +198,6 @@ def main() -> None:
                 public_path,
                 canonical_bytes(public_document) + b"\n",
                 0o644,
-            )
-        finally:
-            seed_buffer[:] = b"\0" * len(seed_buffer)
-        return
-    if arguments.command == "generate-operational-envelope":
-        ciphertext_path = arguments.output_dir / f"{arguments.operational_key_id}.seed.kms.b64"
-        public_path = arguments.output_dir / f"{arguments.operational_key_id}.public.json"
-        require_new_paths(ciphertext_path, public_path)
-        seed_buffer = bytearray(secrets.token_bytes(32))
-        try:
-            ciphertext = encrypt_operational_seed(
-                seed=bytes(seed_buffer),
-                kms_client=boto3.client("kms", region_name=arguments.region),
-                kms_key_id=arguments.kms_key_arn,
-                operational_key_id=arguments.operational_key_id,
-            )
-            write_new(
-                ciphertext_path,
-                base64.b64encode(ciphertext) + b"\n",
-                0o600,
-            )
-            public_document = {
-                "schema_version": "0.1.0",
-                "key_id": arguments.operational_key_id,
-                "algorithm": "Ed25519",
-                "public_key_hex": public_key_from_seed(bytes(seed_buffer)).hex(),
-                "created_at": rfc3339(datetime.now(UTC)),
-                "seed_protection": {
-                    "method": "aws-kms-symmetric-encryption",
-                    "kms_key_arn": arguments.kms_key_arn,
-                    "encryption_context": server_seed_encryption_context(
-                        arguments.operational_key_id
-                    ),
-                },
-            }
-            write_new(
-                public_path,
-                canonical_bytes(public_document) + b"\n",
-                0o644,
-            )
-        finally:
-            seed_buffer[:] = b"\0" * len(seed_buffer)
-        return
-    if arguments.command == "encrypt-operational":
-        seed_buffer = bytearray.fromhex(arguments.seed_file.read_text().strip())
-        try:
-            ciphertext = encrypt_operational_seed(
-                seed=bytes(seed_buffer),
-                kms_client=boto3.client("kms", region_name=arguments.region),
-                kms_key_id=arguments.kms_key_arn,
-                operational_key_id=arguments.operational_key_id,
-            )
-            write_new(
-                arguments.output,
-                base64.b64encode(ciphertext) + b"\n",
-                0o600,
             )
         finally:
             seed_buffer[:] = b"\0" * len(seed_buffer)

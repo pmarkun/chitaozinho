@@ -17,7 +17,6 @@ from urllib.request import (
     build_opener,
 )
 
-import boto3
 from chitaozinho_protocol import (
     DOMAINS,
     hash_canonical,
@@ -47,14 +46,12 @@ class ServerSigner:
         cls,
         settings: Settings,
         *,
-        kms_client: Any | None = None,
         transit_client: Any | None = None,
         now: datetime | None = None,
     ) -> ServerSigner | None:
         if (
             settings.server_seed_hex is None
             and settings.server_seed_path is None
-            and settings.server_seed_kms_ciphertext_b64 is None
             and settings.openbao_addr is None
         ):
             return None
@@ -82,32 +79,7 @@ class ServerSigner:
         elif settings.server_seed_path is not None:
             seed = load_private_seed(settings.server_seed_path)
         else:
-            if settings.server_seed_kms_key_id is None:
-                raise ValueError("KMS key id is required for encrypted server seed")
-            try:
-                ciphertext = base64.b64decode(
-                    settings.server_seed_kms_ciphertext_b64,
-                    validate=True,
-                )
-            except (ValueError, TypeError) as error:
-                raise ValueError("invalid KMS server seed ciphertext encoding") from error
-            client = kms_client or boto3.client(
-                "kms",
-                region_name=settings.server_seed_kms_region,
-                aws_access_key_id=settings.s3_access_key_id,
-                aws_secret_access_key=settings.s3_secret_access_key,
-            )
-            response = client.decrypt(
-                CiphertextBlob=ciphertext,
-                KeyId=settings.server_seed_kms_key_id,
-                EncryptionAlgorithm="SYMMETRIC_DEFAULT",
-                EncryptionContext=server_seed_encryption_context(settings.server_key_id),
-            )
-            if response.get("KeyId") != settings.server_seed_kms_key_id:
-                raise ValueError("KMS decrypted server seed with an unexpected key")
-            seed = response.get("Plaintext")
-            if not isinstance(seed, bytes):
-                raise ValueError("KMS did not return server seed plaintext")
+            raise ValueError("server signer configuration is incomplete")
         if seed is not None:
             if len(seed) != 32:
                 raise ValueError("server signing seed must contain exactly 32 bytes")
@@ -326,14 +298,6 @@ def decode_openbao_signature(document: dict[str, Any], key_version: int) -> byte
     if len(signature) != 64:
         raise RuntimeError("OpenBao returned an invalid Ed25519 signature")
     return signature
-
-
-def server_seed_encryption_context(server_key_id: str) -> dict[str, str]:
-    return {
-        "application": "chitaozinho",
-        "purpose": "server-signing-seed",
-        "server_key_id": server_key_id,
-    }
 
 
 def load_json_document(
