@@ -1,6 +1,6 @@
 # ACEITE.md
 
-Checklist de implementação e aceite da [SPEC.md](SPEC.md), Draft v0.2.
+Checklist de implementação e aceite da [SPEC.md](SPEC.md), Draft v0.3.
 
 Marque um item somente quando houver evidência verificável: teste automatizado, vetor de teste, relatório, artefato gerado ou validação manual registrada.
 
@@ -152,6 +152,25 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Relatório nunca afirma autoria, veracidade ou validade jurídica definitiva.
 - [x] Interface preparada para pt-BR e inglês.
 - [ ] Fluxo principal atende WCAG 2.2 AA.
+
+### Validador web, metodologia e administração
+
+- [ ] Mesmo build do validador funciona pelo link público e offline.
+- [ ] ZIP principal, checksum e complemento são processados somente no
+  navegador, sem upload ou telemetria dos arquivos.
+- [ ] Resultado detalha integridade, completude, confiança e prova temporal.
+- [ ] Relatórios HTML e JSON podem ser exportados.
+- [ ] Pacotes hostis respeitam limites e falham de forma localizada no navegador.
+- [ ] Metodologia pública explica captura, hashes, assinaturas, recibos, fontes
+  de tempo, retenção e limitações.
+- [ ] `README.txt`, metodologia e guia de verificação acompanham o pacote.
+- [ ] Índice assinado cobre todos os documentos metodológicos.
+- [ ] Administrador autenticado lista sessões e estados de forma paginada.
+- [ ] Administrador pode baixar pacote, checksum e complemento.
+- [ ] Imagens, vídeos, metadados e DOM possuem visualização segura.
+- [ ] Visualizações e downloads administrativos geram eventos de auditoria.
+- [ ] Usuários comuns não acessam rotas administrativas.
+- [ ] API e interface administrativas não oferecem edição ou exclusão.
 
 ### Gate da POC funcional
 
@@ -317,6 +336,9 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] RF-023 — manter estados independentes.
 - [x] RF-024 — gerar attestations append-only.
 - [x] RF-025 — limitar recursos e rejeitar pacotes inseguros.
+- [ ] RF-026 — validar no mesmo build web online/offline sem upload.
+- [ ] RF-027 — administrar evidências de forma autenticada e somente leitura.
+- [ ] RF-028 — publicar e incorporar metodologia versionada ao pacote.
 
 ### Requisitos não funcionais
 

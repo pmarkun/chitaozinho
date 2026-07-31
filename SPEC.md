@@ -1,6 +1,6 @@
 # SPEC.md — Plataforma de Captura e Preservação de Evidências Digitais
 
-**Status:** Draft v0.2
+**Status:** Draft v0.3
 **Data:** 30/07/2026
 **Nome provisório:** Chitãozinho
 **Escopo inicial:** Captura de conteúdos exibidos em navegador, preservação de integridade, registro temporal e geração de pacote probatório verificável.
@@ -92,6 +92,11 @@ A primeira entrega deve validar o fluxo completo sem depender de infraestrutura 
 - Manifesto de captura JSON assinado.
 - Geração de pacote ZIP probatório.
 - CLI local de verificação.
+- Validador web acessível por URL pública e utilizável offline, sem upload dos
+  pacotes.
+- Painel administrativo autenticado e somente leitura para consultar e baixar
+  evidências preservadas.
+- Metodologia versionada publicada na web e incluída em cada pacote.
 - Relatório HTML de verificação.
 - PostgreSQL e Garage, via protocolo S3 compatível, para desenvolvimento local.
 
@@ -253,11 +258,19 @@ Todo relatório deve incluir:
 └───────────────┘  └────────────────────┘
 
 ┌──────────────────────┐
-│ Verificador local    │
+│ Verificador          │
 │                      │
 │ - CLI                │
-│ - Web offline        │
+│ - Web online/offline │
 │ - relatório          │
+└──────────────────────┘
+
+┌──────────────────────┐
+│ Admin somente leitura│
+│                      │
+│ - sessões e estados  │
+│ - visualização segura│
+│ - downloads auditados│
 └──────────────────────┘
 ```
 
@@ -362,8 +375,34 @@ Formatos:
 
 - CLI em Rust;
 - binários para Linux, Windows e macOS;
-- versão web offline usando WebAssembly;
+- versão web pelo link público e offline usando o mesmo build;
+- seleção local do pacote principal, checksum e complemento, sem transmitir
+  seus bytes ao servidor;
+- relatório HTML e JSON exportável;
 - código-fonte público.
+
+### 7.4 Interface administrativa
+
+Responsabilidades:
+
+- listar sessões de forma paginada e sem expor conteúdo na listagem;
+- mostrar estados independentes de captura, pacote, timestamp, blockchain e
+  retenção;
+- permitir download autenticado do pacote, checksum e complemento probatório;
+- visualizar imagens, vídeos e metadados de forma segura;
+- exibir HTML/DOM apenas como código ou em sandbox sem scripts;
+- registrar toda visualização e download na auditoria.
+
+Na POC, administradores são e-mails explicitamente permitidos na configuração.
+A API administrativa oferece somente leitura: não existem operações de edição,
+exclusão, alteração de retenção ou acesso direto às credenciais do storage.
+
+### 7.5 Metodologia
+
+A metodologia é pública, versionada e apresentada no validador. Cada pacote
+inclui uma cópia autocontida com explicação dos hashes, assinaturas, recibos,
+fontes de tempo, retenção e limitações. O índice assinado do pacote cobre esses
+documentos.
 
 ---
 
@@ -805,6 +844,9 @@ chitaozinho-evidence-<session_id>.zip
 ├── README.txt
 ├── package-index.json
 ├── capture-manifest.json
+├── methodology/
+│   ├── methodology-v0.1.md
+│   └── verification-guide.html
 ├── signatures/
 │   ├── capture-close.client.sig
 │   ├── capture-manifest.server.sig
@@ -969,6 +1011,16 @@ O verificador remoto é opcional e nunca substitui o verificador local.
 
 Retorna documentos append-only sem alterar o pacote original.
 
+### 17.11 Administração somente leitura
+
+- `GET /v1/admin/sessions`
+- `GET /v1/admin/sessions/{session_id}`
+- `GET /v1/admin/sessions/{session_id}/artifacts/{artifact_id}`
+- `GET /v1/admin/sessions/{session_id}/download-urls`
+
+Todos exigem identidade administrativa, são auditados e não aceitam operações
+de alteração ou exclusão.
+
 ---
 
 ## 18. Estados
@@ -1110,6 +1162,21 @@ Atualizações de provas externas devem gerar attestations ou complementos appen
 ### RF-025
 
 O verificador deve impor limites de recursos e rejeitar estruturas de pacote inseguras.
+
+### RF-026
+
+O mesmo build do validador web deve funcionar por URL pública e offline,
+processando os pacotes localmente sem transmitir seus bytes ao servidor.
+
+### RF-027
+
+Administradores autorizados devem poder listar, inspecionar com segurança e
+baixar evidências do servidor sem editar ou excluir registros ou objetos.
+
+### RF-028
+
+A metodologia versionada deve ser pública e incluída em cada pacote sob a
+proteção do índice assinado.
 
 ---
 
@@ -1261,6 +1328,25 @@ Mostrar:
 - relatório;
 - limitações.
 
+### 22.5 Validação web
+
+- seleção ou arraste do pacote principal;
+- checksum e complemento probatório opcionais;
+- indicação explícita de que os arquivos permanecem no dispositivo;
+- progresso e falhas localizados;
+- resultado geral e verificações detalhadas;
+- exportação de relatório HTML e JSON;
+- funcionamento pelo link público e sem rede após obtenção do mesmo build.
+
+### 22.6 Administração
+
+- listagem paginada de capturas;
+- filtros por sessão, data e estados, sem busca por conteúdo capturado;
+- detalhes, artefatos e eventos;
+- visualização segura e downloads;
+- ausência de controles de edição ou exclusão;
+- indicação e auditoria do acesso administrativo.
+
 ---
 
 ## 23. Relatório de verificação
@@ -1332,6 +1418,10 @@ A POC será considerada funcional quando:
 15. Identificar explicitamente artefatos indisponíveis ou incompletos.
 16. Produzir relatório HTML.
 17. Produzir os mesmos hashes e assinaturas dos vetores de teste em TypeScript, Python e Rust.
+18. Validar o pacote principal e o complemento no navegador, pelo link público
+    e offline, sem requisições contendo os arquivos.
+19. Consultar e baixar o pacote por um painel administrativo somente leitura.
+20. Incluir a metodologia versionada no pacote e validá-la pelo índice assinado.
 
 ### 24.2 POC probatória completa
 
@@ -1418,6 +1508,17 @@ Resultado esperado: falha explícita e localizada.
 - Captura parcial de iframe, canvas ou conteúdo protegido.
 - Divergência entre horário do cliente, servidor e TSA.
 
+### 25.9 Interface web e administração
+
+- pacote válido, alterado, incompleto e hostil no validador web;
+- pacote principal com e sem checksum e complemento;
+- validação online e offline com o mesmo build;
+- ausência de upload ou telemetria contendo os arquivos selecionados;
+- usuário comum impedido de acessar rotas administrativas;
+- listagem paginada, download auditado e previews seguros;
+- ausência de métodos administrativos de edição e exclusão;
+- metodologia ausente ou alterada detectada pelo índice assinado.
+
 ---
 
 ## 26. Stack sugerida para a POC
@@ -1471,7 +1572,8 @@ Resultado esperado: falha explícita e localizada.
 - Rust.
 - Clap para CLI.
 - Serde.
-- WebAssembly em fase posterior.
+- WebAssembly para o validador web online/offline.
+- React e Vite para as interfaces web.
 
 ### Infraestrutura
 
@@ -1501,7 +1603,8 @@ Resultado esperado: falha explícita e localizada.
 │   ├── extension/
 │   ├── api/
 │   ├── verifier-cli/
-│   └── verifier-web/
+│   ├── verifier-web/
+│   └── admin-web/
 ├── packages/
 │   ├── schemas/
 │   ├── crypto/
@@ -1549,6 +1652,9 @@ Resultado esperado: falha explícita e localizada.
 - Recibos.
 - Retomada e idempotência.
 - Pacote funcional e relatório HTML.
+- Metodologia incorporada ao pacote.
+- Validador web online/offline.
+- Painel administrativo somente leitura.
 
 ### Fase 2 — Prova temporal e preservação
 
