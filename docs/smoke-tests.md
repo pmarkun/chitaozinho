@@ -148,6 +148,11 @@ This run proves the short functional flow. It does not satisfy the separate
   authentication and exact Chromium extension IDs.
 - OSV and Trivy passed after the migration with no unresolved dependency,
   secret or infrastructure finding.
+- The Object Lock acceptance harness is exercised end to end with a
+  deterministic Ceph-compatible client: it verifies versioning and one-day
+  `COMPLIANCE`, protects every required evidence class, and requires refusal of
+  overwrite, early version deletion and retention reduction. This is automated
+  coverage only; the live Ceph acceptance items remain open.
 - Final evidence receives the full configured retention from the later of
   capture completion or protection time.
 - Timestamp failures persist only the exception type, emit structured worker

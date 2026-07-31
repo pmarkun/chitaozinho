@@ -256,7 +256,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Nome duplicado e arquivo obrigatório ausente.
 - [x] ZIP bomb e JSON excessivamente profundo.
 - [x] Schema ou algoritmo desconhecido.
-- [ ] Sobrescrita, exclusão antecipada e versionamento do storage.
+- [x] Sobrescrita, exclusão antecipada e versionamento do storage.
 
 ### Captura e completude
 
