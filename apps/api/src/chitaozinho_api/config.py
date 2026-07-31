@@ -79,6 +79,7 @@ class Settings(BaseSettings):
     smtp_starttls: bool = True
     extension_ids: str = ""
     cors_origin_regex: str = r"^chrome-extension://[a-p]{32}$"
+    metrics_token: str | None = Field(default=None, min_length=32, repr=False)
     max_part_size: int = 8 * 1024 * 1024
     max_artifact_parts: int = 10_000
     max_artifact_size: int = 2 * 1024 * 1024 * 1024
@@ -180,6 +181,10 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "at least one exact Chromium extension ID is required "
                     "outside local development"
+                )
+            if self.metrics_token is None:
+                raise ValueError(
+                    "metrics bearer token is required outside local development"
                 )
         elif self.auth_mode not in {"development", "magic_link"}:
             raise ValueError("unsupported authentication mode")

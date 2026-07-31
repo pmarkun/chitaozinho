@@ -5,9 +5,11 @@ tráfego. Os procedimentos de diagnóstico, recuperação e rollback estão em
 [`docs/runbooks.md`](../../docs/runbooks.md).
 
 `/metrics` expõe contadores e duração agregada de requisições no formato
-Prometheus. Os logs HTTP são JSON e incluem somente `request_id`, método, rota
-parametrizada, status e duração; o access log padrão do Uvicorn fica desativado
-para não registrar URLs ou queries sensíveis.
+Prometheus. Em staging e produção ele exige
+`Authorization: Bearer $CHITAOZINHO_METRICS_TOKEN`; o token possui pelo menos
+32 caracteres e fica no secret store. Os logs HTTP são JSON e incluem somente
+`request_id`, método, rota parametrizada, status e duração; o access log padrão
+do Uvicorn fica desativado para não registrar URLs ou queries sensíveis.
 
 O worker emite JSON para início, conclusão e falha de jobs usando apenas
 `job_id`, `subject_id`, tipo, estado, tentativas e tipo da exceção. A mensagem

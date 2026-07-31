@@ -3,12 +3,20 @@ import logging
 import re
 from pathlib import Path
 
+import chitaozinho_api.main as main_module
 import pytest
 from chitaozinho_api.config import Settings
-from chitaozinho_api.main import allowed_extension_origin_pattern, app, create_app
+from chitaozinho_api.main import (
+    allowed_extension_origin_pattern,
+    app,
+    create_app,
+    metrics_access_allowed,
+)
+from chitaozinho_api.security import ServerSigner
 from chitaozinho_api.storage import LocalDurableStorage
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
+from sqlalchemy import create_engine
 
 
 def test_healthz() -> None:
@@ -94,6 +102,56 @@ def test_extension_cors_preflight() -> None:
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"].startswith("chrome-extension://")
     assert response.headers["access-control-allow-credentials"] == "true"
+
+
+def test_public_metrics_require_dedicated_bearer_token(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    signer = ServerSigner.from_settings(
+        Settings(
+            server_key_id="server-metrics",
+            server_seed_hex="11" * 32,
+        )
+    )
+    assert signer is not None
+    monkeypatch.setattr(
+        main_module.ServerSigner,
+        "from_settings",
+        lambda _settings: signer,
+    )
+    settings = Settings.model_construct(
+        env="staging",
+        auth_mode="magic_link",
+        public_base_url="https://api.example.test",
+        metrics_token="m" * 32,
+        extension_ids="abcdefghijklmnopabcdefghijklmnop",
+    )
+    client = TestClient(
+        create_app(
+            settings,
+            engine=create_engine(f"sqlite:///{tmp_path / 'metrics.db'}"),
+            storage=LocalDurableStorage(tmp_path / "artifacts"),
+            magic_link_sender=lambda _email, _url: None,
+            create_tables=True,
+        )
+    )
+
+    missing = client.get("/metrics")
+    wrong = client.get(
+        "/metrics",
+        headers={"Authorization": "Bearer " + ("x" * 32)},
+    )
+    accepted = client.get(
+        "/metrics",
+        headers={"Authorization": "Bearer " + ("m" * 32)},
+    )
+
+    assert missing.status_code == 401
+    assert missing.headers["WWW-Authenticate"] == "Bearer"
+    assert wrong.status_code == 401
+    assert accepted.status_code == 200
+    assert "chitaozinho_http_requests_total" in accepted.text
 
 
 def test_non_local_environment_fails_closed_without_tls_and_external_storage() -> None:
@@ -186,9 +244,15 @@ def test_non_local_environment_fails_closed_without_tls_and_external_storage() -
         Settings(**public_auth)
     with pytest.raises(ValidationError, match="invalid Chromium extension ID"):
         Settings(**public_auth, extension_ids="not-an-extension")
-    production_settings = Settings(
+    exact_extension_auth = {
         **public_auth,
-        extension_ids="abcdefghijklmnopabcdefghijklmnop",
+        "extension_ids": "abcdefghijklmnopabcdefghijklmnop",
+    }
+    with pytest.raises(ValidationError, match="metrics bearer token"):
+        Settings(**exact_extension_auth)
+    production_settings = Settings(
+        **exact_extension_auth,
+        metrics_token="m" * 32,
     )
     origin_pattern = re.compile(
         allowed_extension_origin_pattern(production_settings)
@@ -199,6 +263,15 @@ def test_non_local_environment_fails_closed_without_tls_and_external_storage() -
     assert origin_pattern.fullmatch(
         "chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba"
     ) is None
+    assert metrics_access_allowed(production_settings, None) is False
+    assert metrics_access_allowed(
+        production_settings,
+        "Bearer " + ("x" * 32),
+    ) is False
+    assert metrics_access_allowed(
+        production_settings,
+        "Bearer " + ("m" * 32),
+    )
     with pytest.raises(ValidationError, match="only one server certificate"):
         Settings(
             server_certificate_path=Path("server-certificate.json"),
@@ -213,6 +286,7 @@ def test_settings_repr_redacts_credentials_and_key_material() -> None:
         server_seed_hex="11" * 32,
         auth_token_pepper="pepper-secret-value-that-is-long",
         smtp_password="smtp-secret",
+        metrics_token="metrics-secret-value-that-is-long",
     )
 
     rendered = repr(settings)
@@ -221,6 +295,7 @@ def test_settings_repr_redacts_credentials_and_key_material() -> None:
     assert ("11" * 32) not in rendered
     assert "pepper-secret" not in rendered
     assert "smtp-secret" not in rendered
+    assert "metrics-secret" not in rendered
 
 
 def test_empty_optional_environment_value_is_not_treated_as_configuration(

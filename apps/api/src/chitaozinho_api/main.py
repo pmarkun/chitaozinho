@@ -292,7 +292,15 @@ def create_app(
         return {"status": "ok"}
 
     @app.get("/metrics")
-    def metrics() -> Response:
+    def metrics(
+        authorization: str | None = Header(default=None),
+    ) -> Response:
+        if not metrics_access_allowed(settings, authorization):
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED,
+                "valid metrics bearer token required",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         return Response(
             request_metrics.render(),
             media_type=METRICS_CONTENT_TYPE,
@@ -1494,6 +1502,19 @@ def allowed_extension_origin_pattern(settings: Settings) -> str:
         return settings.cors_origin_regex
     alternatives = "|".join(re.escape(value) for value in extension_ids)
     return rf"^chrome-extension://(?:{alternatives})$"
+
+
+def metrics_access_allowed(
+    settings: Settings,
+    authorization: str | None,
+) -> bool:
+    if settings.env in {"development", "test"}:
+        return True
+    expected = f"Bearer {settings.metrics_token}"
+    return (
+        authorization is not None
+        and secrets.compare_digest(authorization, expected)
+    )
 
 
 def record_incident(
