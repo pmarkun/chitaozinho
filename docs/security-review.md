@@ -24,3 +24,40 @@ This automated gate complements the threat model, negative protocol vectors,
 authentication/owner-isolation tests and hostile-package tests. It does not
 replace an independent human review of the deployed staging environment,
 provider IAM, TLS, KMS/HSM and Object Lock configuration.
+
+## 2026-07-30 POC code review
+
+Scope reviewed:
+
+- magic-link and access-token lifecycle, cookie flags, CORS, CSRF origin checks,
+  owner isolation and bounded download tokens;
+- client/server signatures, root-signed operational keys, revocation handling,
+  audit-chain immutability and deterministic protocol serialization;
+- upload idempotency, local and S3 storage boundaries, final-object retention
+  verification and package generation;
+- hostile ZIP handling, resource limits, external command invocation, structured
+  logging and secret redaction;
+- public-environment, Railway, Terraform, monitoring, backup and recovery gates.
+
+Two defense-in-depth findings were fixed during the review:
+
+- local storage reads now reject absolute paths, parent traversal and symlink
+  escapes, including when a persisted storage key is tampered with
+  (`e99eb11`);
+- local and S3 part reads now enforce the configured part-size ceiling and
+  reject inconsistent S3 length metadata before packaging (`7aeeea9`).
+
+The deployment probe now proves both halves of the modern-TLS requirement:
+TLS 1.2 or 1.3 must negotiate, while TLS 1.0 and 1.1 must fail (`8b6d9bd`).
+
+The POC controls cover post-capture alteration, substitution, reordering,
+removal, interruption, false completeness and untrusted verifier builds.
+Object deletion and administrator/backend compromise remain only partially
+mitigated until the isolated AWS Object Lock test passes. Browser, operating
+system, account and pre-capture compromise remain explicitly outside the
+platform's proof boundary, as required by the threat model.
+
+The code-level review is complete with no known unresolved high or critical
+finding. The production security-review gate remains open until staging exists
+and an independent reviewer checks provider IAM, live TLS, KMS/HSM, Object Lock,
+monitoring and the deployed image identity.

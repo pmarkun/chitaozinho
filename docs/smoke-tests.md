@@ -136,8 +136,8 @@ This run proves the short functional flow. It does not satisfy the separate
 
 ## 2026-07-30 — Backend and infrastructure safety gates
 
-- The full repository gate passed with 66 Python tests, three opt-in service
-  tests skipped in the unit pass, 15 extension tests, four TypeScript protocol
+- The full repository gate passed with 74 Python tests, three opt-in service
+  tests skipped in the unit pass, 19 extension tests, four TypeScript protocol
   tests and 21 Rust tests.
 - Six mocked OpenTofu plans prove that the isolated test uses one-day
   `COMPLIANCE` retention, staging and production require at least 90 days,
