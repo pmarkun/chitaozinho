@@ -1,6 +1,5 @@
 import type { ExtensionMessage } from "./types";
 import { encodeMessageBytes } from "./message-bytes";
-import { preferredRecordingMimeType, VIDEO_BITS_PER_SECOND } from "./recording";
 
 let recorder: MediaRecorder | undefined;
 let stream: MediaStream | undefined;
@@ -58,8 +57,8 @@ async function startRecording(
     } as MediaTrackConstraints,
   });
   recorder = new MediaRecorder(stream, {
-    mimeType: preferredRecordingMimeType(MediaRecorder.isTypeSupported),
-    videoBitsPerSecond: VIDEO_BITS_PER_SECOND,
+    mimeType: preferredMimeType(),
+    videoBitsPerSecond: 2_500_000,
   });
   recorder.addEventListener("dataavailable", (event) => {
     if (event.data.size > 0 && sessionId) {
@@ -114,4 +113,17 @@ async function stopRecording(): Promise<void> {
   if (chunkError) {
     throw chunkError;
   }
+}
+
+function preferredMimeType(): string {
+  for (const candidate of [
+    "video/webm;codecs=vp9,opus",
+    "video/webm;codecs=vp8,opus",
+    "video/webm",
+  ]) {
+    if (MediaRecorder.isTypeSupported(candidate)) {
+      return candidate;
+    }
+  }
+  return "";
 }
