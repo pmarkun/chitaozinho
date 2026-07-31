@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from botocore.exceptions import ClientError
@@ -185,6 +186,31 @@ def test_s3_parts_request_configured_kms_key() -> None:
 
     assert client.put_arguments["ServerSideEncryption"] == "aws:kms"
     assert client.put_arguments["SSEKMSKeyId"] == kms_key_id
+
+
+def test_s3_client_uses_configured_private_ca(tmp_path: Path) -> None:
+    ca_bundle = tmp_path / "ceph-rgw-ca.pem"
+    ca_bundle.write_text("synthetic CA")
+    settings = Settings(
+        storage_backend="s3",
+        storage_provider="ceph",
+        s3_endpoint_url="https://rgw.example.test",
+        s3_access_key_id="access",
+        s3_secret_access_key="secret",
+        s3_ca_bundle=ca_bundle,
+    )
+
+    with patch("chitaozinho_api.storage.boto3.client") as client:
+        S3DurableStorage(settings)
+
+    client.assert_called_once_with(
+        "s3",
+        endpoint_url="https://rgw.example.test",
+        region_name="ceph",
+        aws_access_key_id="access",
+        aws_secret_access_key="secret",
+        verify=str(ca_bundle),
+    )
 
 
 def test_retention_deadline_never_loses_time_before_delayed_storage() -> None:

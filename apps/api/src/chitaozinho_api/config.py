@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     s3_access_key_id: str | None = Field(default=None, repr=False)
     s3_secret_access_key: str | None = Field(default=None, repr=False)
     s3_kms_key_id: str | None = None
+    s3_ca_bundle: Path | None = None
     server_key_id: str = "server-unconfigured"
     server_seed_hex: str | None = Field(
         default=None,

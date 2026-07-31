@@ -105,6 +105,7 @@ def main() -> int:
     endpoint = validate_ceph_endpoint(require_environment("CHITAOZINHO_S3_ENDPOINT_URL"))
     access_key = require_environment("CHITAOZINHO_S3_ACCESS_KEY_ID")
     secret_key = require_environment("CHITAOZINHO_S3_SECRET_ACCESS_KEY")
+    ca_bundle = os.environ.get("CHITAOZINHO_S3_CA_BUNDLE")
     if os.environ.get("CHITAOZINHO_STORAGE_PROVIDER") != "ceph":
         raise RuntimeError("the acceptance storage provider must be ceph")
     if region != "ceph":
@@ -116,6 +117,7 @@ def main() -> int:
         region_name=region,
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
+        verify=ca_bundle or True,
     )
     versioning = client.get_bucket_versioning(Bucket=bucket)
     if versioning.get("Status") != "Enabled":
