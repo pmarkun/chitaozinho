@@ -20,14 +20,20 @@ Python e Rust.
 Para iniciar PostgreSQL 17 e Garage 1.3 localmente:
 
 ```sh
-nix develop --command ./scripts/local-services start
+nix develop
+./scripts/local-services start
 set -a
 source .env.local-services
 set +a
 ```
 
 As credenciais geradas ficam no arquivo ignorado `.env.local-services`. Encerre
-os serviços com `nix develop --command ./scripts/local-services stop`.
+os serviços com `./scripts/local-services stop`, ainda dentro do ambiente Nix.
+Para validar as integrações sem reutilizar ou alterar o banco de desenvolvimento:
+
+```sh
+./scripts/test-service-integration
+```
 
 Operação e recuperação estão documentadas em
 [`docs/runbooks.md`](docs/runbooks.md).

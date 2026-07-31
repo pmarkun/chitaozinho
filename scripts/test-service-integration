@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+environment_file="${project_root}/.env.local-services"
+
+if [[ ! -f "${environment_file}" ]]; then
+  echo "local service environment is missing; run scripts/local-services start" >&2
+  exit 1
+fi
+
+set -a
+# shellcheck disable=SC1090
+source "${environment_file}"
+set +a
+
+export PGHOST="${PGHOST:-127.0.0.1}"
+export PGPORT="${PGPORT:-55432}"
+export PGUSER="${PGUSER:-chitaozinho}"
+integration_database="chitaozinho_integration_${$}"
+database_created=0
+
+cleanup() {
+  if [[ "${database_created}" == "1" ]]; then
+    dropdb --if-exists "${integration_database}" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
+
+createdb "${integration_database}"
+database_created=1
+export CHITAOZINHO_DATABASE_URL="postgresql+psycopg://${PGUSER}@127.0.0.1:${PGPORT}/${integration_database}"
+
+uv run --project "${project_root}/apps/api" alembic upgrade head >/dev/null
+CHITAOZINHO_RUN_SERVICE_INTEGRATION=1 \
+  uv run --project "${project_root}" pytest \
+  "${project_root}/apps/api/tests/test_services_integration.py" -q
+
+printf 'Service integration passed with isolated database %s\n' \
+  "${integration_database}"

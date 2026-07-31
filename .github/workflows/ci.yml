@@ -48,12 +48,7 @@ jobs:
             set -euo pipefail
             trap "./scripts/local-services stop" EXIT
             ./scripts/local-services start
-            set -a
-            source .env.local-services
-            set +a
-            uv run alembic upgrade head
-            CHITAOZINHO_RUN_SERVICE_INTEGRATION=1 \
-              uv run pytest apps/api/tests/test_services_integration.py -q
+            ./scripts/test-service-integration
             CHITAOZINHO_BACKUP_SYNTHETIC=1 \
               ./scripts/test-postgres-backup-restore
           '

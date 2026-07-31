@@ -98,6 +98,15 @@ This run proves the short functional flow. It does not satisfy the separate
 - Both temporary databases were removed after validation; the development
   database was not modified.
 
+## 2026-07-30 — Isolated PostgreSQL and Garage integration
+
+- `scripts/test-service-integration` created a uniquely named PostgreSQL
+  database, applied every migration through `0005_magic_link_auth`, ran the
+  three opt-in service tests and removed only that database on exit.
+- The tests exercised real PostgreSQL serialization for the audit chain, jobs
+  and attestations, plus immutable/idempotent part writes against Garage S3.
+- The existing development database was not migrated, reused or modified.
+
 ## 2026-07-30 — Backend and infrastructure safety gates
 
 - The full repository gate passed with 66 Python tests, three opt-in service
