@@ -1,11 +1,13 @@
 import json
 import logging
 import re
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import chitaozinho_api.main as main_module
 import pytest
 from chitaozinho_api.config import Settings
+from chitaozinho_api.jobs import get_or_create_job
 from chitaozinho_api.main import (
     allowed_extension_origin_pattern,
     app,
@@ -48,6 +50,41 @@ def test_metrics_and_logs_use_route_templates_without_sensitive_data(
     assert "private-session" not in metrics.text
     assert "top-secret" not in metrics.text
     assert "user@example.test" not in metrics.text
+    assert 'chitaozinho_jobs{status="pending"} 0' in metrics.text
+    assert "chitaozinho_jobs_ready 0" in metrics.text
+    assert "chitaozinho_jobs_stale_running 0" in metrics.text
+
+    now = datetime.now(UTC)
+    with client.app.state.session_factory() as database:
+        failed_job, _created = get_or_create_job(
+            database,
+            kind="synthetic_monitoring",
+            idempotency_key="metrics-failed",
+            subject_id=None,
+            payload={},
+        )
+        failed_job.status = "failed"
+        failed_job.available_at = now - timedelta(seconds=1)
+        failed_job.updated_at = now
+        running_job, _created = get_or_create_job(
+            database,
+            kind="synthetic_monitoring",
+            idempotency_key="metrics-running",
+            subject_id=None,
+            payload={},
+        )
+        running_job.status = "running"
+        running_job.available_at = now
+        running_job.updated_at = now - timedelta(
+            seconds=settings.worker_stale_seconds + 1
+        )
+        database.commit()
+
+    job_metrics = client.get("/metrics")
+    assert 'chitaozinho_jobs{status="failed"} 1' in job_metrics.text
+    assert 'chitaozinho_jobs{status="running"} 1' in job_metrics.text
+    assert "chitaozinho_jobs_ready 1" in job_metrics.text
+    assert "chitaozinho_jobs_stale_running 1" in job_metrics.text
 
     records = [
         json.loads(record.message)

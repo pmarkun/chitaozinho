@@ -5,11 +5,17 @@ import logging
 import threading
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from .models import Job
 
 LOGGER = logging.getLogger("chitaozinho.request")
 WORKER_LOGGER = logging.getLogger("chitaozinho.worker")
 METRICS_CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
+JOB_STATUSES = ("pending", "running", "failed", "completed")
 
 
 def configure_operational_logging() -> None:
@@ -124,6 +130,55 @@ class RequestMetrics:
                     f"{{{labels}}} {duration:.9f}"
                 )
         return "\n".join(lines) + "\n"
+
+
+def render_job_metrics(
+    database: Session,
+    *,
+    worker_stale_seconds: int,
+    now: datetime | None = None,
+) -> str:
+    now = now or datetime.now(UTC)
+    counts = dict(
+        database.execute(
+            select(Job.status, func.count(Job.id))
+            .where(Job.status.in_(JOB_STATUSES))
+            .group_by(Job.status)
+        ).all()
+    )
+    ready = (
+        database.scalar(
+            select(func.count(Job.id)).where(
+                Job.status.in_(["pending", "failed"]),
+                Job.available_at <= now,
+            )
+        )
+        or 0
+    )
+    stale_running = (
+        database.scalar(
+            select(func.count(Job.id)).where(
+                Job.status == "running",
+                Job.updated_at < now - timedelta(seconds=worker_stale_seconds),
+            )
+        )
+        or 0
+    )
+    lines = [
+        "# HELP chitaozinho_jobs Current durable jobs by state.",
+        "# TYPE chitaozinho_jobs gauge",
+        *[
+            f'chitaozinho_jobs{{status="{status}"}} {counts.get(status, 0)}'
+            for status in JOB_STATUSES
+        ],
+        "# HELP chitaozinho_jobs_ready Jobs eligible for immediate processing.",
+        "# TYPE chitaozinho_jobs_ready gauge",
+        f"chitaozinho_jobs_ready {ready}",
+        "# HELP chitaozinho_jobs_stale_running Running jobs past the recovery threshold.",
+        "# TYPE chitaozinho_jobs_stale_running gauge",
+        f"chitaozinho_jobs_stale_running {stale_running}",
+    ]
+    return "\n".join(lines) + "\n"
 
 
 def _escape(value: str) -> str:

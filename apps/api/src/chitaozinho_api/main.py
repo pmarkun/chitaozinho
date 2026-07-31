@@ -67,6 +67,7 @@ from .observability import (
     RequestMetrics,
     configure_operational_logging,
     emit_request_log,
+    render_job_metrics,
 )
 from .packaging import ensure_package
 from .proof_bundle import ensure_proof_bundle
@@ -294,6 +295,7 @@ def create_app(
     @app.get("/metrics")
     def metrics(
         authorization: str | None = Header(default=None),
+        database: Session = Depends(get_session),
     ) -> Response:
         if not metrics_access_allowed(settings, authorization):
             raise HTTPException(
@@ -302,7 +304,11 @@ def create_app(
                 headers={"WWW-Authenticate": "Bearer"},
             )
         return Response(
-            request_metrics.render(),
+            request_metrics.render()
+            + render_job_metrics(
+                database,
+                worker_stale_seconds=settings.worker_stale_seconds,
+            ),
             media_type=METRICS_CONTENT_TYPE,
         )
 
