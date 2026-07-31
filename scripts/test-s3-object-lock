@@ -11,6 +11,7 @@ from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import boto3
 from botocore.exceptions import ClientError
@@ -35,10 +36,57 @@ def client_error_code(error: ClientError) -> str:
     return str(error.response.get("Error", {}).get("Code", ""))
 
 
+def validate_ceph_endpoint(value: str) -> str:
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname is None
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError("Ceph RGW endpoint must be an HTTPS origin")
+    return value.rstrip("/")
+
+
+def encode_report(report: dict[str, Any]) -> bytes:
+    return json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True).encode() + b"\n"
+
+
+def create_report(path: Path, report: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "wb") as output:
+        output.write(encode_report(report))
+        output.flush()
+        os.fsync(output.fileno())
+
+
+def replace_report(path: Path, report: dict[str, Any]) -> bytes:
+    encoded = encode_report(report)
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        descriptor = os.open(
+            temporary,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+        )
+        with os.fdopen(descriptor, "wb") as output:
+            output.write(encoded)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return encoded
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Create retained synthetic evidence in an isolated AWS S3 Object Lock "
+            "Create retained synthetic evidence in an isolated Ceph RGW Object Lock "
             "test bucket and verify overwrite/delete refusal."
         )
     )
@@ -54,10 +102,21 @@ def main() -> int:
     bucket = require_environment("CHITAOZINHO_S3_BUCKET")
     region = require_environment("CHITAOZINHO_S3_REGION")
     kms_key_id = require_environment("CHITAOZINHO_S3_KMS_KEY_ID")
-    if region != "sa-east-1":
-        raise RuntimeError("the acceptance bucket must be in sa-east-1")
+    endpoint = validate_ceph_endpoint(require_environment("CHITAOZINHO_S3_ENDPOINT_URL"))
+    access_key = require_environment("CHITAOZINHO_S3_ACCESS_KEY_ID")
+    secret_key = require_environment("CHITAOZINHO_S3_SECRET_ACCESS_KEY")
+    if os.environ.get("CHITAOZINHO_STORAGE_PROVIDER") != "ceph":
+        raise RuntimeError("the acceptance storage provider must be ceph")
+    if region != "ceph":
+        raise RuntimeError("the acceptance bucket must use the Ceph RGW region")
 
-    client = boto3.client("s3", region_name=region)
+    client = boto3.client(
+        "s3",
+        endpoint_url=endpoint,
+        region_name=region,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+    )
     versioning = client.get_bucket_versioning(Bucket=bucket)
     if versioning.get("Status") != "Enabled":
         raise RuntimeError("bucket versioning is not enabled")
@@ -74,6 +133,27 @@ def main() -> int:
     prefix = f"acceptance/{run_id}"
     retain_until = datetime.now(UTC) + timedelta(days=1, minutes=5)
     objects: list[dict[str, Any]] = []
+    started_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    base_report: dict[str, Any] = {
+        "schema_version": "0.1.0",
+        "status": "started",
+        "started_at": started_at,
+        "bucket": bucket,
+        "endpoint": endpoint,
+        "region": region,
+        "prefix": prefix,
+        "sse_kms_key_id": kms_key_id,
+        "synthetic_only": True,
+        "planned_objects": sorted(ARTIFACTS),
+        "objects": objects,
+        "cleanup": (
+            "Any uploaded object intentionally remains locked until retain_until; "
+            "remove it only after retention expires."
+        ),
+    }
+    create_report(arguments.output, base_report)
+    print(f"report={arguments.output}", flush=True)
+    print(f"run_prefix={prefix}", flush=True)
 
     for name, content in ARTIFACTS.items():
         key = f"{prefix}/{name}"
@@ -116,6 +196,14 @@ def main() -> int:
                 .replace("+00:00", "Z"),
             }
         )
+        replace_report(
+            arguments.output,
+            {
+                **base_report,
+                "status": "retaining",
+                "objects": objects,
+            },
+        )
 
     protected = objects[0]
     overwrite_refused = False
@@ -148,6 +236,26 @@ def main() -> int:
     if not delete_refused:
         raise RuntimeError("early deletion of the retained version was not refused")
 
+    retention_reduction_refused = False
+    try:
+        client.put_object_retention(
+            Bucket=bucket,
+            Key=protected["key"],
+            VersionId=protected["version_id"],
+            Retention={
+                "Mode": "COMPLIANCE",
+                "RetainUntilDate": datetime.now(UTC) + timedelta(minutes=5),
+            },
+        )
+    except ClientError as error:
+        retention_reduction_refused = client_error_code(error) in {
+            "AccessDenied",
+            "InvalidRequest",
+            "403",
+        }
+    if not retention_reduction_refused:
+        raise RuntimeError("reduction of COMPLIANCE retention was not refused")
+
     preserved = client.head_object(
         Bucket=bucket,
         Key=protected["key"],
@@ -157,29 +265,20 @@ def main() -> int:
         raise RuntimeError("protected version was not preserved after negative tests")
 
     report = {
-        "schema_version": "0.1.0",
+        **base_report,
+        "status": "complete",
         "tested_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-        "bucket": bucket,
-        "region": region,
         "versioning": "Enabled",
         "object_lock": {
             "mode": "COMPLIANCE",
             "default_retention_days": 1,
         },
-        "kms_key_id": kms_key_id,
-        "synthetic_only": True,
         "objects": objects,
         "overwrite_refused": overwrite_refused,
         "early_version_delete_refused": delete_refused,
-        "cleanup": (
-            "Objects intentionally remain locked until retain_until; remove them "
-            "only after retention expires."
-        ),
+        "retention_reduction_refused": retention_reduction_refused,
     }
-    encoded = json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True).encode() + b"\n"
-    arguments.output.parent.mkdir(parents=True, exist_ok=True)
-    arguments.output.write_bytes(encoded)
-    print(f"report={arguments.output}")
+    encoded = replace_report(arguments.output, report)
     print(f"report_sha256=sha256:{sha256(encoded).hexdigest()}")
     print(f"retained_objects={len(objects)}")
     return 0
