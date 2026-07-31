@@ -22,3 +22,7 @@ normalized timestamps and compare the resulting manifest digests.
 
 The Railway files are declarative templates. Configure each service to use its
 corresponding config path. They do not authorize or perform a deployment.
+`scripts/check-railway-config.py` rejects drift from the deployment contract:
+the API alone runs migrations and gates traffic on `/readyz`, API and worker
+remain separate processes with bounded restarts, and neither template can
+declare a Railway volume for evidence.

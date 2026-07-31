@@ -28,4 +28,5 @@ tofu -chdir=infra/terraform validate
 tofu -chdir=infra/terraform test
 python -m json.tool infra/railway/api.json >/dev/null
 python -m json.tool infra/railway/worker.json >/dev/null
+python scripts/check-railway-config.py
 python scripts/check-monitoring-config.py
