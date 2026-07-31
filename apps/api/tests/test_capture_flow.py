@@ -516,6 +516,21 @@ def test_session_event_part_finalize_and_idempotency(
     assert package.status_code == 200
     assert package.headers["content-type"] == "application/zip"
     assert package.headers["X-Storage-Status"] == "stored"
+    with ZipFile(BytesIO(package.content)) as archive:
+        names = set(archive.namelist())
+        methodology_paths = {
+            "README.txt",
+            "methodology/methodology-v0.1.md",
+            "methodology/verification-guide.html",
+        }
+        assert methodology_paths.issubset(names)
+        package_index = json.loads(archive.read("package-index.json"))
+        assert methodology_paths.issubset(
+            {member["path"] for member in package_index["members"]}
+        )
+        assert b"localmente no navegador" in archive.read(
+            "methodology/methodology-v0.1.md"
+        )
     package_hash = client.get(f"/v1/sessions/{session_id}/package.sha256")
     assert package_hash.status_code == 200
     assert package_hash.headers["content-type"].startswith("text/plain")

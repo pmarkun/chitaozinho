@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Como verificar uma captura Chitãozinho</title>
+  </head>
+  <body>
+    <main>
+      <h1>Como verificar uma captura Chitãozinho</h1>
+      <p>
+        Use o validador público ou uma cópia offline do mesmo build. Os arquivos
+        selecionados são processados no seu dispositivo e não precisam ser
+        enviados ao servidor.
+      </p>
+      <ol>
+        <li>Selecione o ZIP principal da captura.</li>
+        <li>Adicione o arquivo <code>.zip.sha256</code>, se recebido.</li>
+        <li>Adicione o ZIP complementar de provas, quando disponível.</li>
+        <li>Confirme a chave raiz por um canal independente.</li>
+        <li>Execute a validação e exporte o relatório HTML ou JSON.</li>
+      </ol>
+      <h2>Como interpretar</h2>
+      <p>
+        Hashes e assinaturas válidos demonstram que os bytes correspondem ao
+        pacote assinado. RFC 3161 e OpenTimestamps demonstram que o hash já
+        existia até os respectivos limites temporais. Nenhum desses mecanismos
+        prova autoria ou veracidade do conteúdo exibido.
+      </p>
+      <p>
+        Consulte <code>methodology-v0.1.md</code> para a metodologia completa.
+      </p>
+    </main>
+  </body>
+</html>

@@ -20,6 +20,13 @@ from .retention import protect_final_artifact
 from .security import ServerSigner
 from .storage import DurableStorage
 
+PACKAGE_ASSETS = Path(__file__).with_name("package_assets")
+METHODOLOGY_MEMBERS = {
+    "README.txt": "README.txt",
+    "methodology/methodology-v0.1.md": "methodology-v0.1.md",
+    "methodology/verification-guide.html": "verification-guide.html",
+}
+
 
 def ensure_package(
     database: Session,
@@ -209,6 +216,8 @@ def package_members(
             }
         ),
     }
+    for member_path, asset_name in METHODOLOGY_MEMBERS.items():
+        members[member_path] = (PACKAGE_ASSETS / asset_name).read_bytes()
     if signer.certificate is not None:
         members["signatures/server-key-certificate.json"] = canonical_bytes(
             signer.certificate

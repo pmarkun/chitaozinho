@@ -163,8 +163,8 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [ ] Pacotes hostis respeitam limites e falham de forma localizada no navegador.
 - [ ] Metodologia pública explica captura, hashes, assinaturas, recibos, fontes
   de tempo, retenção e limitações.
-- [ ] `README.txt`, metodologia e guia de verificação acompanham o pacote.
-- [ ] Índice assinado cobre todos os documentos metodológicos.
+- [x] `README.txt`, metodologia e guia de verificação acompanham o pacote.
+- [x] Índice assinado cobre todos os documentos metodológicos.
 - [ ] Administrador autenticado lista sessões e estados de forma paginada.
 - [ ] Administrador pode baixar pacote, checksum e complemento.
 - [ ] Imagens, vídeos, metadados e DOM possuem visualização segura.
