@@ -8,10 +8,10 @@ test("public verifier stays local and has no automatic WCAG violations", async (
   page,
 }) => {
   await page.addInitScript({ content: AxeBuilder.source });
-  await page.goto("/");
+  await page.goto("/validar");
   await expect(
     page.getByRole("heading", {
-      name: "Confira uma captura sem enviar seus arquivos",
+      name: "Confirme a integridade de uma evidência",
     }),
   ).toBeVisible();
 
@@ -39,7 +39,7 @@ test("public verifier stays local and has no automatic WCAG violations", async (
   fs.writeFileSync(invalidPackage, "not a zip");
   try {
     await page.locator("#package").setInputFiles(invalidPackage);
-    await page.getByRole("button", { name: "Validar agora" }).click();
+    await page.locator(".verify-button").click();
     await expect(
       page.getByRole("alert").getByText("Pacote inválido ou não verificável"),
     ).toBeVisible();
@@ -49,17 +49,24 @@ test("public verifier stays local and has no automatic WCAG violations", async (
   }
 });
 
-test("the same production build reloads offline", async ({ page, context }) => {
-  await page.goto("/");
+test("the same production build reloads every public route offline", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/metodologia");
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.reload();
-  await expect(page.getByRole("button", { name: "Metodologia" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "Como o Chitãozinho fortalece uma evidência digital",
+    }),
+  ).toBeVisible();
 
   await context.setOffline(true);
   await page.reload();
   await expect(
     page.getByRole("heading", {
-      name: "Confira uma captura sem enviar seus arquivos",
+      name: "Como o Chitãozinho fortalece uma evidência digital",
     }),
   ).toBeVisible();
 });
@@ -75,16 +82,16 @@ test("a supplied real package passes entirely in Chromium", async ({
     "set the opt-in real-package inputs",
   );
 
-  await page.goto("/");
+  await page.goto("/validar");
   const requestsAfterSelection = [];
   page.on("request", (request) => requestsAfterSelection.push(request.url()));
   await page.locator("#package").setInputFiles(packagePath);
   await page.locator("#checksum").setInputFiles(checksumPath);
   await page.locator("#trusted-key").fill(trustedKey);
-  await page.getByRole("button", { name: "Validar agora" }).click();
+  await page.locator(".verify-button").click();
 
   await expect(
-    page.getByRole("heading", { name: "Íntegro", exact: true }),
+    page.getByRole("heading", { name: "Integridade confirmada", exact: true }),
   ).toBeVisible();
   await expect(page.getByText("Chave confirmada separadamente")).toBeVisible();
   expect(requestsAfterSelection).toEqual([]);

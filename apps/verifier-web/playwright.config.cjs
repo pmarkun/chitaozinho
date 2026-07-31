@@ -20,7 +20,7 @@ module.exports = defineConfig({
       : {}),
   },
   webServer: {
-    command: "python3 -m http.server 4174 --bind 127.0.0.1 --directory dist",
+    command: "pnpm exec vite preview --host 127.0.0.1 --port 4174",
     cwd: __dirname,
     url: "http://127.0.0.1:4174/",
     reuseExistingServer: false,

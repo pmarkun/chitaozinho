@@ -1,4 +1,4 @@
-const CACHE_NAME = "chitaozinho-verifier-v0.1.0";
+const CACHE_NAME = "chitaozinho-verifier-v0.2.0";
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -25,6 +25,12 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match("/index.html")),
+    );
+    return;
+  }
   event.respondWith(
     caches.match(event.request).then(
       (cached) =>

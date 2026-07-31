@@ -17,7 +17,7 @@
 		X-Frame-Options "DENY"
 	}
 
-	@html path / /index.html
+	@html path / /index.html /validar /metodologia
 	header @html Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
 
 	@serviceWorker path /sw.js
