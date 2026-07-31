@@ -1509,6 +1509,7 @@ Resultado esperado: falha explícita e localizada.
 ├── infra/
 │   ├── docker/
 │   ├── ceph/
+│   ├── openbao/
 │   ├── railway/
 │   └── monitoring/
 ├── docs/
@@ -1594,9 +1595,9 @@ Resultado esperado: falha explícita e localizada.
 - Garage local e Ceph RGW Squid `19.2.5` self-hosted com Object Lock. A imagem
   OCI é fixada por digest; o RGW usa OpenBao/Vault para SSE-KMS.
 - Retenção mínima no teste, 90 dias no gratuito, 5 anos no individual e configurável no institucional.
-- Chave raiz offline; chaves operacionais montadas por secret store self-hosted
-  ou protegidas por KMS/HSM equivalente, rotacionadas a cada 90 dias, com
-  revogações assinadas.
+- Chave raiz offline; chaves operacionais Ed25519 não exportáveis no OpenBao
+  Transit em staging/produção, rotacionadas de forma coordenada a cada 90 dias,
+  com certificados e revogações assinadas.
 - Calendários públicos OpenTimestamps; agregação a cada hora ou 100 sessões.
 - POC restrita a conteúdo público ou sintético. LGPD, dados sensíveis e legal hold exigem revisão jurídica antes de produção.
 - Formato, schemas, verificador, componentes e histórico de chaves públicos.

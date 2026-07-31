@@ -47,6 +47,18 @@ class Settings(BaseSettings):
     )
     server_seed_kms_key_id: str | None = Field(default=None, min_length=1)
     server_seed_kms_region: str = "sa-east-1"
+    openbao_addr: str | None = None
+    openbao_token: str | None = Field(default=None, min_length=16, repr=False)
+    openbao_transit_mount: str = Field(
+        default="transit",
+        pattern=r"^[a-zA-Z0-9_-]+$",
+    )
+    openbao_transit_key: str | None = Field(
+        default=None,
+        pattern=r"^[a-zA-Z0-9_-]+$",
+    )
+    openbao_transit_key_version: int | None = Field(default=None, ge=1)
+    openbao_ca_bundle: Path | None = None
     server_certificate_path: Path | None = None
     server_certificate_json: str | None = Field(
         default=None,
@@ -147,10 +159,26 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "plaintext server signing seed is forbidden outside local development"
                 )
-            if self.server_seed_path is None:
-                raise ValueError(
-                    "a mounted server signing seed file is required outside local development"
-                )
+            if (
+                self.openbao_addr is None
+                or self.openbao_token is None
+                or self.openbao_transit_key is None
+                or self.openbao_transit_key_version is None
+            ):
+                raise ValueError("OpenBao Transit signing is required outside local development")
+            openbao = urlsplit(self.openbao_addr)
+            if (
+                openbao.scheme != "https"
+                or openbao.hostname is None
+                or openbao.username is not None
+                or openbao.password is not None
+                or openbao.path not in {"", "/"}
+                or openbao.query
+                or openbao.fragment
+            ):
+                raise ValueError("OpenBao address must be an HTTPS origin")
+            if self.server_seed_path is not None or self.server_seed_kms_ciphertext_b64 is not None:
+                raise ValueError("server signing key material must remain in OpenBao Transit")
             if self.server_certificate_path is None and self.server_certificate_json is None:
                 raise ValueError(
                     "root-signed server certificate is required outside local development"
@@ -190,12 +218,23 @@ class Settings(BaseSettings):
                 )
         elif self.auth_mode not in {"development", "magic_link"}:
             raise ValueError("unsupported authentication mode")
-        seed_sources = [
-            self.server_seed_hex,
-            self.server_seed_path,
-            self.server_seed_kms_ciphertext_b64,
+        openbao_values = [
+            self.openbao_addr,
+            self.openbao_token,
+            self.openbao_transit_key,
+            self.openbao_transit_key_version,
         ]
-        if sum(value is not None for value in seed_sources) > 1:
+        if any(value is not None for value in openbao_values) and not all(
+            value is not None for value in openbao_values
+        ):
+            raise ValueError("OpenBao Transit signing configuration is incomplete")
+        seed_sources = [
+            self.server_seed_hex is not None,
+            self.server_seed_path is not None,
+            self.server_seed_kms_ciphertext_b64 is not None,
+            self.openbao_addr is not None,
+        ]
+        if sum(seed_sources) > 1:
             raise ValueError("configure only one server signing seed source")
         trust_sources = [
             (

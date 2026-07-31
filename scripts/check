@@ -23,6 +23,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 
 python scripts/check-ceph-config.py
+python scripts/check-openbao-config.py
 python -m json.tool infra/railway/api.json >/dev/null
 python -m json.tool infra/railway/worker.json >/dev/null
 python scripts/check-railway-config.py

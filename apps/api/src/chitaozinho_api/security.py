@@ -2,14 +2,28 @@ from __future__ import annotations
 
 import base64
 import json
+import ssl
 import stat
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote
+from urllib.request import (
+    HTTPRedirectHandler,
+    HTTPSHandler,
+    Request,
+    build_opener,
+)
 
 import boto3
-from chitaozinho_protocol import DOMAINS, sign_canonical, verify_canonical
+from chitaozinho_protocol import (
+    DOMAINS,
+    hash_canonical,
+    sign_canonical,
+    verify_canonical,
+)
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -19,10 +33,14 @@ from .config import Settings
 @dataclass(frozen=True)
 class ServerSigner:
     key_id: str
-    private_seed: bytes = field(repr=False)
+    private_seed: bytes | None = field(repr=False)
     public_key: bytes
     certificate: dict | None
     revocation_list: dict | None
+    transit_client: Any | None = field(default=None, repr=False)
+    transit_mount: str | None = None
+    transit_key: str | None = None
+    transit_key_version: int | None = None
 
     @classmethod
     def from_settings(
@@ -30,15 +48,36 @@ class ServerSigner:
         settings: Settings,
         *,
         kms_client: Any | None = None,
+        transit_client: Any | None = None,
         now: datetime | None = None,
     ) -> ServerSigner | None:
         if (
             settings.server_seed_hex is None
             and settings.server_seed_path is None
             and settings.server_seed_kms_ciphertext_b64 is None
+            and settings.openbao_addr is None
         ):
             return None
-        if settings.server_seed_hex is not None:
+        active_transit_client = None
+        if settings.openbao_addr is not None:
+            assert settings.openbao_token is not None
+            assert settings.openbao_transit_key is not None
+            assert settings.openbao_transit_key_version is not None
+            active_transit_client = transit_client or OpenBaoTransitClient(
+                settings.openbao_addr,
+                settings.openbao_token,
+                settings.openbao_ca_bundle,
+            )
+            key_document = active_transit_client.read_key(
+                settings.openbao_transit_mount,
+                settings.openbao_transit_key,
+            )
+            public_key = load_openbao_public_key(
+                key_document,
+                settings.openbao_transit_key_version,
+            )
+            seed = None
+        elif settings.server_seed_hex is not None:
             seed = bytes.fromhex(settings.server_seed_hex)
         elif settings.server_seed_path is not None:
             seed = load_private_seed(settings.server_seed_path)
@@ -69,13 +108,14 @@ class ServerSigner:
             seed = response.get("Plaintext")
             if not isinstance(seed, bytes):
                 raise ValueError("KMS did not return server seed plaintext")
-        if len(seed) != 32:
-            raise ValueError("server signing seed must contain exactly 32 bytes")
-        private_key = Ed25519PrivateKey.from_private_bytes(seed)
-        public_key = private_key.public_key().public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw,
-        )
+        if seed is not None:
+            if len(seed) != 32:
+                raise ValueError("server signing seed must contain exactly 32 bytes")
+            private_key = Ed25519PrivateKey.from_private_bytes(seed)
+            public_key = private_key.public_key().public_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PublicFormat.Raw,
+            )
         certificate = load_json_document(
             settings.server_certificate_path,
             settings.server_certificate_json,
@@ -126,10 +166,34 @@ class ServerSigner:
             public_key,
             certificate,
             revocation_list,
+            active_transit_client,
+            settings.openbao_transit_mount if active_transit_client is not None else None,
+            settings.openbao_transit_key if active_transit_client is not None else None,
+            (settings.openbao_transit_key_version if active_transit_client is not None else None),
         )
 
     def sign(self, domain: bytes, value: object) -> str:
-        return sign_canonical(domain, value, self.private_seed).hex()
+        if self.private_seed is not None:
+            return sign_canonical(domain, value, self.private_seed).hex()
+        if (
+            self.transit_client is None
+            or self.transit_mount is None
+            or self.transit_key is None
+            or self.transit_key_version is None
+        ):
+            raise RuntimeError("server signer has no signing backend")
+        message = domain + hash_canonical(value)
+        encoded = base64.b64encode(message).decode("ascii")
+        response = self.transit_client.sign(
+            self.transit_mount,
+            self.transit_key,
+            self.transit_key_version,
+            encoded,
+        )
+        signature = decode_openbao_signature(response, self.transit_key_version)
+        if not verify_canonical(domain, value, signature, self.public_key):
+            raise RuntimeError("OpenBao returned a signature that does not match the active key")
+        return signature.hex()
 
 
 def load_private_seed(path: Path) -> bytes:
@@ -145,6 +209,123 @@ def load_private_seed(path: Path) -> bytes:
     if len(seed) != 32:
         raise ValueError("server signing seed must contain exactly 32 bytes")
     return seed
+
+
+class RejectRedirects(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+class OpenBaoTransitClient:
+    def __init__(
+        self,
+        address: str,
+        token: str,
+        ca_bundle: Path | None,
+        *,
+        timeout_seconds: float = 5.0,
+    ) -> None:
+        self.address = address.rstrip("/")
+        self.token = token
+        self.timeout_seconds = timeout_seconds
+        context = ssl.create_default_context(
+            cafile=str(ca_bundle) if ca_bundle is not None else None
+        )
+        self.opener = build_opener(RejectRedirects(), HTTPSHandler(context=context))
+
+    def read_key(self, mount: str, key: str) -> dict[str, Any]:
+        return self._request("GET", f"{quote(mount)}/keys/{quote(key)}")
+
+    def sign(
+        self,
+        mount: str,
+        key: str,
+        key_version: int,
+        encoded_input: str,
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            f"{quote(mount)}/sign/{quote(key)}",
+            {
+                "input": encoded_input,
+                "key_version": key_version,
+                "prehashed": False,
+            },
+        )
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        body = None
+        if payload is not None:
+            body = json.dumps(payload, separators=(",", ":")).encode()
+        request = Request(
+            f"{self.address}/v1/{path}",
+            data=body,
+            method=method,
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "X-Vault-Token": self.token,
+            },
+        )
+        try:
+            with self.opener.open(request, timeout=self.timeout_seconds) as response:
+                content = response.read(65_537)
+        except HTTPError as error:
+            raise RuntimeError(f"OpenBao request failed with HTTP {error.code}") from error
+        except URLError as error:
+            raise RuntimeError("OpenBao request failed") from error
+        if len(content) > 65_536:
+            raise RuntimeError("OpenBao response exceeds the safety limit")
+        try:
+            document = json.loads(content)
+        except json.JSONDecodeError as error:
+            raise RuntimeError("OpenBao returned invalid JSON") from error
+        if not isinstance(document, dict):
+            raise RuntimeError("OpenBao returned an invalid response")
+        return document
+
+
+def load_openbao_public_key(document: dict[str, Any], key_version: int) -> bytes:
+    data = document.get("data")
+    if (
+        not isinstance(data, dict)
+        or data.get("type") != "ed25519"
+        or data.get("supports_signing") is not True
+        or data.get("derived") is not False
+    ):
+        raise ValueError("OpenBao Transit key must be a non-derived Ed25519 signing key")
+    keys = data.get("keys")
+    version = keys.get(str(key_version)) if isinstance(keys, dict) else None
+    encoded = version.get("public_key") if isinstance(version, dict) else None
+    if not isinstance(encoded, str):
+        raise ValueError("OpenBao Transit key version has no public key")
+    try:
+        public_key = base64.b64decode(encoded, validate=True)
+    except ValueError as error:
+        raise ValueError("OpenBao Transit public key is not valid Base64") from error
+    if len(public_key) != 32:
+        raise ValueError("OpenBao Transit public key must contain exactly 32 bytes")
+    return public_key
+
+
+def decode_openbao_signature(document: dict[str, Any], key_version: int) -> bytes:
+    data = document.get("data")
+    value = data.get("signature") if isinstance(data, dict) else None
+    prefix = f"vault:v{key_version}:"
+    if not isinstance(value, str) or not value.startswith(prefix):
+        raise RuntimeError("OpenBao returned an unexpected signing key version")
+    try:
+        signature = base64.b64decode(value[len(prefix) :], validate=True)
+    except ValueError as error:
+        raise RuntimeError("OpenBao returned an invalid signature encoding") from error
+    if len(signature) != 64:
+        raise RuntimeError("OpenBao returned an invalid Ed25519 signature")
+    return signature
 
 
 def server_seed_encryption_context(server_key_id: str) -> dict[str, str]:

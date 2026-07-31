@@ -33,8 +33,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
   backend SSE-KMS.
 - [x] **DEC-016 — Retenção:** mínimo aceito no teste, 90 dias no gratuito, 5 anos no individual e prazo configurável no institucional.
 - [x] **DEC-017 — Chave raiz:** gerada e mantida offline; chaves operacionais
-  de produção injetadas por secret store self-hosted ou protegidas por KMS/HSM
-  equivalente.
+  de staging/produção são Ed25519 não exportáveis no OpenBao Transit.
 - [x] **DEC-018 — Rotação e revogação:** rotação operacional a cada 90 dias e lista de revogação assinada.
 - [x] **DEC-019 — OpenTimestamps:** calendários públicos; agregação a cada hora ou 100 sessões, o que ocorrer primeiro.
 

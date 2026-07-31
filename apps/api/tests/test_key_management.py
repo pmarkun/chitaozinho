@@ -15,6 +15,7 @@ from chitaozinho_api.key_management import (
 )
 from chitaozinho_api.security import ServerSigner, server_seed_encryption_context
 from chitaozinho_protocol import DOMAINS, verify_canonical
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from jsonschema import Draft202012Validator, FormatChecker
 
 SCHEMA_DIR = Path(__file__).parents[3] / "packages" / "schemas"
@@ -277,6 +278,43 @@ def test_server_signer_reads_private_mounted_seed(tmp_path: Path) -> None:
         )
 
 
+def test_server_signer_uses_pinned_openbao_transit_key() -> None:
+    seed = bytes([54]) * 32
+    transit = FakeTransitClient(seed, key_version=3)
+    signer = ServerSigner.from_settings(
+        Settings(
+            server_key_id="server-openbao-test",
+            openbao_addr="https://openbao.example.test",
+            openbao_token="synthetic-openbao-token",
+            openbao_transit_key="chitaozinho-server",
+            openbao_transit_key_version=3,
+        ),
+        transit_client=transit,
+    )
+    assert signer is not None
+
+    document = {"synthetic": True}
+    signature = bytes.fromhex(signer.sign(DOMAINS["receipt"], document))
+
+    assert verify_canonical(
+        DOMAINS["receipt"],
+        document,
+        signature,
+        public_key_from_seed(seed),
+    )
+    assert transit.read_arguments == ("transit", "chitaozinho-server")
+    assert transit.sign_arguments[:3] == (
+        "transit",
+        "chitaozinho-server",
+        3,
+    )
+    assert "synthetic-openbao-token" not in repr(signer)
+
+    transit.response_version = 4
+    with pytest.raises(RuntimeError, match="unexpected signing key version"):
+        signer.sign(DOMAINS["receipt"], document)
+
+
 def test_server_signer_rejects_invalid_kms_results() -> None:
     kms_key_id = "arn:aws:kms:sa-east-1:123456789012:key/signing-envelope"
     settings = Settings(
@@ -306,6 +344,49 @@ class FakeKmsClient:
     def decrypt(self, **arguments) -> dict:
         self.decrypt_arguments = arguments
         return {"Plaintext": self.plaintext, "KeyId": self.key_id}
+
+
+class FakeTransitClient:
+    def __init__(self, seed: bytes, key_version: int) -> None:
+        self.private_key = Ed25519PrivateKey.from_private_bytes(seed)
+        self.public_key = public_key_from_seed(seed)
+        self.key_version = key_version
+        self.response_version = key_version
+        self.read_arguments: tuple[str, str] | None = None
+        self.sign_arguments: tuple[str, str, int, str] | None = None
+
+    def read_key(self, mount: str, key: str) -> dict:
+        self.read_arguments = (mount, key)
+        return {
+            "data": {
+                "type": "ed25519",
+                "supports_signing": True,
+                "derived": False,
+                "keys": {
+                    str(self.key_version): {
+                        "public_key": base64.b64encode(self.public_key).decode()
+                    }
+                },
+            }
+        }
+
+    def sign(
+        self,
+        mount: str,
+        key: str,
+        key_version: int,
+        encoded_input: str,
+    ) -> dict:
+        self.sign_arguments = (mount, key, key_version, encoded_input)
+        message = base64.b64decode(encoded_input, validate=True)
+        signature = self.private_key.sign(message)
+        return {
+            "data": {
+                "signature": (
+                    f"vault:v{self.response_version}:" + base64.b64encode(signature).decode()
+                )
+            }
+        }
 
 
 class FakeKmsEncryptClient:

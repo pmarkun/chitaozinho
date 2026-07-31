@@ -271,9 +271,14 @@ def test_non_local_environment_fails_closed_without_tls_and_external_storage() -
             **kms_storage,
             server_seed_hex="11" * 32,
         )
-    with pytest.raises(ValidationError, match="mounted server signing seed"):
+    with pytest.raises(ValidationError, match="OpenBao Transit"):
         Settings(**kms_storage)
-    signing_envelope = {"server_seed_path": Path("/run/secrets/server.seed")}
+    signing_envelope = {
+        "openbao_addr": "https://openbao.example.test",
+        "openbao_token": "o" * 32,
+        "openbao_transit_key": "chitaozinho-server",
+        "openbao_transit_key_version": 1,
+    }
     with pytest.raises(ValidationError, match="revocation list"):
         Settings(
             **kms_storage,
@@ -361,11 +366,18 @@ def test_settings_repr_redacts_credentials_and_key_material() -> None:
         smtp_password="smtp-secret",
         metrics_token="metrics-secret-value-that-is-long",
     )
+    openbao_settings = Settings(
+        openbao_addr="https://openbao.example.test",
+        openbao_token="openbao-secret-token-value",
+        openbao_transit_key="chitaozinho-server",
+        openbao_transit_key_version=1,
+    )
 
-    rendered = repr(settings)
+    rendered = repr(settings) + repr(openbao_settings)
     assert "access-id" not in rendered
     assert "storage-secret" not in rendered
     assert ("11" * 32) not in rendered
+    assert "openbao-secret" not in rendered
     assert "pepper-secret" not in rendered
     assert "smtp-secret" not in rendered
     assert "metrics-secret" not in rendered

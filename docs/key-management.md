@@ -14,18 +14,15 @@ nix develop --command scripts/key-management generate-root \
 online backups. Publish `root-public.json` through an independently controlled
 channel.
 
-Issue an operational certificate for at most 90 days. Generate a fresh
-operational seed on a trusted machine, keep it mode `0600`, and publish only its
-public key. In staging and production, inject the seed through a runtime secret
-mount (for example OpenBao Agent, SOPS or the platform secret store) and set
-`CHITAOZINHO_SERVER_SEED_PATH`. Never place the seed in an environment variable,
-image, repository or persistent application volume.
+Issue an operational certificate for at most 90 days. Development may use a
+local seed, but staging and production require a non-exportable Ed25519 key in
+OpenBao Transit. The application reads only the public key and sends the exact
+domain-separated digest for signing; the private key never reaches Railway,
+the application process, an environment variable or a mounted volume.
 
-```sh
-nix develop --command scripts/key-management generate-operational-file \
-  --output-dir /secure/operations/server-2026-q3 \
-  --operational-key-id server-2026-q3
-```
+Create the Transit key and least-privilege runtime policy as described in
+`infra/openbao/README.md`. Read the public key for the pinned key version and use
+its raw 32-byte hex value when issuing the certificate:
 
 Use the public key from the generated `.public.json` when issuing the
 certificate:
