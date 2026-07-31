@@ -175,6 +175,16 @@ def test_settings_repr_redacts_credentials_and_key_material() -> None:
     assert "smtp-secret" not in rendered
 
 
+def test_empty_optional_environment_value_is_not_treated_as_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CHITAOZINHO_S3_KMS_KEY_ID", "")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.s3_kms_key_id is None
+
+
 def test_api_enforces_request_rate_limit(tmp_path: Path) -> None:
     settings = Settings(
         database_url=f"sqlite:///{tmp_path / 'rate.db'}",
