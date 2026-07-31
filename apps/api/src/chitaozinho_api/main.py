@@ -64,6 +64,7 @@ from .models import (
 from .observability import (
     METRICS_CONTENT_TYPE,
     RequestMetrics,
+    configure_operational_logging,
     emit_request_log,
 )
 from .packaging import ensure_package
@@ -102,6 +103,7 @@ def create_app(
     magic_link_sender: MagicLinkSender | None = None,
     create_tables: bool = False,
 ) -> FastAPI:
+    configure_operational_logging()
     settings = settings or Settings()
     engine = engine or create_database_engine(settings)
     storage = storage or create_storage(settings)

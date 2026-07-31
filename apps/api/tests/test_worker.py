@@ -74,6 +74,7 @@ def test_worker_failure_is_structured_without_exception_message(
     caplog,
     tmp_path: Path,
 ) -> None:
+    assert logging.getLogger("chitaozinho.worker").isEnabledFor(logging.INFO)
     caplog.set_level(logging.INFO, logger="chitaozinho.worker")
     settings = Settings(
         database_url=f"sqlite:///{tmp_path / 'failed-worker.db'}",

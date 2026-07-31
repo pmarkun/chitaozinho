@@ -10,7 +10,7 @@ from .config import Settings
 from .database import create_database_engine
 from .jobs import mark_job_completed, mark_job_failed, mark_job_running
 from .models import CaptureSession, Job
-from .observability import emit_worker_log
+from .observability import configure_operational_logging, emit_worker_log
 from .proof_service import timestamp_capture
 from .security import ServerSigner
 
@@ -98,6 +98,7 @@ def run_once(
 
 
 def main() -> None:
+    configure_operational_logging()
     settings = Settings()
     signer = ServerSigner.from_settings(settings)
     if signer is None:

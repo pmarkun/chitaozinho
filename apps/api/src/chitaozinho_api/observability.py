@@ -12,6 +12,12 @@ WORKER_LOGGER = logging.getLogger("chitaozinho.worker")
 METRICS_CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
 
 
+def configure_operational_logging() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    LOGGER.setLevel(logging.INFO)
+    WORKER_LOGGER.setLevel(logging.INFO)
+
+
 def emit_request_log(
     *,
     request_id: str,
