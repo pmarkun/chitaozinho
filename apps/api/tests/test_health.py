@@ -21,7 +21,7 @@ def test_metrics_and_logs_use_route_templates_without_sensitive_data(
     caplog: pytest.LogCaptureFixture,
     tmp_path: Path,
 ) -> None:
-    assert logging.getLogger("chitaozinho.request").isEnabledFor(logging.INFO)
+    assert logging.getLogger("chitaozinho.request").level == logging.INFO
     caplog.set_level(logging.INFO, logger="chitaozinho.request")
     settings = Settings(
         database_url=f"sqlite:///{tmp_path / 'observability.db'}",
