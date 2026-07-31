@@ -1,0 +1,5 @@
+{
+  "ceph_release": "squid",
+  "ceph_version": "19.2.5",
+  "image": "quay.io/ceph/ceph@sha256:1bb011052bc6d347d3418adcbf7d88156860d45697bc6323594a11410084064b"
+}

@@ -1,0 +1,18 @@
+{
+  "bucket": {
+    "object_lock": true,
+    "retention_mode": "COMPLIANCE",
+    "test_retention_days": 1,
+    "minimum_runtime_retention_days": 90,
+    "versioning": true
+  },
+  "encryption": {
+    "protocol_algorithm": "aws:kms",
+    "rgw_kms_backend": "vault",
+    "require_tls": true
+  },
+  "operations": {
+    "separate_rgw_operator_from_application": true,
+    "offsite_copy_required_for_production": true
+  }
+}

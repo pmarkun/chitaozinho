@@ -27,7 +27,6 @@
               garage
               jq
               nodejs_22
-              opentofu
               openssl
               osv-scanner
               pkg-config
