@@ -138,7 +138,8 @@ This run proves the short functional flow. It does not satisfy the separate
 
 - The full repository gate passed with 80 Python tests, three opt-in service
   tests skipped in the unit pass, 19 extension tests, four TypeScript protocol
-  tests and 21 Rust tests.
+  tests and 21 Rust tests. Two Playwright/axe-core browser tests additionally
+  cover the popup states, 320 CSS pixel reflow and initial keyboard paths.
 - The Ceph configuration guard pins Squid `19.2.5` by multi-architecture image
   digest and requires TLS, Vault-backed SSE-KMS, one-day isolated retention and
   at least 90 days for runtime environments.

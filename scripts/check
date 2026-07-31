@@ -8,6 +8,7 @@ pnpm -r lint
 pnpm -r typecheck
 pnpm -r test
 pnpm -r build
+playwright test --config apps/extension/playwright.config.cjs
 ./scripts/check-extension-reproducibility
 
 uv run ruff check .

@@ -30,6 +30,7 @@
               openssl
               osv-scanner
               pkg-config
+              playwright-test
               pnpm
               postgresql_17
               python313
@@ -44,6 +45,7 @@
             ];
 
             env = {
+              PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
               UV_PROJECT_ENVIRONMENT = ".venv";
             };
 

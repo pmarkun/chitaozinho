@@ -25,6 +25,7 @@
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.2",
+    "axe-core": "4.12.1",
     "eslint": "^9.32.0",
     "fake-indexeddb": "6.2.5",
     "prettier": "^3.6.2",
