@@ -43,6 +43,7 @@ from .database import create_database_engine, session_dependency
 from .download_tokens import create_download_token, verify_download_token
 from .jobs import (
     get_or_create_job,
+    lock_job,
     mark_job_completed,
     mark_job_failed,
     mark_job_running,
@@ -461,7 +462,7 @@ def create_app(
         body: RegisterKeyRequest,
         database: Session = Depends(get_session),
     ) -> Response:
-        capture_session = require_capture_session(database, session_id)
+        capture_session = require_capture_session(database, session_id, for_update=True)
         if capture_session.status != "created":
             raise HTTPException(status.HTTP_409_CONFLICT, "session key already registered")
         try:
@@ -498,7 +499,12 @@ def create_app(
         idempotency_key: str = Header(min_length=1, max_length=128),
         database: Session = Depends(get_session),
     ) -> EntryResponse:
-        capture_session = require_ready_session(database, session_id, settings)
+        capture_session = require_ready_session(
+            database,
+            session_id,
+            settings,
+            for_update=True,
+        )
         existing = database.scalar(
             select(ChainEntry).where(
                 ChainEntry.session_id == session_id,
@@ -582,7 +588,12 @@ def create_app(
         if part_number < 0 or part_number >= settings.max_artifact_parts:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid part number")
         active_signer = require_signer(signer)
-        capture_session = require_ready_session(database, session_id, settings)
+        capture_session = require_ready_session(
+            database,
+            session_id,
+            settings,
+            for_update=True,
+        )
         chunks: list[bytes] = []
         total_size = 0
         async for chunk in request.stream():
@@ -794,7 +805,12 @@ def create_app(
         database: Session = Depends(get_session),
     ) -> ArtifactCompleteResponse:
         validate_identifier(artifact_id, "artifact id")
-        capture_session = require_ready_session(database, session_id, settings)
+        capture_session = require_ready_session(
+            database,
+            session_id,
+            settings,
+            for_update=True,
+        )
         existing = database.scalar(
             select(Artifact).where(
                 Artifact.session_id == session_id,
@@ -914,7 +930,12 @@ def create_app(
         database: Session = Depends(get_session),
     ) -> ArtifactCompleteResponse:
         validate_identifier(artifact_id, "artifact id")
-        capture_session = require_ready_session(database, session_id, settings)
+        capture_session = require_ready_session(
+            database,
+            session_id,
+            settings,
+            for_update=True,
+        )
         existing = database.scalar(
             select(Artifact).where(
                 Artifact.session_id == session_id,
@@ -988,7 +1009,7 @@ def create_app(
         database: Session = Depends(get_session),
     ) -> FinalizeResponse:
         active_signer = require_signer(signer)
-        capture_session = require_capture_session(database, session_id)
+        capture_session = require_capture_session(database, session_id, for_update=True)
         if capture_session.manifest is not None:
             if (
                 capture_session.capture_close != body.capture_close
@@ -1005,7 +1026,12 @@ def create_app(
                     "session already finalized with different declaration",
                 )
             return finalize_response(capture_session)
-        capture_session = require_ready_session(database, session_id, settings)
+        capture_session = require_ready_session(
+            database,
+            session_id,
+            settings,
+            for_update=True,
+        )
         entries = list(
             database.scalars(
                 select(ChainEntry)
@@ -1099,7 +1125,7 @@ def create_app(
         database: Session = Depends(get_session),
     ) -> FileResponse:
         active_signer = require_signer(signer)
-        capture_session = require_capture_session(database, session_id)
+        capture_session = require_capture_session(database, session_id, for_update=True)
         if capture_session.manifest is None:
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
@@ -1135,7 +1161,7 @@ def create_app(
         database: Session = Depends(get_session),
     ) -> FileResponse:
         active_signer = require_signer(signer)
-        capture_session = require_capture_session(database, session_id)
+        capture_session = require_capture_session(database, session_id, for_update=True)
         if capture_session.manifest is None:
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
@@ -1191,6 +1217,7 @@ def create_app(
             subject_id=session_id,
             payload={"manifest_hash": capture_session.manifest_hash},
         )
+        job = lock_job(database, job.idempotency_key)
         if job.status == "completed" and job.result is not None:
             attestation = database.get(Attestation, job.result["attestation_id"])
             if attestation is None:
@@ -1199,13 +1226,14 @@ def create_app(
                     "completed timestamp job lost its attestation",
                 )
             return attestation_response(attestation)
-        mark_job_running(database, job)
+        mark_job_running(database, job, commit=False)
         try:
             attestation = timestamp_capture(
                 database,
                 settings,
                 active_signer,
                 capture_session,
+                commit=False,
             )
             mark_job_completed(
                 database,
@@ -1237,7 +1265,7 @@ def create_app(
                 "session must be finalized before timestamping",
             )
         try:
-            job, _created = get_or_create_job(
+            job, created = get_or_create_job(
                 database,
                 kind="rfc3161_timestamp",
                 idempotency_key=sha256_identifier(
@@ -1251,13 +1279,14 @@ def create_app(
                 status.HTTP_409_CONFLICT,
                 str(error),
             ) from error
-        append_audit_event(
-            database,
-            "timestamp_job_queued",
-            subject_id=session_id,
-            details={"job_id": job.id},
-        )
-        database.commit()
+        if created:
+            append_audit_event(
+                database,
+                "timestamp_job_queued",
+                subject_id=session_id,
+                details={"job_id": job.id},
+            )
+            database.commit()
         return job_response(job)
 
     @app.get("/v1/jobs/{job_id}", response_model=JobResponse)
@@ -1348,7 +1377,7 @@ def create_app(
         database: Session = Depends(get_session),
     ) -> FileResponse:
         active_signer = require_signer(signer)
-        capture_session = require_capture_session(database, session_id)
+        capture_session = require_capture_session(database, session_id, for_update=True)
         try:
             bundle_path, bundle_hash, storage_status = ensure_proof_bundle(
                 database,
@@ -1428,8 +1457,16 @@ def record_incident(
     database.commit()
 
 
-def require_capture_session(database: Session, session_id: str) -> CaptureSession:
-    capture_session = database.get(CaptureSession, session_id)
+def require_capture_session(
+    database: Session,
+    session_id: str,
+    *,
+    for_update: bool = False,
+) -> CaptureSession:
+    statement = select(CaptureSession).where(CaptureSession.id == session_id)
+    if for_update and database.get_bind().dialect.name == "postgresql":
+        statement = statement.with_for_update()
+    capture_session = database.scalar(statement)
     if capture_session is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "session not found")
     return capture_session
@@ -1439,8 +1476,14 @@ def require_ready_session(
     database: Session,
     session_id: str,
     settings: Settings,
+    *,
+    for_update: bool = False,
 ) -> CaptureSession:
-    capture_session = require_capture_session(database, session_id)
+    capture_session = require_capture_session(
+        database,
+        session_id,
+        for_update=for_update,
+    )
     if capture_session.client_public_key is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "session key is not registered")
     if capture_session.status in {"complete", "incomplete", "invalid_chain"}:

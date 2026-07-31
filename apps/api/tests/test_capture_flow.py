@@ -545,6 +545,14 @@ def test_session_event_part_finalize_and_idempotency(
         audit_events = list(
             database.scalars(select(AuditEvent).order_by(AuditEvent.sequence))
         )
+        assert (
+            sum(
+                event.event_type == "timestamp_job_queued"
+                and event.subject_id == session_id
+                for event in audit_events
+            )
+            == 1
+        )
         assert [event.sequence for event in audit_events] == list(
             range(len(audit_events))
         )
@@ -553,6 +561,7 @@ def test_session_event_part_finalize_and_idempotency(
             created_at = audit_event.created_at
             if created_at.tzinfo is None:
                 created_at = created_at.replace(tzinfo=UTC)
+            created_at = created_at.astimezone(UTC)
             document = {
                 "schema_version": "0.1.0",
                 "sequence": audit_event.sequence,

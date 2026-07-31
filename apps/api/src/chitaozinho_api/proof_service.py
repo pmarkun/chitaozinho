@@ -40,7 +40,13 @@ def timestamp_capture(
     settings: Settings,
     signer: ServerSigner,
     capture_session: CaptureSession,
+    *,
+    commit: bool = True,
 ) -> Attestation:
+    capture_session = lock_capture_sessions(
+        database,
+        [capture_session.id],
+    )[0]
     if capture_session.manifest_hash is None:
         raise ValueError("session has no immutable manifest")
     attempt_number = (
@@ -134,7 +140,8 @@ def timestamp_capture(
             "status": status,
         },
     )
-    database.commit()
+    if commit:
+        database.commit()
     return attestation
 
 
@@ -149,15 +156,14 @@ def create_merkle_batch(
     unique_ids = sorted(set(session_ids))
     if not unique_ids or len(unique_ids) > 100 or len(unique_ids) != len(session_ids):
         raise ValueError("Merkle batch requires 1 to 100 unique sessions")
-    sessions = [
-        database.get(CaptureSession, session_id) for session_id in unique_ids
-    ]
-    if any(session is None or session.manifest_hash is None for session in sessions):
+    sessions = lock_capture_sessions(database, unique_ids)
+    if len(sessions) != len(unique_ids) or any(
+        session.manifest_hash is None for session in sessions
+    ):
         raise ValueError("all Merkle sessions must have immutable manifests")
-    typed_sessions = [session for session in sessions if session is not None]
     leaves = [
         MerkleLeaf(session.manifest_hash or "", secrets.token_hex(32))
-        for session in typed_sessions
+        for session in sessions
     ]
     proofs = build_merkle_proofs(leaves)
     batch_id = uuid.uuid4().hex
@@ -188,7 +194,7 @@ def create_merkle_batch(
         created_at=datetime.now(UTC),
     )
     database.add(batch)
-    for capture_session, proof in zip(typed_sessions, proofs, strict=True):
+    for capture_session, proof in zip(sessions, proofs, strict=True):
         membership_path = root / f"{capture_session.id}.proof.json"
         write_merkle_proof(proof, membership_path)
         database.add(
@@ -220,7 +226,7 @@ def create_merkle_batch(
         subject_id=batch.id,
         details={
             "root_hash": batch.root_hash,
-            "session_count": len(typed_sessions),
+            "session_count": len(sessions),
             "status": status,
         },
     )
@@ -234,6 +240,13 @@ def upgrade_merkle_batch(
     signer: ServerSigner,
     batch: MerkleBatch,
 ) -> OtsComplement:
+    batch_statement = select(MerkleBatch).where(MerkleBatch.id == batch.id)
+    if database.get_bind().dialect.name == "postgresql":
+        batch_statement = batch_statement.with_for_update()
+    locked_batch = database.scalar(batch_statement)
+    if locked_batch is None:
+        raise ValueError("Merkle batch no longer exists")
+    batch = locked_batch
     if batch.ots_proof_path is None:
         raise ValueError("Merkle batch has no original OpenTimestamps proof")
     sequence = (
@@ -275,10 +288,15 @@ def upgrade_merkle_batch(
             select(MerkleMembership).where(MerkleMembership.batch_id == batch.id)
         )
     )
+    sessions = lock_capture_sessions(
+        database,
+        sorted(membership.session_id for membership in memberships),
+    )
+    sessions_by_id = {capture_session.id: capture_session for capture_session in sessions}
+    if len(sessions_by_id) != len(memberships):
+        raise RuntimeError("Merkle membership references a missing session")
     for membership in memberships:
-        capture_session = database.get(CaptureSession, membership.session_id)
-        if capture_session is None:
-            raise RuntimeError("Merkle membership references a missing session")
+        capture_session = sessions_by_id[membership.session_id]
         capture_session.blockchain_status = proof_status
         append_attestation(
             database,
@@ -350,6 +368,20 @@ def append_attestation(
     )
     database.add(attestation)
     return attestation
+
+
+def lock_capture_sessions(
+    database: Session,
+    session_ids: list[str],
+) -> list[CaptureSession]:
+    statement = (
+        select(CaptureSession)
+        .where(CaptureSession.id.in_(session_ids))
+        .order_by(CaptureSession.id)
+    )
+    if database.get_bind().dialect.name == "postgresql":
+        statement = statement.with_for_update()
+    return list(database.scalars(statement))
 
 
 def relative_proof_path(settings: Settings, path: Path) -> str:

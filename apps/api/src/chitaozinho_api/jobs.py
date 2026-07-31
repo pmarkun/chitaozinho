@@ -1,12 +1,29 @@
 from __future__ import annotations
 
+import hashlib
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from .models import Job
+
+
+def advisory_lock_id(idempotency_key: str) -> int:
+    digest = hashlib.sha256(idempotency_key.encode()).digest()
+    return int.from_bytes(digest[:8], signed=True)
+
+
+def acquire_job_advisory_lock(
+    database: Session,
+    idempotency_key: str,
+) -> None:
+    if database.get_bind().dialect.name == "postgresql":
+        database.execute(
+            text("SELECT pg_advisory_xact_lock(:lock_id)"),
+            {"lock_id": advisory_lock_id(idempotency_key)},
+        )
 
 
 def get_or_create_job(
@@ -17,6 +34,7 @@ def get_or_create_job(
     subject_id: str | None,
     payload: dict,
 ) -> tuple[Job, bool]:
+    acquire_job_advisory_lock(database, idempotency_key)
     existing = database.scalar(
         select(Job).where(Job.idempotency_key == idempotency_key)
     )
@@ -46,14 +64,26 @@ def get_or_create_job(
     return job, True
 
 
-def mark_job_running(database: Session, job: Job) -> None:
+def lock_job(database: Session, idempotency_key: str) -> Job:
+    acquire_job_advisory_lock(database, idempotency_key)
+    statement = select(Job).where(Job.idempotency_key == idempotency_key)
+    if database.get_bind().dialect.name == "postgresql":
+        statement = statement.with_for_update()
+    job = database.scalar(statement.execution_options(populate_existing=True))
+    if job is None:
+        raise ValueError("job no longer exists")
+    return job
+
+
+def mark_job_running(database: Session, job: Job, *, commit: bool = True) -> None:
     now = datetime.now(UTC)
     job.status = "running"
     job.attempts += 1
     job.started_at = now
     job.updated_at = now
     job.last_error = None
-    database.commit()
+    if commit:
+        database.commit()
 
 
 def mark_job_completed(database: Session, job: Job, result: dict) -> None:
