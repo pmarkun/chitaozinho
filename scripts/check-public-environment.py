@@ -46,6 +46,12 @@ def main() -> int:
     )
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     tls = inspect_tls(context, hostname, port)
+    reject_legacy_tls(
+        hostname,
+        port,
+        ca_file=arguments.ca_file,
+    )
+    tls["legacy_protocols_rejected"] = True
     opener = build_opener(RejectRedirects(), HTTPSHandler(context=context))
     checks = {
         "healthz": probe(opener, origin, "/healthz"),
@@ -79,10 +85,7 @@ def main() -> int:
         },
         "mutating_requests": 0,
     }
-    encoded = (
-        json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True).encode()
-        + b"\n"
-    )
+    encoded = json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True).encode() + b"\n"
     write_new(arguments.output, encoded)
     print(f"report={arguments.output}")
     print(f"report_sha256=sha256:{sha256(encoded).hexdigest()}")
@@ -117,7 +120,7 @@ def inspect_tls(
     context: ssl.SSLContext,
     hostname: str,
     port: int,
-) -> dict[str, str]:
+) -> dict[str, str | bool]:
     with (
         socket.create_connection((hostname, port), timeout=10) as connection,
         context.wrap_socket(
@@ -143,6 +146,30 @@ def inspect_tls(
         "cipher": cipher[0],
         "certificate_not_after": not_after.isoformat().replace("+00:00", "Z"),
     }
+
+
+def reject_legacy_tls(
+    hostname: str,
+    port: int,
+    *,
+    ca_file: Path | None,
+) -> None:
+    context = ssl.create_default_context(cafile=str(ca_file) if ca_file is not None else None)
+    context.minimum_version = ssl.TLSVersion.TLSv1
+    context.maximum_version = ssl.TLSVersion.TLSv1_1
+    try:
+        context.set_ciphers("ALL:@SECLEVEL=0")
+    except ssl.SSLError as error:
+        raise RuntimeError("local TLS runtime cannot probe legacy protocol rejection") from error
+    try:
+        with (
+            socket.create_connection((hostname, port), timeout=10) as connection,
+            context.wrap_socket(connection, server_hostname=hostname),
+        ):
+            pass
+    except ssl.SSLError:
+        return
+    raise RuntimeError("TLS peer accepted TLS 1.0 or TLS 1.1")
 
 
 def probe(
@@ -176,13 +203,13 @@ def probe(
 
 
 def validate_checks(checks: dict[str, dict[str, object]]) -> None:
-    if checks["healthz"]["status"] != 200 or decode_json(
-        checks["healthz"]["body"]
-    ) != {"status": "ok"}:
+    if checks["healthz"]["status"] != 200 or decode_json(checks["healthz"]["body"]) != {
+        "status": "ok"
+    }:
         raise RuntimeError("/healthz did not report ok")
-    if checks["readyz"]["status"] != 200 or decode_json(
-        checks["readyz"]["body"]
-    ) != {"status": "ready"}:
+    if checks["readyz"]["status"] != 200 or decode_json(checks["readyz"]["body"]) != {
+        "status": "ready"
+    }:
         raise RuntimeError("/readyz did not report ready")
     unauthenticated_metrics = checks["metrics_without_token"]
     if (

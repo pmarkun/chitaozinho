@@ -27,10 +27,7 @@ class PublicEnvironmentHandler(BaseHTTPRequestHandler):
             else:
                 self.respond(
                     200,
-                    (
-                        b"chitaozinho_http_requests_total 1\n"
-                        b"chitaozinho_jobs_stale_running 0\n"
-                    ),
+                    (b"chitaozinho_http_requests_total 1\nchitaozinho_jobs_stale_running 0\n"),
                     "text/plain",
                 )
         elif self.path == "/v1/auth/session":
@@ -121,6 +118,7 @@ def test_public_environment_checker_uses_real_tls_and_read_only_probes(
     assert "report_sha256=sha256:" in result.stdout
     report = json.loads(report_path.read_text())
     assert report["tls"]["version"] in {"TLSv1.2", "TLSv1.3"}
+    assert report["tls"]["legacy_protocols_rejected"] is True
     assert report["checks"]["readyz"]["status"] == 200
     assert report["checks"]["metrics_without_token"]["status"] == 401
     assert report["checks"]["metrics_with_token"]["status"] == 200

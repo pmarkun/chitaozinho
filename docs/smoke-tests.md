@@ -152,9 +152,9 @@ This run proves the short functional flow. It does not satisfy the separate
 - Timestamp failures persist only the exception type, emit structured worker
   events without provider messages and retry with bounded exponential backoff.
 - A real local TLS server exercised the public-environment probe. The probe
-  accepted TLS 1.2 or 1.3, checked health and readiness, rejected unauthenticated
-  metrics and session lookup, accepted the dedicated metrics token and made no
-  mutating requests.
+  accepted TLS 1.2 or 1.3, rejected TLS 1.0 and 1.1, checked health and
+  readiness, rejected unauthenticated metrics and session lookup, accepted the
+  dedicated metrics token and made no mutating requests.
 - The monitoring contract validates five versioned alerts for target
   availability, 5xx ratio, mean latency, ready-job backlog and stale running
   jobs. Public metrics require a dedicated secret and expose only aggregate

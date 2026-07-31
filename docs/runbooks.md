@@ -76,7 +76,8 @@ pacotes, provas, banco ou audit trail para recuperar capacidade.
 
 - Faça deploy primeiro em staging e aguarde `/readyz`.
 - Antes da promoção, gere evidência read-only de TLS, health, métricas e
-  autenticação:
+  autenticação. O probe exige TLS 1.2 ou 1.3 e confirma que TLS 1.0 e 1.1 são
+  recusados:
 
   ```sh
   nix develop --command python scripts/check-public-environment.py \
