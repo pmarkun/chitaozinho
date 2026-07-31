@@ -112,10 +112,11 @@ def create_app(
     if create_tables:
         Base.metadata.create_all(engine)
 
+    extension_origin_pattern = allowed_extension_origin_pattern(settings)
     app = FastAPI(title="Chitãozinho API", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,
-        allow_origin_regex=settings.cors_origin_regex,
+        allow_origin_regex=extension_origin_pattern,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT"],
         allow_headers=[
@@ -138,7 +139,7 @@ def create_app(
     get_session = partial(session_dependency, factory)
     request_times: dict[str, deque[float]] = defaultdict(deque)
     request_metrics = RequestMetrics()
-    allowed_extension_origin = re.compile(settings.cors_origin_regex)
+    allowed_extension_origin = re.compile(extension_origin_pattern)
     public_url = urlsplit(settings.public_base_url)
     public_origin = f"{public_url.scheme}://{public_url.netloc}"
 
@@ -1474,6 +1475,14 @@ def advertised_retention_policy(
     if environment in {"development", "test"}:
         return {"mode": "development", "days": None}
     return {"mode": "COMPLIANCE", "days": retention_days}
+
+
+def allowed_extension_origin_pattern(settings: Settings) -> str:
+    extension_ids = settings.parsed_extension_ids()
+    if not extension_ids:
+        return settings.cors_origin_regex
+    alternatives = "|".join(re.escape(value) for value in extension_ids)
+    return rf"^chrome-extension://(?:{alternatives})$"
 
 
 def record_incident(

@@ -1,10 +1,11 @@
 import json
 import logging
+import re
 from pathlib import Path
 
 import pytest
 from chitaozinho_api.config import Settings
-from chitaozinho_api.main import app, create_app
+from chitaozinho_api.main import allowed_extension_origin_pattern, app, create_app
 from chitaozinho_api.storage import LocalDurableStorage
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -168,6 +169,30 @@ def test_non_local_environment_fails_closed_without_tls_and_external_storage() -
             auth_mode="magic_link",
             auth_token_pepper="x" * 32,
         )
+    public_auth = {
+        **production_base,
+        "auth_mode": "magic_link",
+        "auth_token_pepper": "x" * 32,
+        "smtp_host": "smtp.example.test",
+        "smtp_from": "capture@example.test",
+    }
+    with pytest.raises(ValidationError, match="extension ID"):
+        Settings(**public_auth)
+    with pytest.raises(ValidationError, match="invalid Chromium extension ID"):
+        Settings(**public_auth, extension_ids="not-an-extension")
+    production_settings = Settings(
+        **public_auth,
+        extension_ids="abcdefghijklmnopabcdefghijklmnop",
+    )
+    origin_pattern = re.compile(
+        allowed_extension_origin_pattern(production_settings)
+    )
+    assert origin_pattern.fullmatch(
+        "chrome-extension://abcdefghijklmnopabcdefghijklmnop"
+    )
+    assert origin_pattern.fullmatch(
+        "chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba"
+    ) is None
     with pytest.raises(ValidationError, match="only one server certificate"):
         Settings(
             server_certificate_path=Path("server-certificate.json"),

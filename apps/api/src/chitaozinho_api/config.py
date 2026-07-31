@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from re import fullmatch
 from typing import Literal
 
 from pydantic import Field, model_validator
@@ -76,6 +77,7 @@ class Settings(BaseSettings):
     smtp_password: str | None = Field(default=None, repr=False)
     smtp_from: str | None = None
     smtp_starttls: bool = True
+    extension_ids: str = ""
     cors_origin_regex: str = r"^chrome-extension://[a-p]{32}$"
     max_part_size: int = 8 * 1024 * 1024
     max_artifact_parts: int = 10_000
@@ -168,6 +170,11 @@ class Settings(BaseSettings):
                 raise ValueError("SMTP host and sender are required outside local development")
             if not self.smtp_starttls:
                 raise ValueError("SMTP STARTTLS is required outside local development")
+            if not self.parsed_extension_ids():
+                raise ValueError(
+                    "at least one exact Chromium extension ID is required "
+                    "outside local development"
+                )
         elif self.auth_mode not in {"development", "magic_link"}:
             raise ValueError("unsupported authentication mode")
         if (
@@ -196,3 +203,15 @@ class Settings(BaseSettings):
             if path is not None and inline is not None:
                 raise ValueError(f"configure only one {label} source")
         return self
+
+    def parsed_extension_ids(self) -> tuple[str, ...]:
+        values = tuple(
+            value.strip()
+            for value in self.extension_ids.split(",")
+            if value.strip()
+        )
+        if any(fullmatch(r"[a-p]{32}", value) is None for value in values):
+            raise ValueError("invalid Chromium extension ID")
+        if len(set(values)) != len(values):
+            raise ValueError("duplicate Chromium extension ID")
+        return values

@@ -29,3 +29,8 @@ detects successful authentication after the user returns from the email link.
 
 SMTP uses STARTTLS outside local development. Provider credentials belong only
 in the Railway secret store or an equivalent local secret source.
+
+Staging and production also require `CHITAOZINHO_EXTENSION_IDS` with one or
+more comma-separated, exact 32-character Chromium IDs. The API derives its
+CORS allowlist from those IDs. `CHITAOZINHO_CORS_ORIGIN_REGEX` remains a
+development-only convenience and cannot broaden a public deployment.
