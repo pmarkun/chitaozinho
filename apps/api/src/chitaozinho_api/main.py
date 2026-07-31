@@ -1144,6 +1144,16 @@ def create_app(
                 status.HTTP_500_INTERNAL_SERVER_ERROR,
                 "package generation failed",
             ) from error
+        append_audit_event(
+            database,
+            "evidence_package_download_requested",
+            subject_id=session_id,
+            details={
+                "package_hash": package_hash,
+                "storage_status": storage_status,
+            },
+        )
+        database.commit()
         return FileResponse(
             package_path,
             media_type="application/zip",
@@ -1180,6 +1190,16 @@ def create_app(
                 status.HTTP_500_INTERNAL_SERVER_ERROR,
                 "package generation failed",
             ) from error
+        append_audit_event(
+            database,
+            "evidence_checksum_download_requested",
+            subject_id=session_id,
+            details={
+                "package_hash": package_hash,
+                "storage_status": storage_status,
+            },
+        )
+        database.commit()
         hash_path = package_path.with_suffix(".zip.sha256")
         return FileResponse(
             hash_path,
@@ -1391,6 +1411,16 @@ def create_app(
                 status.HTTP_409_CONFLICT,
                 str(error),
             ) from error
+        append_audit_event(
+            database,
+            "proof_bundle_download_requested",
+            subject_id=session_id,
+            details={
+                "bundle_hash": bundle_hash,
+                "storage_status": storage_status,
+            },
+        )
+        database.commit()
         return FileResponse(
             bundle_path,
             media_type="application/zip",

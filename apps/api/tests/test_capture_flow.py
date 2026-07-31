@@ -553,6 +553,15 @@ def test_session_event_part_finalize_and_idempotency(
             )
             == 1
         )
+        assert {
+            event.event_type
+            for event in audit_events
+            if event.subject_id == session_id
+        } >= {
+            "evidence_checksum_download_requested",
+            "evidence_package_download_requested",
+            "proof_bundle_download_requested",
+        }
         assert [event.sequence for event in audit_events] == list(
             range(len(audit_events))
         )
