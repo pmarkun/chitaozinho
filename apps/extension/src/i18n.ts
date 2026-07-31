@@ -78,3 +78,12 @@ export type MessageKey =
 export function t(key: MessageKey): string {
   return chrome.i18n.getMessage(key) || key;
 }
+
+export function documentLanguage(uiLanguage: string): string {
+  const normalized = uiLanguage.trim().replaceAll("_", "-");
+  try {
+    return Intl.getCanonicalLocales(normalized)[0] ?? "en";
+  } catch {
+    return "en";
+  }
+}

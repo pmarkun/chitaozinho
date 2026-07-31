@@ -69,8 +69,15 @@ p {
   margin: 16px 0;
   line-height: 1.35;
 }
+.consent input {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+}
 button {
   width: 100%;
+  min-height: 24px;
   border: 0;
   border-radius: 8px;
   padding: 11px 12px;
@@ -81,6 +88,7 @@ button {
 }
 input[type="email"] {
   width: 100%;
+  min-height: 24px;
   margin: 6px 0 14px;
   border: 1px solid #aeb9b2;
   border-radius: 8px;
@@ -91,6 +99,7 @@ input[type="email"] {
 input[type="file"] {
   display: block;
   width: 100%;
+  min-height: 24px;
   margin: 8px 0 14px;
   color: var(--body-text);
 }

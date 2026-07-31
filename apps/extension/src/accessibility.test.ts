@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const css = readFileSync(new URL("./popup.css", import.meta.url), "utf8");
 const popup = readFileSync(new URL("./popup.tsx", import.meta.url), "utf8");
+const html = readFileSync(new URL("../popup.html", import.meta.url), "utf8");
 
 describe("popup accessibility guards", () => {
   it("keeps normal text and focus indicators above WCAG AA contrast", () => {
@@ -29,10 +30,35 @@ describe("popup accessibility guards", () => {
   });
 
   it("supports a 320 CSS pixel viewport and visible keyboard focus", () => {
+    expect(html).toContain('name="viewport"');
     expect(css).toMatch(/width:\s*360px;\s*max-width:\s*100vw;/);
     expect(css).toMatch(
       /outline:\s*3px solid var\(--focus-ring\);\s*outline-offset:\s*2px;/,
     );
+  });
+
+  it("keeps interactive targets at least 24 CSS pixels", () => {
+    expect(css).toMatch(/button\s*\{[\s\S]*?min-height:\s*24px;/);
+    expect(css).toMatch(
+      /input\[type="email"\]\s*\{[\s\S]*?min-height:\s*24px;/,
+    );
+    expect(css).toMatch(/input\[type="file"\]\s*\{[\s\S]*?min-height:\s*24px;/);
+    expect(css).toMatch(
+      /\.consent input\s*\{[\s\S]*?width:\s*24px;[\s\S]*?height:\s*24px;/,
+    );
+  });
+
+  it("matches the document language to the localized interface", () => {
+    expect(popup).toContain(
+      "document.documentElement.lang = documentLanguage(chrome.i18n.getUILanguage())",
+    );
+  });
+
+  it("gives calculated and final package hashes accessible names", () => {
+    expect(popup.match(/aria-label=\{t\("calculatedHash"\)\}/g)).toHaveLength(
+      1,
+    );
+    expect(popup.match(/aria-label=\{t\("packageHash"\)\}/g)).toHaveLength(1);
   });
 
   it("does not announce the capture timer every second", () => {

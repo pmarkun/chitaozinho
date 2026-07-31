@@ -4,9 +4,11 @@ import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { authStatus, requestMagicLink } from "./api";
-import { t } from "./i18n";
+import { documentLanguage, t } from "./i18n";
 import type { ExtensionMessage } from "./types";
 import "./popup.css";
+
+document.documentElement.lang = documentLanguage(chrome.i18n.getUILanguage());
 
 interface PublicState {
   id: string;
@@ -441,7 +443,9 @@ function App() {
               {capture.packageHash && (
                 <>
                   <strong>{t("packageHash")}</strong>
-                  <output className="hash-output">{capture.packageHash}</output>
+                  <output className="hash-output" aria-label={t("packageHash")}>
+                    {capture.packageHash}
+                  </output>
                 </>
               )}
               <button
