@@ -186,6 +186,19 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "metrics bearer token is required outside local development"
                 )
+            if fullmatch(r"[0-9a-f]{40,64}", self.software_commit) is None:
+                raise ValueError(
+                    "exact source commit is required outside local development"
+                )
+            if (
+                fullmatch(r"sha256:[0-9a-f]{64}", self.software_build_hash)
+                is None
+                or self.software_build_hash == "sha256:" + ("0" * 64)
+            ):
+                raise ValueError(
+                    "non-zero SHA-256 build identity is required "
+                    "outside local development"
+                )
         elif self.auth_mode not in {"development", "magic_link"}:
             raise ValueError("unsupported authentication mode")
         if (

@@ -20,3 +20,9 @@ nix develop --command ./scripts/build-release-artifacts /tmp/chitaozinho-release
 
 The workflow publishes only immutable tags. It does not deploy Railway
 services; deployment remains a separately authorized operation.
+
+Staging and production must configure `CHITAOZINHO_SOFTWARE_COMMIT` with the
+exact 40-64 character source commit and `CHITAOZINHO_SOFTWARE_BUILD_HASH` with
+the `sha256:` digest of the promoted OCI artifact. Public startup rejects
+development, unknown or zero identities, so every generated manifest remains
+bound to the deployed backend build.

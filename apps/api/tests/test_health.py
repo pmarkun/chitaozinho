@@ -287,9 +287,21 @@ def test_non_local_environment_fails_closed_without_tls_and_external_storage() -
     }
     with pytest.raises(ValidationError, match="metrics bearer token"):
         Settings(**exact_extension_auth)
-    production_settings = Settings(
+    public_observability = {
         **exact_extension_auth,
-        metrics_token="m" * 32,
+        "metrics_token": "m" * 32,
+    }
+    with pytest.raises(ValidationError, match="exact source commit"):
+        Settings(**public_observability)
+    with pytest.raises(ValidationError, match="non-zero SHA-256"):
+        Settings(
+            **public_observability,
+            software_commit="a" * 40,
+        )
+    production_settings = Settings(
+        **public_observability,
+        software_commit="a" * 40,
+        software_build_hash="sha256:" + ("b" * 64),
     )
     origin_pattern = re.compile(
         allowed_extension_origin_pattern(production_settings)
