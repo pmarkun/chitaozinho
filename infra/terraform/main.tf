@@ -14,6 +14,14 @@ resource "aws_s3_bucket" "evidence" {
 
   lifecycle {
     prevent_destroy = true
+
+    precondition {
+      condition = (
+        (var.environment == "test" && var.retention_days == 1) ||
+        (var.environment != "test" && var.retention_days >= 90)
+      )
+      error_message = "Test retention must be exactly one day; staging and production require at least 90 days."
+    }
   }
 }
 

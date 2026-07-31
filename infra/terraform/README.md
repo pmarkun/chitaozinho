@@ -13,11 +13,13 @@ to attach to the credentials shared by the Railway API and worker.
 ```sh
 nix develop --command tofu -chdir=infra/terraform init -backend=false
 nix develop --command tofu -chdir=infra/terraform validate
+nix develop --command tofu -chdir=infra/terraform test
 ```
 
 Do not run `apply` casually. The isolated POC test uses only synthetic/public
-content and `retention_days=1`. Production starts at 90 days and requires
-legal/security approval.
+content, `environment=test` and `retention_days=1`. Staging and production
+reject retention below 90 days and require legal/security approval. The module
+also rejects regions other than `sa-east-1`.
 
 Set `CHITAOZINHO_S3_KMS_KEY_ID` to `evidence_kms_key_arn` and
 `CHITAOZINHO_SERVER_SEED_KMS_KEY_ID` to `signing_envelope_kms_key_arn` in the
