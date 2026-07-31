@@ -167,6 +167,27 @@ class ServerSigner:
             raise RuntimeError("OpenBao returned a signature that does not match the active key")
         return signature.hex()
 
+    def check_ready(self) -> None:
+        if self.private_seed is not None:
+            return
+        if (
+            self.transit_client is None
+            or self.transit_mount is None
+            or self.transit_key is None
+            or self.transit_key_version is None
+        ):
+            raise RuntimeError("server signer has no signing backend")
+        key_document = self.transit_client.read_key(
+            self.transit_mount,
+            self.transit_key,
+        )
+        public_key = load_openbao_public_key(
+            key_document,
+            self.transit_key_version,
+        )
+        if public_key != self.public_key:
+            raise RuntimeError("OpenBao signing key does not match the active key")
+
 
 def load_private_seed(path: Path) -> bytes:
     metadata = path.stat()

@@ -136,7 +136,7 @@ This run proves the short functional flow. It does not satisfy the separate
 
 ## 2026-07-30 — Backend and infrastructure safety gates
 
-- The full repository gate passed with 80 Python tests, three opt-in service
+- The full repository gate passed with 81 Python tests, three opt-in service
   tests skipped in the unit pass, 19 extension tests, four TypeScript protocol
   tests and 21 Rust tests. Two Playwright/axe-core browser tests additionally
   cover the popup states, 320 CSS pixel reflow and initial keyboard paths.

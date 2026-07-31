@@ -284,10 +284,15 @@ def test_server_signer_uses_pinned_openbao_transit_key() -> None:
         3,
     )
     assert "synthetic-openbao-token" not in repr(signer)
+    signer.check_ready()
 
     transit.response_version = 4
     with pytest.raises(RuntimeError, match="unexpected signing key version"):
         signer.sign(DOMAINS["receipt"], document)
+
+    transit.public_key = public_key_from_seed(bytes([55]) * 32)
+    with pytest.raises(RuntimeError, match="does not match the active key"):
+        signer.check_ready()
 
 
 class FakeTransitClient:

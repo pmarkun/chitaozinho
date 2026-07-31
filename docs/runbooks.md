@@ -6,7 +6,8 @@ rollback de deploy e qualquer ação em produção exigem autorização explíci
 ## Triagem inicial
 
 1. Consulte `/healthz`; falha indica processo indisponível.
-2. Consulte `/readyz`; `503` indica PostgreSQL ou storage indisponível.
+2. Consulte `/readyz`; `503` indica PostgreSQL, storage ou chave fixada no
+   OpenBao Transit indisponível ou divergente.
 3. Correlacione pelo `job_id` ou `session_id`, nunca por e-mail, token ou
    conteúdo capturado.
 4. Preserve logs, audit events e objetos existentes antes de intervir.

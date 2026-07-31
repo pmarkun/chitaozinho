@@ -120,6 +120,32 @@ def test_readyz_checks_database_and_storage(tmp_path: Path) -> None:
     assert unavailable.json() == {"status": "unavailable"}
 
 
+def test_readyz_checks_signing_backend(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class UnavailableSigner:
+        def check_ready(self) -> None:
+            raise RuntimeError("synthetic signing backend failure")
+
+    monkeypatch.setattr(
+        main_module.ServerSigner,
+        "from_settings",
+        lambda _settings: UnavailableSigner(),
+    )
+    settings = Settings(
+        database_url=f"sqlite:///{tmp_path / 'signer-ready.db'}",
+        storage_path=tmp_path / "artifacts",
+        server_seed_hex="11" * 32,
+    )
+
+    response = TestClient(create_app(settings, create_tables=True)).get("/readyz")
+
+    assert response.status_code == 503
+    assert response.json() == {"status": "unavailable"}
+    assert "synthetic signing backend failure" not in response.text
+
+
 def test_extension_cors_preflight() -> None:
     client = TestClient(app)
     response = client.options(

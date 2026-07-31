@@ -318,6 +318,8 @@ def create_app(
             with engine.connect() as connection:
                 connection.execute(text("SELECT 1"))
             storage.check_ready()
+            if signer is not None:
+                signer.check_ready()
         except Exception:
             return JSONResponse(
                 {"status": "unavailable"},
