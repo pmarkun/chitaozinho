@@ -14,26 +14,18 @@ nix develop --command scripts/key-management generate-root \
 online backups. Publish `root-public.json` through an independently controlled
 channel.
 
-Issue an operational certificate for at most 90 days:
-
-First generate a fresh operational key directly into a KMS envelope. The
-plaintext seed exists only in process memory and is never written:
+Issue an operational certificate for at most 90 days. Generate a fresh
+operational seed on a trusted machine, keep it mode `0600`, and publish only its
+public key. In staging and production, inject the seed through a runtime secret
+mount (for example OpenBao Agent, SOPS or the platform secret store) and set
+`CHITAOZINHO_SERVER_SEED_PATH`. Never place the seed in an environment variable,
+image, repository or persistent application volume.
 
 ```sh
-nix develop --command scripts/key-management generate-operational-envelope \
+nix develop --command scripts/key-management generate-operational-file \
   --output-dir /secure/operations/server-2026-q3 \
-  --operational-key-id server-2026-q3 \
-  --kms-key-arn "$SIGNING_ENVELOPE_KMS_KEY_ARN" \
-  --region sa-east-1
+  --operational-key-id server-2026-q3
 ```
-
-The command binds the ciphertext to the application, purpose and operational
-key ID through the KMS encryption context. Give the production runtime only
-`kms:Decrypt` for this KMS key and exact context; keep `kms:Encrypt` with the
-rotation operator. Configure the resulting Base64 file as
-`CHITAOZINHO_SERVER_SEED_KMS_CIPHERTEXT_B64`, the ARN as
-`CHITAOZINHO_SERVER_SEED_KMS_KEY_ID`, and never configure
-`CHITAOZINHO_SERVER_SEED_HEX` outside local development.
 
 Use the public key from the generated `.public.json` when issuing the
 certificate:
@@ -47,17 +39,6 @@ nix develop --command scripts/key-management issue-operational \
   --valid-from 2026-07-30T00:00:00Z \
   --valid-until 2026-10-28T00:00:00Z \
   --output server-2026-q3.certificate.json
-```
-
-For an existing operational seed, `encrypt-operational` imports it into the
-same envelope format without modifying or deleting the source file:
-
-```sh
-nix develop --command scripts/key-management encrypt-operational \
-  --seed-file /secure/legacy/server.seed \
-  --kms-key-arn "$SIGNING_ENVELOPE_KMS_KEY_ARN" \
-  --operational-key-id server-2026-q3 \
-  --output server-2026-q3.seed.kms.b64
 ```
 
 Maintain revocations as a monotonically sequenced, root-signed snapshot. The

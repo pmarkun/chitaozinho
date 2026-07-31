@@ -38,6 +38,7 @@ class Settings(BaseSettings):
         max_length=64,
         repr=False,
     )
+    server_seed_path: Path | None = None
     server_seed_kms_ciphertext_b64: str | None = Field(
         default=None,
         min_length=4,
@@ -146,9 +147,9 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "plaintext server signing seed is forbidden outside local development"
                 )
-            if self.server_seed_kms_ciphertext_b64 is None or self.server_seed_kms_key_id is None:
+            if self.server_seed_path is None:
                 raise ValueError(
-                    "KMS-encrypted server signing seed is required outside local development"
+                    "a mounted server signing seed file is required outside local development"
                 )
             if self.server_certificate_path is None and self.server_certificate_json is None:
                 raise ValueError(
@@ -189,7 +190,12 @@ class Settings(BaseSettings):
                 )
         elif self.auth_mode not in {"development", "magic_link"}:
             raise ValueError("unsupported authentication mode")
-        if self.server_seed_hex is not None and self.server_seed_kms_ciphertext_b64 is not None:
+        seed_sources = [
+            self.server_seed_hex,
+            self.server_seed_path,
+            self.server_seed_kms_ciphertext_b64,
+        ]
+        if sum(value is not None for value in seed_sources) > 1:
             raise ValueError("configure only one server signing seed source")
         trust_sources = [
             (

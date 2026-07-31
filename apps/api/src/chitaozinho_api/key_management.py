@@ -169,6 +169,9 @@ def main() -> None:
     root_parser = subparsers.add_parser("generate-root")
     root_parser.add_argument("--output-dir", type=Path, required=True)
     root_parser.add_argument("--key-id", required=True)
+    mounted_parser = subparsers.add_parser("generate-operational-file")
+    mounted_parser.add_argument("--output-dir", type=Path, required=True)
+    mounted_parser.add_argument("--operational-key-id", required=True)
     operational_parser = subparsers.add_parser("generate-operational-envelope")
     operational_parser.add_argument("--output-dir", type=Path, required=True)
     operational_parser.add_argument("--operational-key-id", required=True)
@@ -215,13 +218,32 @@ def main() -> None:
             0o644,
         )
         return
+    if arguments.command == "generate-operational-file":
+        seed_path = arguments.output_dir / f"{arguments.operational_key_id}.seed"
+        public_path = arguments.output_dir / f"{arguments.operational_key_id}.public.json"
+        require_new_paths(seed_path, public_path)
+        seed_buffer = bytearray(secrets.token_bytes(32))
+        try:
+            write_new(seed_path, bytes(seed_buffer).hex().encode() + b"\n", 0o600)
+            public_document = {
+                "schema_version": "0.1.0",
+                "key_id": arguments.operational_key_id,
+                "algorithm": "Ed25519",
+                "public_key_hex": public_key_from_seed(bytes(seed_buffer)).hex(),
+                "created_at": rfc3339(datetime.now(UTC)),
+                "seed_protection": {"method": "runtime-secret-mount"},
+            }
+            write_new(
+                public_path,
+                canonical_bytes(public_document) + b"\n",
+                0o644,
+            )
+        finally:
+            seed_buffer[:] = b"\0" * len(seed_buffer)
+        return
     if arguments.command == "generate-operational-envelope":
-        ciphertext_path = (
-            arguments.output_dir / f"{arguments.operational_key_id}.seed.kms.b64"
-        )
-        public_path = (
-            arguments.output_dir / f"{arguments.operational_key_id}.public.json"
-        )
+        ciphertext_path = arguments.output_dir / f"{arguments.operational_key_id}.seed.kms.b64"
+        public_path = arguments.output_dir / f"{arguments.operational_key_id}.public.json"
         require_new_paths(ciphertext_path, public_path)
         seed_buffer = bytearray(secrets.token_bytes(32))
         try:

@@ -271,12 +271,9 @@ def test_non_local_environment_fails_closed_without_tls_and_external_storage() -
             **kms_storage,
             server_seed_hex="11" * 32,
         )
-    with pytest.raises(ValidationError, match="KMS-encrypted"):
+    with pytest.raises(ValidationError, match="mounted server signing seed"):
         Settings(**kms_storage)
-    signing_envelope = {
-        "server_seed_kms_ciphertext_b64": "c3ludGhldGljLWNpcGhlcnRleHQ=",
-        "server_seed_kms_key_id": ("arn:aws:kms:sa-east-1:123456789012:key/signing-envelope"),
-    }
+    signing_envelope = {"server_seed_path": Path("/run/secrets/server.seed")}
     with pytest.raises(ValidationError, match="revocation list"):
         Settings(
             **kms_storage,

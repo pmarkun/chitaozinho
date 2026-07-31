@@ -257,6 +257,26 @@ def test_server_signer_decrypts_kms_envelope_with_bound_context() -> None:
     }
 
 
+def test_server_signer_reads_private_mounted_seed(tmp_path: Path) -> None:
+    seed = bytes([53]) * 32
+    seed_path = tmp_path / "server.seed"
+    seed_path.write_text(seed.hex() + "\n")
+    seed_path.chmod(0o600)
+
+    signer = ServerSigner.from_settings(
+        Settings(server_key_id="server-file-test", server_seed_path=seed_path)
+    )
+
+    assert signer is not None
+    assert signer.public_key == public_key_from_seed(seed)
+
+    seed_path.chmod(0o640)
+    with pytest.raises(ValueError, match="group or others"):
+        ServerSigner.from_settings(
+            Settings(server_key_id="server-file-test", server_seed_path=seed_path)
+        )
+
+
 def test_server_signer_rejects_invalid_kms_results() -> None:
     kms_key_id = "arn:aws:kms:sa-east-1:123456789012:key/signing-envelope"
     settings = Settings(

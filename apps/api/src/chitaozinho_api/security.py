@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import stat
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -33,11 +34,14 @@ class ServerSigner:
     ) -> ServerSigner | None:
         if (
             settings.server_seed_hex is None
+            and settings.server_seed_path is None
             and settings.server_seed_kms_ciphertext_b64 is None
         ):
             return None
         if settings.server_seed_hex is not None:
             seed = bytes.fromhex(settings.server_seed_hex)
+        elif settings.server_seed_path is not None:
+            seed = load_private_seed(settings.server_seed_path)
         else:
             if settings.server_seed_kms_key_id is None:
                 raise ValueError("KMS key id is required for encrypted server seed")
@@ -108,9 +112,7 @@ class ServerSigner:
         )
         if root_public is not None:
             if certificate is None or revocation_list is None:
-                raise ValueError(
-                    "root trust requires a certificate and revocation list"
-                )
+                raise ValueError("root trust requires a certificate and revocation list")
             validate_root_signed_trust(
                 settings,
                 certificate,
@@ -128,6 +130,21 @@ class ServerSigner:
 
     def sign(self, domain: bytes, value: object) -> str:
         return sign_canonical(domain, value, self.private_seed).hex()
+
+
+def load_private_seed(path: Path) -> bytes:
+    metadata = path.stat()
+    if not stat.S_ISREG(metadata.st_mode):
+        raise ValueError("server signing seed path must be a regular file")
+    if metadata.st_mode & 0o077:
+        raise ValueError("server signing seed file must not be accessible by group or others")
+    try:
+        seed = bytes.fromhex(path.read_text(encoding="ascii").strip())
+    except (OSError, UnicodeError, ValueError) as error:
+        raise ValueError("invalid server signing seed file") from error
+    if len(seed) != 32:
+        raise ValueError("server signing seed must contain exactly 32 bytes")
+    return seed
 
 
 def server_seed_encryption_context(server_key_id: str) -> dict[str, str]:
@@ -240,10 +257,7 @@ def validate_root_signed_trust(
         if not isinstance(revoked, dict):
             raise ValueError("invalid revoked key record")
         revoked_at = parse_rfc3339(revoked.get("revoked_at"), "key revoked_at")
-        if (
-            revoked.get("key_id") == settings.server_key_id
-            and revoked_at <= current
-        ):
+        if revoked.get("key_id") == settings.server_key_id and revoked_at <= current:
             raise ValueError("configured server signing key is revoked")
 
 
