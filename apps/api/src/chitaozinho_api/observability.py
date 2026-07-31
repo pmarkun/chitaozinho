@@ -16,7 +16,11 @@ def configure_operational_logging() -> None:
     logging.disable(logging.NOTSET)
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     LOGGER.setLevel(logging.INFO)
+    LOGGER.disabled = False
+    LOGGER.propagate = True
     WORKER_LOGGER.setLevel(logging.INFO)
+    WORKER_LOGGER.disabled = False
+    WORKER_LOGGER.propagate = True
 
 
 def emit_request_log(
