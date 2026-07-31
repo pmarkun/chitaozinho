@@ -4,6 +4,47 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
+test("public pages stay accessible on desktop and mobile", async ({
+  browser,
+}) => {
+  for (const viewport of [
+    { width: 1280, height: 900 },
+    { width: 360, height: 800 },
+  ]) {
+    const context = await browser.newContext({ viewport });
+    const page = await context.newPage();
+    await page.addInitScript({ content: AxeBuilder.source });
+    for (const route of ["/", "/validar", "/metodologia"]) {
+      await page.goto(route);
+      const result = await page.evaluate(async () =>
+        globalThis.axe.run(document, {
+          runOnly: {
+            type: "tag",
+            values: [
+              "wcag2a",
+              "wcag2aa",
+              "wcag21a",
+              "wcag21aa",
+              "wcag22a",
+              "wcag22aa",
+            ],
+          },
+        }),
+      );
+      expect(result.violations, `${route} at ${viewport.width}px`).toEqual([]);
+      expect(
+        await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth <=
+            document.documentElement.clientWidth,
+        ),
+        `${route} overflows at ${viewport.width}px`,
+      ).toBe(true);
+    }
+    await context.close();
+  }
+});
+
 test("public verifier stays local and has no automatic WCAG violations", async ({
   page,
 }) => {

@@ -144,18 +144,18 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ### Experiência e relatório
 
-- [ ] Tela inicial prioriza claramente a criação de uma nova evidência.
-- [ ] Antes da captura, interface explica o que será registrado e confirma autorização.
-- [ ] Durante a captura, ações usam linguagem simples e detalhes técnicos ficam recolhidos.
+- [x] Tela inicial prioriza claramente a criação de uma nova evidência.
+- [x] Antes da captura, interface explica o que será registrado e confirma autorização.
+- [x] Durante a captura, ações usam linguagem simples e detalhes técnicos ficam recolhidos.
 - [x] Após a captura, interface mostra integridade, completude e estados independentes.
-- [ ] Conclusão oferece download e acesso direto ao verificador completo.
-- [ ] Histórico identifica evidências por título, domínio, data e estado.
-- [ ] Erros são acionáveis e não exibem respostas técnicas brutas por padrão.
+- [x] Conclusão oferece download e acesso direto ao verificador completo.
+- [x] Histórico identifica evidências por título, domínio, data e estado.
+- [x] Erros são acionáveis e não exibem respostas técnicas brutas por padrão.
 - [x] Download inclui pacote, hash externo e chaves públicas necessárias.
 - [x] Relatório HTML apresenta resultados `íntegro`, `íntegro, mas incompleto`, `inválido` ou `não verificável`.
 - [x] Relatório nunca afirma autoria, veracidade ou validade jurídica definitiva.
 - [x] Interface preparada para pt-BR e inglês.
-- [ ] Fluxo principal atende WCAG 2.2 AA.
+- [x] Fluxo principal atende WCAG 2.2 AA.
 
 ### Validador web, metodologia e administração
 
@@ -165,12 +165,12 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Resultado detalha integridade, completude, confiança e prova temporal.
 - [x] Relatórios HTML e JSON podem ser exportados.
 - [x] Pacotes hostis respeitam limites e falham de forma localizada no navegador.
-- [ ] Página pública possui início, validação e metodologia com URLs próprias.
-- [ ] Validação prioriza o ZIP e recolhe comprovantes e opções avançadas.
-- [ ] Metodologia pública apresenta as garantias de captura, hashes,
+- [x] Página pública possui início, validação e metodologia com URLs próprias.
+- [x] Validação prioriza o ZIP e recolhe comprovantes e opções avançadas.
+- [x] Metodologia pública apresenta as garantias de captura, hashes,
   assinaturas, recibos, fontes de tempo, retenção e verificação independente.
-- [ ] Ressalvas genéricas aparecem somente no escopo da atestação da metodologia e relatório.
-- [ ] `README.txt`, metodologia v0.2 e guia de verificação acompanham o pacote.
+- [x] Ressalvas genéricas aparecem somente no escopo da atestação da metodologia e relatório.
+- [x] `README.txt`, metodologia v0.2 e guia de verificação acompanham o pacote.
 - [x] Índice assinado cobre todos os documentos metodológicos.
 - [ ] Administrador autenticado lista sessões e estados de forma paginada.
 - [ ] Administrador pode baixar pacote, checksum e complemento.
@@ -243,7 +243,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Uso de CPU, memória e disco é medido durante captura.
 - [x] A captura não degrada significativamente a página observada.
 - [x] Falhas de disco, rede, storage e processo possuem recuperação documentada.
-- [x] Ameaças e limitações aparecem na interface e no relatório.
+- [x] Falhas concretas e ausências aparecem na interface e no relatório.
 - [x] Nenhum dado pessoal é publicado em blockchain.
 
 ## 6. Matriz mínima de testes
