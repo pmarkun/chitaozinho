@@ -49,3 +49,37 @@ def append_audit_event(
     )
     database.add(audit_event)
     return audit_event
+
+
+def verify_audit_chain(database: Session) -> int:
+    events = database.scalars(select(AuditEvent).order_by(AuditEvent.sequence))
+    expected_sequence = 0
+    previous_hash = None
+    for event in events:
+        if event.sequence != expected_sequence:
+            raise ValueError(
+                f"audit sequence mismatch at {event.sequence}; "
+                f"expected {expected_sequence}"
+            )
+        if event.previous_event_hash != previous_hash:
+            raise ValueError(f"audit predecessor mismatch at {event.sequence}")
+        created_at = event.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=UTC)
+        document = {
+            "schema_version": "0.1.0",
+            "sequence": event.sequence,
+            "previous_event_hash": previous_hash,
+            "event_type": event.event_type,
+            "subject_id": event.subject_id,
+            "details": event.details,
+            "created_at": (
+                created_at.astimezone(UTC).isoformat().replace("+00:00", "Z")
+            ),
+        }
+        expected_hash = sha256_identifier(canonical_bytes(document))
+        if event.event_hash != expected_hash:
+            raise ValueError(f"audit event hash mismatch at {event.sequence}")
+        previous_hash = event.event_hash
+        expected_sequence += 1
+    return expected_sequence

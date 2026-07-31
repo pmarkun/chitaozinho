@@ -32,13 +32,10 @@ if [[ "${CHITAOZINHO_BACKUP_SYNTHETIC:-0}" == "1" ]]; then
   createdb "${source_database}"
   CHITAOZINHO_DATABASE_URL="$(database_url "${source_database}")" \
     uv run --project "${project_root}/apps/api" alembic upgrade head >/dev/null
-  psql --dbname="${source_database}" --set=ON_ERROR_STOP=1 --command="
-    INSERT INTO capture_sessions (
-      id, server_challenge, status, next_sequence, created_at, updated_at
-    ) VALUES (
-      'backup-smoke-${$}', 'synthetic', 'created', 0, now(), now()
-    )
-  " >/dev/null
+  CHITAOZINHO_DATABASE_URL="$(database_url "${source_database}")" \
+    uv run --project "${project_root}/apps/api" python \
+      "${project_root}/scripts/check-database-recovery.py" \
+      --seed-synthetic "backup-smoke-${$}" >/dev/null
 fi
 
 if ! psql --dbname="${source_database}" --command="SELECT 1" >/dev/null 2>&1; then
@@ -99,6 +96,28 @@ for table in "${source_tables[@]}"; do
     echo "restored row count differs for ${table}" >&2
     exit 1
   fi
+  source_digest="$(
+    psql --dbname="${source_database}" --tuples-only --no-align --command="
+      SELECT md5(COALESCE(string_agg(row_data, E'\n' ORDER BY row_data), ''))
+      FROM (
+        SELECT row_to_json(value)::text AS row_data
+        FROM \"${table}\" AS value
+      ) AS rows
+    "
+  )"
+  restored_digest="$(
+    psql --dbname="${restore_database}" --tuples-only --no-align --command="
+      SELECT md5(COALESCE(string_agg(row_data, E'\n' ORDER BY row_data), ''))
+      FROM (
+        SELECT row_to_json(value)::text AS row_data
+        FROM \"${table}\" AS value
+      ) AS rows
+    "
+  )"
+  if [[ "${source_digest}" != "${restored_digest}" ]]; then
+    echo "restored content differs for ${table}" >&2
+    exit 1
+  fi
 done
 
 restored_url="$(database_url "${restore_database}")"
@@ -109,9 +128,15 @@ restored_revision="$(
     uv run --project "${project_root}/apps/api" alembic current |
     tail -n 1
 )"
+recovery_result="$(
+  CHITAOZINHO_DATABASE_URL="${restored_url}" \
+    uv run --project "${project_root}/apps/api" python \
+      "${project_root}/scripts/check-database-recovery.py"
+)"
 
-printf 'backup_sha256=%s restored_database=%s tables=%s revision=%s\n' \
+printf 'backup_sha256=%s restored_database=%s tables=%s revision=%s recovery=%s\n' \
   "${backup_hash}" \
   "${restore_database}" \
   "${#source_tables[@]}" \
-  "${restored_revision}"
+  "${restored_revision}" \
+  "${recovery_result}"
