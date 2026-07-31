@@ -31,3 +31,5 @@ os serviços com `nix develop --command ./scripts/local-services stop`.
 
 Operação e recuperação estão documentadas em
 [`docs/runbooks.md`](docs/runbooks.md).
+A comparação obrigatória de autoridades de carimbo do tempo antes da produção
+está em [`docs/tsa-evaluation.md`](docs/tsa-evaluation.md).

@@ -26,7 +26,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ### Bloqueiam a POC probatória
 
-- [x] **DEC-013 — TSA:** a POC pode usar uma TSA RFC 3161 confiável; opções brasileiras serão comparadas antes de produção.
+- [x] **DEC-013 — TSA:** a POC pode usar uma TSA RFC 3161 confiável; o gate para comparar opções brasileiras antes de produção está em [`docs/tsa-evaluation.md`](docs/tsa-evaluation.md).
 - [x] **DEC-014 — Trust store:** raízes TSA explícitas e versionadas; atualizações do trust store devem ser assinadas.
 - [x] **DEC-015 — Storage:** Garage local e AWS S3 com Object Lock em `sa-east-1`. MinIO foi descartado porque o pacote disponível está abandonado e possui vulnerabilidades críticas conhecidas.
 - [x] **DEC-016 — Retenção:** mínimo aceito no teste, 90 dias no gratuito, 5 anos no individual e prazo configurável no institucional.

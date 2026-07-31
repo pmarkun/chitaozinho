@@ -13,6 +13,9 @@ rollback de deploy e qualquer ação em produção exigem autorização explíci
 
 ## TSA RFC 3161
 
+- Antes da produção, aplique o gate de seleção em
+  [`tsa-evaluation.md`](tsa-evaluation.md); credenciamento não substitui o
+  ensaio de interoperabilidade e a revisão contratual.
 - Confirme URL, CA e CRL configuradas e valide o `.tsq` preservado.
 - Não gere outro hash: retries reutilizam o `manifest_hash` e criam nova
   tentativa auditada.
