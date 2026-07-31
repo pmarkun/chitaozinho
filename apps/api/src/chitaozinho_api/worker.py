@@ -8,7 +8,12 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from .config import Settings
 from .database import create_database_engine
-from .jobs import mark_job_completed, mark_job_failed, mark_job_running
+from .jobs import (
+    job_retry_delay,
+    mark_job_completed,
+    mark_job_failed,
+    mark_job_running,
+)
 from .models import CaptureSession, Job
 from .observability import configure_operational_logging, emit_worker_log
 from .proof_service import timestamp_capture
@@ -84,7 +89,15 @@ def run_once(
             database.rollback()
             current = database.get(Job, job.id)
             if current is not None:
-                mark_job_failed(database, current, error)
+                mark_job_failed(
+                    database,
+                    current,
+                    error,
+                    retry_delay_seconds=job_retry_delay(
+                        settings,
+                        current.attempts,
+                    ),
+                )
                 emit_worker_log(
                     event="job_failed",
                     job_id=current.id,

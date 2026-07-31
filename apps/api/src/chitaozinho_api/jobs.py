@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from .config import Settings
 from .models import Job
 
 
@@ -95,8 +96,26 @@ def mark_job_completed(database: Session, job: Job, result: dict) -> None:
     database.commit()
 
 
-def mark_job_failed(database: Session, job: Job, error: Exception) -> None:
+def mark_job_failed(
+    database: Session,
+    job: Job,
+    error: Exception,
+    *,
+    retry_delay_seconds: float,
+) -> None:
+    if retry_delay_seconds <= 0:
+        raise ValueError("job retry delay must be positive")
+    now = datetime.now(UTC)
     job.status = "failed"
     job.last_error = type(error).__name__
-    job.updated_at = datetime.now(UTC)
+    job.available_at = now + timedelta(seconds=retry_delay_seconds)
+    job.updated_at = now
     database.commit()
+
+
+def job_retry_delay(settings: Settings, attempts: int) -> float:
+    exponent = min(max(attempts - 1, 0), 30)
+    return min(
+        settings.worker_retry_max_seconds,
+        settings.worker_retry_base_seconds * (2**exponent),
+    )

@@ -20,6 +20,8 @@ rollback de deploy e qualquer ação em produção exigem autorização explíci
 - Não gere outro hash: retries reutilizam o `manifest_hash` e criam nova
   tentativa auditada.
 - Reinicie o worker apenas após verificar banco e conectividade da TSA.
+- Falhas usam backoff exponencial persistido, de 5 segundos até 1 hora por
+  padrão; não altere `available_at` para forçar um loop de tentativas.
 - Uma TSA indisponível mantém a captura verificável com estado temporal
   pendente ou falho; nunca altere o manifesto.
 

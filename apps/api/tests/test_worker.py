@@ -7,7 +7,7 @@ from pathlib import Path
 
 from chitaozinho_api.config import Settings
 from chitaozinho_api.database import create_database_engine
-from chitaozinho_api.jobs import get_or_create_job
+from chitaozinho_api.jobs import get_or_create_job, job_retry_delay
 from chitaozinho_api.models import Base, CaptureSession, Job, TimestampAttempt
 from chitaozinho_api.security import ServerSigner
 from chitaozinho_api.worker import run_once
@@ -105,6 +105,10 @@ def test_worker_failure_is_structured_without_exception_message(
         assert failed is not None
         assert failed.status == "failed"
         assert failed.last_error == "ValueError"
+        assert failed.available_at > failed.updated_at
+        assert (
+            failed.available_at - failed.updated_at
+        ).total_seconds() == settings.worker_retry_base_seconds
 
     records = [
         json.loads(record.message)
@@ -117,3 +121,4 @@ def test_worker_failure_is_structured_without_exception_message(
     ]
     assert records[-1]["error_type"] == "ValueError"
     assert "top-secret" not in json.dumps(records)
+    assert job_retry_delay(settings, 20) == settings.worker_retry_max_seconds

@@ -97,6 +97,11 @@ def test_extension_cors_preflight() -> None:
 
 
 def test_non_local_environment_fails_closed_without_tls_and_external_storage() -> None:
+    with pytest.raises(ValidationError, match="retry maximum"):
+        Settings(
+            worker_retry_base_seconds=10,
+            worker_retry_max_seconds=5,
+        )
     with pytest.raises(ValidationError, match="development.*test.*staging.*production"):
         Settings(env="preview")  # type: ignore[arg-type]
     with pytest.raises(ValidationError, match="HTTPS"):

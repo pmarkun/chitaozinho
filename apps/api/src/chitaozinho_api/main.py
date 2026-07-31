@@ -43,6 +43,7 @@ from .database import create_database_engine, session_dependency
 from .download_tokens import create_download_token, verify_download_token
 from .jobs import (
     get_or_create_job,
+    job_retry_delay,
     lock_job,
     mark_job_completed,
     mark_job_failed,
@@ -1270,7 +1271,15 @@ def create_app(
             database.rollback()
             current_job = database.get(Job, job.id)
             if current_job is not None:
-                mark_job_failed(database, current_job, error)
+                mark_job_failed(
+                    database,
+                    current_job,
+                    error,
+                    retry_delay_seconds=job_retry_delay(
+                        settings,
+                        current_job.attempts,
+                    ),
+                )
             raise
         return attestation_response(attestation)
 

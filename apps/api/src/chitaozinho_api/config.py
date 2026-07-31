@@ -88,6 +88,8 @@ class Settings(BaseSettings):
     requests_per_minute: int = 600
     worker_poll_seconds: float = 2.0
     worker_stale_seconds: int = 5 * 60
+    worker_retry_base_seconds: float = Field(default=5.0, ge=0.1, le=3600)
+    worker_retry_max_seconds: float = Field(default=3600.0, ge=1, le=86400)
     software_name: str = "Chitãozinho Client"
     software_version: str = "0.1.0"
     software_commit: str = "development"
@@ -103,6 +105,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def production_safety(self) -> Settings:
+        if self.worker_retry_max_seconds < self.worker_retry_base_seconds:
+            raise ValueError(
+                "worker retry maximum must not be shorter than its base delay"
+            )
         if self.env not in {"development", "test"}:
             if not self.public_base_url.startswith("https://"):
                 raise ValueError("HTTPS public_base_url is required outside local development")
