@@ -111,12 +111,25 @@ def test_non_local_environment_fails_closed_without_tls_and_external_storage() -
             public_base_url="https://example.test",
             storage_backend="s3",
         )
+    with pytest.raises(ValidationError, match="PostgreSQL"):
+        Settings(
+            env="staging",
+            public_base_url="https://example.test",
+            storage_backend="s3",
+            s3_kms_key_id="arn:aws:kms:sa-east-1:123456789012:key/evidence",
+        )
     kms_storage = {
         "env": "staging",
         "public_base_url": "https://example.test",
+        "database_url": "postgresql+psycopg://service@database/chitaozinho",
         "storage_backend": "s3",
+        "s3_region": "sa-east-1",
         "s3_kms_key_id": "arn:aws:kms:sa-east-1:123456789012:key/evidence",
     }
+    with pytest.raises(ValidationError, match="sa-east-1"):
+        Settings(**{**kms_storage, "s3_region": "us-east-1"})
+    with pytest.raises(ValidationError, match="custom S3 endpoints"):
+        Settings(**kms_storage, s3_endpoint_url="http://127.0.0.1:3900")
     with pytest.raises(ValidationError, match="at least 90 days"):
         Settings(**kms_storage, retention_days=1)
     with pytest.raises(ValidationError, match="plaintext"):

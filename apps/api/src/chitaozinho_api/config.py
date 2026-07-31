@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
 
 
 class Settings(BaseSettings):
@@ -108,6 +109,18 @@ class Settings(BaseSettings):
             if self.s3_kms_key_id is None:
                 raise ValueError(
                     "customer-managed S3 KMS key is required outside local development"
+                )
+            if make_url(self.database_url).get_backend_name() != "postgresql":
+                raise ValueError(
+                    "PostgreSQL database is required outside local development"
+                )
+            if self.s3_region != "sa-east-1":
+                raise ValueError(
+                    "evidence storage must use AWS region sa-east-1"
+                )
+            if self.s3_endpoint_url is not None:
+                raise ValueError(
+                    "custom S3 endpoints are forbidden outside local development"
                 )
             if self.retention_days < 90:
                 raise ValueError(
