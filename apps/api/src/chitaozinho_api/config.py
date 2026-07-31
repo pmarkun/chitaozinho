@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from re import fullmatch
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -20,10 +21,11 @@ class Settings(BaseSettings):
     env: Literal["development", "test", "staging", "production"] = "development"
     database_url: str = "sqlite:///data/chitaozinho.db"
     storage_backend: str = "local"
+    storage_provider: Literal["local", "garage", "ceph"] = "local"
     storage_path: Path = Path("data/artifacts")
     proofs_path: Path = Path("data/proofs")
     s3_endpoint_url: str | None = None
-    s3_region: str = "garage"
+    s3_region: str = "ceph"
     s3_bucket: str = "chitaozinho"
     s3_access_key_id: str | None = Field(default=None, repr=False)
     s3_secret_access_key: str | None = Field(default=None, repr=False)
@@ -100,56 +102,54 @@ class Settings(BaseSettings):
     tsa_untrusted_chain: Path | None = None
     tsa_crl_bundle: Path | None = None
     ots_calendars: str = (
-        "https://alice.btc.calendar.opentimestamps.org,"
-        "https://bob.btc.calendar.opentimestamps.org"
+        "https://alice.btc.calendar.opentimestamps.org,https://bob.btc.calendar.opentimestamps.org"
     )
 
     @model_validator(mode="after")
     def production_safety(self) -> Settings:
         if self.worker_retry_max_seconds < self.worker_retry_base_seconds:
-            raise ValueError(
-                "worker retry maximum must not be shorter than its base delay"
-            )
+            raise ValueError("worker retry maximum must not be shorter than its base delay")
         if self.env not in {"development", "test"}:
             if not self.public_base_url.startswith("https://"):
                 raise ValueError("HTTPS public_base_url is required outside local development")
             if self.storage_backend != "s3":
                 raise ValueError("external S3 storage is required outside local development")
+            if self.storage_provider != "ceph":
+                raise ValueError("Ceph RGW is required outside local development")
+            if self.s3_endpoint_url is None:
+                raise ValueError("Ceph RGW endpoint is required outside local development")
+            endpoint = urlsplit(self.s3_endpoint_url)
+            if (
+                endpoint.scheme != "https"
+                or endpoint.hostname is None
+                or endpoint.username is not None
+                or endpoint.password is not None
+                or endpoint.path not in {"", "/"}
+                or endpoint.query
+                or endpoint.fragment
+            ):
+                raise ValueError("Ceph RGW endpoint must be an HTTPS origin")
+            if self.s3_access_key_id is None or self.s3_secret_access_key is None:
+                raise ValueError(
+                    "Ceph RGW access credentials are required outside local development"
+                )
             if self.s3_kms_key_id is None:
-                raise ValueError(
-                    "customer-managed S3 KMS key is required outside local development"
-                )
+                raise ValueError("Ceph RGW SSE-KMS key is required outside local development")
             if make_url(self.database_url).get_backend_name() != "postgresql":
-                raise ValueError(
-                    "PostgreSQL database is required outside local development"
-                )
-            if self.s3_region != "sa-east-1":
-                raise ValueError(
-                    "evidence storage must use AWS region sa-east-1"
-                )
-            if self.s3_endpoint_url is not None:
-                raise ValueError(
-                    "custom S3 endpoints are forbidden outside local development"
-                )
+                raise ValueError("PostgreSQL database is required outside local development")
+            if self.s3_region != "ceph":
+                raise ValueError("evidence storage must use the Ceph RGW region")
             if self.retention_days < 90:
-                raise ValueError(
-                    "staging and production retention must be at least 90 days"
-                )
+                raise ValueError("staging and production retention must be at least 90 days")
             if self.server_seed_hex is not None:
                 raise ValueError(
                     "plaintext server signing seed is forbidden outside local development"
                 )
-            if (
-                self.server_seed_kms_ciphertext_b64 is None
-                or self.server_seed_kms_key_id is None
-            ):
+            if self.server_seed_kms_ciphertext_b64 is None or self.server_seed_kms_key_id is None:
                 raise ValueError(
                     "KMS-encrypted server signing seed is required outside local development"
                 )
-            if (
-                self.server_certificate_path is None
-                and self.server_certificate_json is None
-            ):
+            if self.server_certificate_path is None and self.server_certificate_json is None:
                 raise ValueError(
                     "root-signed server certificate is required outside local development"
                 )
@@ -160,13 +160,8 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "root-signed key revocation list is required outside local development"
                 )
-            if (
-                self.server_root_public_path is None
-                and self.server_root_public_json is None
-            ):
-                raise ValueError(
-                    "offline root public key is required outside local development"
-                )
+            if self.server_root_public_path is None and self.server_root_public_json is None:
+                raise ValueError("offline root public key is required outside local development")
             if self.auth_mode != "magic_link":
                 raise ValueError("magic-link authentication is required outside local development")
             if self.auth_token_pepper is None:
@@ -179,32 +174,21 @@ class Settings(BaseSettings):
                 raise ValueError("SMTP STARTTLS is required outside local development")
             if not self.parsed_extension_ids():
                 raise ValueError(
-                    "at least one exact Chromium extension ID is required "
-                    "outside local development"
+                    "at least one exact Chromium extension ID is required outside local development"
                 )
             if self.metrics_token is None:
-                raise ValueError(
-                    "metrics bearer token is required outside local development"
-                )
+                raise ValueError("metrics bearer token is required outside local development")
             if fullmatch(r"[0-9a-f]{40,64}", self.software_commit) is None:
+                raise ValueError("exact source commit is required outside local development")
+            if fullmatch(
+                r"sha256:[0-9a-f]{64}", self.software_build_hash
+            ) is None or self.software_build_hash == "sha256:" + ("0" * 64):
                 raise ValueError(
-                    "exact source commit is required outside local development"
-                )
-            if (
-                fullmatch(r"sha256:[0-9a-f]{64}", self.software_build_hash)
-                is None
-                or self.software_build_hash == "sha256:" + ("0" * 64)
-            ):
-                raise ValueError(
-                    "non-zero SHA-256 build identity is required "
-                    "outside local development"
+                    "non-zero SHA-256 build identity is required outside local development"
                 )
         elif self.auth_mode not in {"development", "magic_link"}:
             raise ValueError("unsupported authentication mode")
-        if (
-            self.server_seed_hex is not None
-            and self.server_seed_kms_ciphertext_b64 is not None
-        ):
+        if self.server_seed_hex is not None and self.server_seed_kms_ciphertext_b64 is not None:
             raise ValueError("configure only one server signing seed source")
         trust_sources = [
             (
@@ -229,11 +213,7 @@ class Settings(BaseSettings):
         return self
 
     def parsed_extension_ids(self) -> tuple[str, ...]:
-        values = tuple(
-            value.strip()
-            for value in self.extension_ids.split(",")
-            if value.strip()
-        )
+        values = tuple(value.strip() for value in self.extension_ids.split(",") if value.strip())
         if any(fullmatch(r"[a-p]{32}", value) is None for value in values):
             raise ValueError("invalid Chromium extension ID")
         if len(set(values)) != len(values):

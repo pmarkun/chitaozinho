@@ -136,7 +136,7 @@ def test_s3_final_artifact_uses_and_verifies_configured_kms_key(
     source.write_bytes(content)
     digest = f"sha256:{sha256(content).hexdigest()}"
     retain_until = datetime.now(UTC) + timedelta(days=1)
-    kms_key_id = "arn:aws:kms:sa-east-1:123456789012:key/test-key"
+    kms_key_id = "chitaozinho-evidence"
     client = FakeObjectLockClient(content, digest, retain_until)
     client.head_response.update(
         {
@@ -162,7 +162,7 @@ def test_s3_final_artifact_uses_and_verifies_configured_kms_key(
     assert client.put_arguments["ServerSideEncryption"] == "aws:kms"
     assert client.put_arguments["SSEKMSKeyId"] == kms_key_id
 
-    client.head_response["SSEKMSKeyId"] = "arn:aws:kms:sa-east-1:other:key/wrong"
+    client.head_response["SSEKMSKeyId"] = "different-ceph-vault-key"
     with pytest.raises(RuntimeError, match="retention could not be verified"):
         storage.protect_final(
             "another-session",
@@ -174,7 +174,7 @@ def test_s3_final_artifact_uses_and_verifies_configured_kms_key(
 
 
 def test_s3_parts_request_configured_kms_key() -> None:
-    kms_key_id = "arn:aws:kms:sa-east-1:123456789012:key/test-key"
+    kms_key_id = "chitaozinho-evidence"
     client = FakePartClient()
     storage = S3DurableStorage.__new__(S3DurableStorage)
     storage.bucket = "evidence-test"
