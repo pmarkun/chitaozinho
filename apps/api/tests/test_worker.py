@@ -9,6 +9,7 @@ from chitaozinho_api.config import Settings
 from chitaozinho_api.database import create_database_engine
 from chitaozinho_api.jobs import get_or_create_job, job_retry_delay
 from chitaozinho_api.models import Base, CaptureSession, Job, TimestampAttempt
+from chitaozinho_api.observability import configure_operational_logging
 from chitaozinho_api.security import ServerSigner
 from chitaozinho_api.worker import run_once
 from sqlalchemy import func, select
@@ -74,6 +75,7 @@ def test_worker_failure_is_structured_without_exception_message(
     caplog,
     tmp_path: Path,
 ) -> None:
+    configure_operational_logging()
     assert logging.getLogger("chitaozinho.worker").level == logging.INFO
     caplog.set_level(logging.INFO, logger="chitaozinho.worker")
     settings = Settings(
