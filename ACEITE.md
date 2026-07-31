@@ -156,11 +156,11 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 ### Validador web, metodologia e administração
 
 - [ ] Mesmo build do validador funciona pelo link público e offline.
-- [ ] ZIP principal, checksum e complemento são processados somente no
+- [x] ZIP principal, checksum e complemento são processados somente no
   navegador, sem upload ou telemetria dos arquivos.
-- [ ] Resultado detalha integridade, completude, confiança e prova temporal.
-- [ ] Relatórios HTML e JSON podem ser exportados.
-- [ ] Pacotes hostis respeitam limites e falham de forma localizada no navegador.
+- [x] Resultado detalha integridade, completude, confiança e prova temporal.
+- [x] Relatórios HTML e JSON podem ser exportados.
+- [x] Pacotes hostis respeitam limites e falham de forma localizada no navegador.
 - [ ] Metodologia pública explica captura, hashes, assinaturas, recibos, fontes
   de tempo, retenção e limitações.
 - [x] `README.txt`, metodologia e guia de verificação acompanham o pacote.

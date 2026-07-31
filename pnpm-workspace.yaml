@@ -1,5 +1,6 @@
 packages:
   - "apps/extension"
+  - "apps/verifier-web"
   - "packages/protocol-ts"
 
 onlyBuiltDependencies:

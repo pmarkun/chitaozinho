@@ -1,0 +1,10 @@
+{
+  "name": "Validador Chitãozinho",
+  "short_name": "Chitãozinho",
+  "description": "Verificação local de pacotes probatórios Chitãozinho.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f3ec",
+  "theme_color": "#145c3d",
+  "lang": "pt-BR"
+}

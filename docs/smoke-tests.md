@@ -137,9 +137,10 @@ This run proves the short functional flow. It does not satisfy the separate
 ## 2026-07-30 — Backend and infrastructure safety gates
 
 - The full repository gate passed with 81 Python tests, three opt-in service
-  tests skipped in the unit pass, 19 extension tests, four TypeScript protocol
-  tests and 21 Rust tests. Two Playwright/axe-core browser tests additionally
-  cover the popup states, 320 CSS pixel reflow and initial keyboard paths.
+  tests skipped in the unit pass, 19 extension tests, four web-verifier tests,
+  four TypeScript protocol tests and 21 Rust tests. Four Playwright/axe-core
+  browser tests additionally cover the popup states, 320 CSS pixel reflow,
+  initial keyboard paths, local-only web processing and offline reload.
 - The Ceph configuration guard pins Squid `19.2.5` by multi-architecture image
   digest and requires TLS, Vault-backed SSE-KMS, one-day isolated retention and
   at least 90 days for runtime environments.
@@ -169,3 +170,20 @@ This run proves the short functional flow. It does not satisfy the separate
 - OSV Scanner and Trivy passed for locked dependencies, committed secrets,
   Docker, Ceph and workflow configuration. The documented exact
   `brace-expansion@1.1.18` advisory exception remains the only exception.
+
+## 2026-07-30 — Local-first web verifier
+
+- The production web build reloaded successfully after Chromium was switched
+  offline, using the same service-worker-controlled assets served online.
+- After a package was selected, the browser made no network request. A strict
+  `connect-src 'none'` policy also prevents application connections.
+- Four unit tests cover a valid signed package, self-declared trust, changed
+  indexed content, a divergent detached checksum and an unsafe ZIP path.
+- The real session `70fcb6f37872476e981a2b5ce58fff60`, its detached checksum
+  and an independently supplied operational public key passed entirely in
+  Chromium as `integral`.
+- The flow had no automatic WCAG 2.0, 2.1 or 2.2 A/AA violations according to
+  axe-core. This does not replace a manual accessibility review.
+- Raw RFC 3161 and OpenTimestamps token verification remains delegated to the
+  offline CLI; the web report labels this limitation instead of claiming a
+  fully verified external temporal proof.
