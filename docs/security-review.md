@@ -23,7 +23,7 @@ nix develop --command ./scripts/security-audit
 This automated gate complements the threat model, negative protocol vectors,
 authentication/owner-isolation tests and hostile-package tests. It does not
 replace an independent human review of the deployed staging environment,
-provider IAM, TLS, KMS/HSM and Object Lock configuration.
+RGW access, TLS, OpenBao policies and Object Lock configuration.
 
 ## 2026-07-30 POC code review
 

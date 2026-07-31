@@ -274,7 +274,8 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Migrações possuem validação e rollback.
 - [ ] Ceph RGW externo ao Railway com Object Lock é usado para evidências.
 - [x] Volumes do Railway não são usados como storage probatório.
-- [ ] Chaves de produção ficam em KMS/HSM ou solução equivalente aprovada.
+- [ ] Chave operacional de produção está provisionada como não exportável no
+  OpenBao Transit, com versão e certificado correspondentes.
 - [ ] Health checks, métricas, alertas e logs estruturados configurados.
   - [x] `/healthz` e `/readyz` separam vida e prontidão das dependências.
   - [x] `/metrics` autenticado expõe tráfego e saúde agregada dos jobs sem identificadores sensíveis.

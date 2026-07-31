@@ -595,7 +595,7 @@ A cadeia deve tornar detectáveis:
 ### 10.2 Servidor
 
 - Ed25519.
-- Chave armazenada em KMS/HSM quando possível.
+- Chave privada não exportável no OpenBao Transit fora do desenvolvimento.
 - Rotação de chave documentada.
 - Chaves públicas históricas mantidas indefinidamente.
 - Cada assinatura identifica algoritmo e `key_id`.
@@ -608,7 +608,8 @@ Receber a chave pública pelo mesmo backend não estabelece confiança independe
 - chaves operacionais do servidor são assinadas pela chave raiz;
 - o pacote inclui a chave operacional, seu certificado interno, validade e `key_id`;
 - a chave raiz é gerada e mantida offline;
-- chaves operacionais são rotacionadas a cada 90 dias e protegidas por KMS/HSM em produção;
+- chaves operacionais são rotacionadas a cada 90 dias e permanecem não
+  exportáveis no OpenBao Transit em staging e produção;
 - rotação e revogação geram registros assinados preservados historicamente;
 - modo de confiança customizada deve ser explícito na CLI e no relatório.
 
@@ -1166,7 +1167,7 @@ O verificador deve oferecer builds reproduzíveis em fase posterior.
 
 - TLS em trânsito.
 - Criptografia no storage.
-- Chaves de servidor em KMS ou HSM.
+- Chaves de servidor não exportáveis no OpenBao Transit.
 - Segredos fora do código-fonte.
 
 ### 21.2 Controle de acesso
