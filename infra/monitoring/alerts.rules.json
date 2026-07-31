@@ -1,0 +1,69 @@
+{
+  "groups": [
+    {
+      "name": "chitaozinho",
+      "rules": [
+        {
+          "alert": "ChitaozinhoApiUnavailable",
+          "expr": "up{job=~\"chitaozinho-api.*\"} == 0",
+          "for": "2m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "Chitaozinho API is unavailable",
+            "description": "The authenticated metrics target has been unreachable for two minutes. Check /readyz, PostgreSQL and S3."
+          }
+        },
+        {
+          "alert": "ChitaozinhoHighServerErrorRatio",
+          "expr": "sum(rate(chitaozinho_http_requests_total{status=~\"5..\"}[5m])) / clamp_min(sum(rate(chitaozinho_http_requests_total[5m])), 0.001) > 0.05",
+          "for": "10m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "Chitaozinho API has a high server error ratio",
+            "description": "More than five percent of API requests have returned 5xx for ten minutes."
+          }
+        },
+        {
+          "alert": "ChitaozinhoHighMeanRequestLatency",
+          "expr": "sum(rate(chitaozinho_http_request_duration_seconds_sum[5m])) / clamp_min(sum(rate(chitaozinho_http_requests_total[5m])), 0.001) > 2",
+          "for": "10m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Chitaozinho API mean request latency is high",
+            "description": "Mean request latency has exceeded two seconds for ten minutes."
+          }
+        },
+        {
+          "alert": "ChitaozinhoReadyJobsBacklogged",
+          "expr": "chitaozinho_jobs_ready > 0",
+          "for": "15m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Chitaozinho jobs are waiting for processing",
+            "description": "At least one durable job has remained eligible for processing for fifteen minutes."
+          }
+        },
+        {
+          "alert": "ChitaozinhoStaleRunningJobs",
+          "expr": "chitaozinho_jobs_stale_running > 0",
+          "for": "5m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "Chitaozinho has abandoned running jobs",
+            "description": "At least one running job has remained past the configured recovery threshold for five minutes."
+          }
+        }
+      ]
+    }
+  ]
+}

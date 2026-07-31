@@ -22,3 +22,10 @@ conteúdo retornado por provedores.
 Antes de produção, conecte o endpoint e os logs a um monitor externo e configure
 alertas para indisponibilidade de `/readyz`, respostas 5xx e aumento sustentado
 de duração. As métricas ficam em memória e reiniciam com cada processo.
+
+[`alerts.rules.json`](alerts.rules.json) contém o contrato versionado de cinco
+alertas Prometheus para indisponibilidade, proporção de 5xx, latência, backlog
+e jobs abandonados. `scripts/check-monitoring-config.py` valida nomes,
+severidades, durações, anotações e ausência de labels de alta cardinalidade.
+O monitor publicado ainda precisa importar essas regras e configurar o bearer
+token; manter o arquivo no repositório não fecha esse gate externo.
