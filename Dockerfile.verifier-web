@@ -1,0 +1,28 @@
+# syntax=docker/dockerfile:1.10@sha256:865e5dd094beca432e8c0a1d5e1c465db5f998dca4e439981029b3b81fb39ed5
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS builder
+
+ENV COREPACK_HOME=/corepack \
+    PNPM_HOME=/pnpm \
+    PATH=/pnpm:${PATH}
+WORKDIR /app
+
+RUN corepack enable \
+    && corepack prepare pnpm@10.14.0 --activate
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/verifier-web/package.json apps/verifier-web/package.json
+COPY packages/protocol-ts/package.json packages/protocol-ts/package.json
+RUN pnpm install --frozen-lockfile --filter @chitaozinho/verifier-web...
+
+COPY apps/verifier-web apps/verifier-web
+COPY packages/protocol-ts packages/protocol-ts
+RUN pnpm --filter @chitaozinho/verifier-web build
+
+FROM caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 AS runtime
+
+WORKDIR /srv
+COPY infra/railway/verifier-web.Caddyfile /etc/caddy/Caddyfile
+COPY --from=builder /app/apps/verifier-web/dist /srv
+
+USER 1000:1000
+EXPOSE 3000
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

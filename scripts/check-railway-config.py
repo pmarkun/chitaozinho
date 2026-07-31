@@ -8,10 +8,15 @@ from typing import Any
 ROOT = Path(__file__).parents[1]
 API_PATH = ROOT / "infra" / "railway" / "api.json"
 WORKER_PATH = ROOT / "infra" / "railway" / "worker.json"
+VERIFIER_WEB_PATH = ROOT / "infra" / "railway" / "verifier-web.json"
 SCHEMA = "https://railway.com/railway.schema.json"
-BUILD = {
+BACKEND_BUILD = {
     "builder": "DOCKERFILE",
     "dockerfilePath": "Dockerfile",
+}
+VERIFIER_WEB_BUILD = {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile.verifier-web",
 }
 RESTART = {
     "restartPolicyType": "ON_FAILURE",
@@ -34,12 +39,15 @@ def load(path: Path) -> dict[str, Any]:
 def validate_configs(
     api: dict[str, Any],
     worker: dict[str, Any],
+    verifier_web: dict[str, Any],
 ) -> None:
-    validate_common("api", api)
-    validate_common("worker", worker)
+    validate_common("api", api, BACKEND_BUILD)
+    validate_common("worker", worker, BACKEND_BUILD)
+    validate_common("verifier-web", verifier_web, VERIFIER_WEB_BUILD)
 
     api_deploy = require_mapping(api, "deploy", "api")
     worker_deploy = require_mapping(worker, "deploy", "worker")
+    verifier_deploy = require_mapping(verifier_web, "deploy", "verifier-web")
     if api_deploy.get("preDeployCommand") != ["alembic upgrade head"]:
         raise ValueError("api must apply the exact forward migration before deploy")
     api_start = api_deploy.get("startCommand")
@@ -60,13 +68,26 @@ def validate_configs(
         raise ValueError("worker start command violates the runtime contract")
     if api_start == worker_start:
         raise ValueError("api and worker processes must remain separate")
+    if verifier_deploy.get("healthcheckPath") != "/health":
+        raise ValueError("verifier-web must expose its static health check")
+    timeout = verifier_deploy.get("healthcheckTimeout")
+    if not isinstance(timeout, int) or not 10 <= timeout <= 60:
+        raise ValueError(
+            "verifier-web health check timeout must be between 10 and 60 seconds"
+        )
+    if "preDeployCommand" in verifier_deploy or "startCommand" in verifier_deploy:
+        raise ValueError("verifier-web must use its immutable container command")
 
 
-def validate_common(name: str, document: dict[str, Any]) -> None:
+def validate_common(
+    name: str,
+    document: dict[str, Any],
+    expected_build: dict[str, str],
+) -> None:
     if document.get("$schema") != SCHEMA:
         raise ValueError(f"{name} must declare the Railway schema")
-    if document.get("build") != BUILD:
-        raise ValueError(f"{name} must build the repository Dockerfile")
+    if document.get("build") != expected_build:
+        raise ValueError(f"{name} must build its pinned repository Dockerfile")
     deploy = require_mapping(document, "deploy", name)
     for key, expected in RESTART.items():
         if deploy.get(key) != expected:
@@ -99,8 +120,8 @@ def reject_forbidden_keys(value: object, *, name: str) -> None:
 
 
 def main() -> None:
-    validate_configs(load(API_PATH), load(WORKER_PATH))
-    print("Railway configuration valid: isolated api and worker contracts")
+    validate_configs(load(API_PATH), load(WORKER_PATH), load(VERIFIER_WEB_PATH))
+    print("Railway configuration valid: isolated api, worker and verifier contracts")
 
 
 if __name__ == "__main__":

@@ -27,3 +27,7 @@ the API alone runs migrations and gates traffic on `/readyz`, API and worker
 remain separate processes with bounded restarts, and neither template can
 declare a Railway volume for evidence. The Docker API command uses an explicit
 shell so Railway's injected `$PORT` is expanded before Uvicorn starts.
+
+The public verifier uses `Dockerfile.verifier-web` and
+`infra/railway/verifier-web.json`. It serves the static build through Caddy,
+checks `/health` and keeps validation local to the browser.

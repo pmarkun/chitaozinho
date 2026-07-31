@@ -1,0 +1,35 @@
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+:{$PORT:3000} {
+	log {
+		format json
+	}
+
+	header {
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Referrer-Policy "no-referrer"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+	}
+
+	@html path / /index.html
+	header @html Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+
+	@serviceWorker path /sw.js
+	header @serviceWorker Cache-Control "no-cache, no-store, must-revalidate"
+
+	handle /health {
+		respond "ok" 200
+	}
+
+	handle {
+		root * /srv
+		encode zstd gzip
+		try_files {path} /index.html
+		file_server
+	}
+}
