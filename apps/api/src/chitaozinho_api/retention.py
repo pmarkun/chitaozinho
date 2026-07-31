@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from chitaozinho_protocol import sha256_identifier
@@ -22,11 +22,9 @@ def protect_final_artifact(
     path: Path,
     digest: str,
 ) -> str:
-    retention_start = capture_session.ended_at or capture_session.updated_at
-    if retention_start.tzinfo is None:
-        retention_start = retention_start.replace(tzinfo=UTC)
-    retain_until = retention_start.astimezone(UTC) + timedelta(
-        days=settings.retention_days
+    retain_until = retention_deadline(
+        capture_session,
+        settings.retention_days,
     )
     try:
         result = storage.protect_final(
@@ -64,3 +62,20 @@ def protect_final_artifact(
     )
     database.commit()
     return status
+
+
+def retention_deadline(
+    capture_session: CaptureSession,
+    retention_days: int,
+    *,
+    protected_at: datetime | None = None,
+) -> datetime:
+    capture_end = capture_session.ended_at or capture_session.updated_at
+    if capture_end.tzinfo is None:
+        capture_end = capture_end.replace(tzinfo=UTC)
+    capture_end = capture_end.astimezone(UTC)
+    protected_at = protected_at or datetime.now(UTC)
+    if protected_at.tzinfo is None:
+        protected_at = protected_at.replace(tzinfo=UTC)
+    protected_at = protected_at.astimezone(UTC)
+    return max(capture_end, protected_at) + timedelta(days=retention_days)

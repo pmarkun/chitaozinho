@@ -6,7 +6,7 @@ import pytest
 from botocore.exceptions import ClientError
 from chitaozinho_api.config import Settings
 from chitaozinho_api.models import AuditEvent, Base, CaptureSession
-from chitaozinho_api.retention import protect_final_artifact
+from chitaozinho_api.retention import protect_final_artifact, retention_deadline
 from chitaozinho_api.storage import LocalDurableStorage, S3DurableStorage
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
@@ -148,6 +148,25 @@ def test_s3_parts_request_configured_kms_key() -> None:
 
     assert client.put_arguments["ServerSideEncryption"] == "aws:kms"
     assert client.put_arguments["SSEKMSKeyId"] == kms_key_id
+
+
+def test_retention_deadline_never_loses_time_before_delayed_storage() -> None:
+    protected_at = datetime(2026, 7, 30, 12, tzinfo=UTC)
+    capture = CaptureSession(
+        id="delayed-session",
+        server_challenge="challenge",
+        status="complete",
+        next_sequence=0,
+        created_at=protected_at - timedelta(days=30),
+        updated_at=protected_at - timedelta(days=30),
+        ended_at=protected_at - timedelta(days=30),
+    )
+
+    assert retention_deadline(
+        capture,
+        90,
+        protected_at=protected_at,
+    ) == protected_at + timedelta(days=90)
 
 
 def test_retention_failure_is_explicit_and_audited(tmp_path: Path) -> None:
