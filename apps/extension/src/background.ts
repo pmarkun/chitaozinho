@@ -259,6 +259,8 @@ async function startCapture(): Promise<SessionRecord> {
     tabId: tab.id,
     windowId: tab.windowId,
     startedAt: new Date().toISOString(),
+    pageTitle: tab.title?.trim() || undefined,
+    pageOrigin: safeOrigin(tab.url),
     status: "starting",
     uploadedParts: 0,
     durationMs: 0,
@@ -828,6 +830,8 @@ function publicState(
     id: session.id,
     status: session.status,
     startedAt: session.startedAt,
+    pageTitle: session.pageTitle,
+    pageOrigin: session.pageOrigin,
     uploadedParts: session.uploadedParts,
     durationMs:
       session.status === "recording"
@@ -844,4 +848,14 @@ function publicState(
       (artifact) => artifact.status !== "captured",
     ).length,
   };
+}
+
+function safeOrigin(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol) ? url.origin : undefined;
+  } catch {
+    return undefined;
+  }
 }

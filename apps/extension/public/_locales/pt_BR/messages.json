@@ -3,8 +3,15 @@
   "appDescription": {
     "message": "Captura e preservação verificável de evidências digitais."
   },
-  "appTagline": { "message": "captura verificável" },
-  "homeTitle": { "message": "O que deseja fazer?" },
+  "appTagline": { "message": "evidência digital verificável" },
+  "homeTitle": { "message": "Registre o que está acontecendo" },
+  "homeBody": {
+    "message": "Crie um pacote íntegro e rastreável, com contexto, sequência e provas técnicas."
+  },
+  "newEvidence": { "message": "Criar nova evidência" },
+  "newEvidenceHint": { "message": "Registre esta aba do começo ao fim" },
+  "myEvidence": { "message": "Minhas evidências" },
+  "verifyEvidence": { "message": "Validar evidência" },
   "myCaptures": { "message": "Minhas capturas" },
   "verifyPackage": { "message": "Verificar pacote" },
   "settings": { "message": "Configurações" },
@@ -36,17 +43,29 @@
   "accessLinkSent": {
     "message": "Confira seu e-mail, abra o link e volte aqui. Esta tela detectará o acesso automaticamente."
   },
-  "newCaptureTitle": { "message": "Nova captura" },
+  "beforeStarting": { "message": "Antes de começar" },
+  "newCaptureTitle": { "message": "Prepare uma evidência completa" },
   "newCaptureBody": {
-    "message": "Coleta vídeo da aba, screenshots, DOM, texto visível e metadados declarados pelo navegador. Iframes são best-effort, canvas/WebGL cobrem só pixels visíveis e conteúdo DRM fica indisponível. Não prova autoria nem veracidade."
+    "message": "O Chitãozinho registra vídeo, imagens, estrutura da página, texto visível e metadados, vinculando tudo à sequência da coleta."
   },
+  "prepareContext": {
+    "message": "Comece pela página que identifica o conteúdo e sua origem."
+  },
+  "prepareNavigation": {
+    "message": "Navegue com calma e mostre datas, perfis, endereços e contexto relevante."
+  },
+  "prepareFinish": {
+    "message": "Finalize pelo Chitãozinho para gerar e baixar o pacote de evidência."
+  },
+  "responsibleUse": { "message": "Uso responsável" },
   "sensitiveDataNotice": {
-    "message": "Não use para dados de crianças, saúde, finanças ou segredos empresariais. Navegue mostrando contexto e respeite direitos de terceiros."
+    "message": "Registre somente conteúdo que você está autorizado a coletar. Redobre o cuidado com dados sensíveis e informações de terceiros."
   },
   "captureConsent": {
-    "message": "Entendi os dados coletados, limites e riscos."
+    "message": "Confirmo que estou autorizado a registrar este conteúdo e quero iniciar a coleta."
   },
-  "startCapture": { "message": "Iniciar captura da aba" },
+  "startCapture": { "message": "Começar a registrar" },
+  "savingContinuously": { "message": "Salvando e protegendo continuamente" },
   "uploadedParts": { "message": "Partes enviadas" },
   "connection": { "message": "Conexão" },
   "discardCapture": { "message": "Descartar captura local" },
@@ -59,14 +78,41 @@
   "partialCapture": {
     "message": "A captura está parcial. O pacote registrará cada item indisponível e o respectivo motivo."
   },
-  "screenshot": { "message": "Screenshot" },
-  "marker": { "message": "Marcador" },
+  "screenshot": { "message": "Registrar imagem" },
+  "marker": { "message": "Marcar momento importante" },
+  "recordImage": { "message": "Registrar imagem" },
+  "markMoment": { "message": "Marcar momento" },
   "manualMarker": { "message": "Marcador manual" },
-  "finishAndDownload": { "message": "Finalizar e baixar" },
+  "finishAndDownload": { "message": "Finalizar e gerar evidência" },
+  "finishEvidence": { "message": "Finalizar e gerar evidência" },
   "resumeCapture": { "message": "Retomar nesta aba" },
   "retryFinalization": { "message": "Tentar finalizar novamente" },
   "captureComplete": {
-    "message": "Captura finalizada. O pacote foi enviado para a pasta de downloads."
+    "message": "O pacote foi salvo na pasta de downloads e está pronto para ser preservado ou validado."
+  },
+  "evidenceReady": { "message": "Evidência gerada com sucesso" },
+  "verifyNow": { "message": "Validar agora" },
+  "technicalDetails": { "message": "Detalhes técnicos" },
+  "capturePreserved": {
+    "message": "Sua captura continua salva neste dispositivo sempre que a recuperação for possível."
+  },
+  "untitledEvidence": { "message": "Evidência sem título" },
+  "environment": { "message": "Ambiente" },
+  "verifier": { "message": "Verificador" },
+  "errorNoTab": {
+    "message": "Abra uma aba comum do navegador e tente iniciar a captura novamente."
+  },
+  "errorStateChanged": {
+    "message": "O estado da captura mudou. Reabra a extensão para ver as ações disponíveis."
+  },
+  "errorConnection": {
+    "message": "Não foi possível alcançar o serviço. Verifique a conexão e tente novamente."
+  },
+  "errorUpload": {
+    "message": "Uma parte da captura não pôde ser registrada. Tente retomar ou finalizar novamente."
+  },
+  "errorUnexpected": {
+    "message": "Não foi possível concluir esta ação. Tente novamente."
   },
   "integrity": { "message": "Integridade" },
   "timestamp": { "message": "Timestamp" },
@@ -91,10 +137,10 @@
   "unknown": { "message": "não verificado" },
   "newCapture": { "message": "Nova captura" },
   "legalDisclaimer": {
-    "message": "Integridade técnica não equivale a validade jurídica definitiva."
+    "message": "Pacotes íntegros, rastreáveis e verificáveis."
   },
   "statusStarting": { "message": "Preparando" },
-  "statusRecording": { "message": "Gravando" },
+  "statusRecording": { "message": "Captura em andamento" },
   "statusFinalizing": { "message": "Finalizando" },
   "statusComplete": { "message": "Concluída" },
   "statusInterrupted": { "message": "Interrompida" },

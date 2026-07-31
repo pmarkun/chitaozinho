@@ -19,6 +19,8 @@ export interface SessionRecord {
   tabId: number;
   windowId: number;
   startedAt: string;
+  pageTitle?: string;
+  pageOrigin?: string;
   status: CaptureStatus;
   uploadedParts: number;
   durationMs: number;

@@ -54,12 +54,11 @@ test("login and authenticated navigation have no automatic WCAG violations", asy
   await expect(page.locator("[data-view-heading]")).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(
-    page.getByRole("button", { name: messages.newCapture }),
+    page.getByRole("button", { name: messages.newEvidence }),
   ).toBeFocused();
   for (const name of [
-    messages.newCapture,
-    messages.myCaptures,
-    messages.verifyPackage,
+    messages.newEvidence,
+    messages.myEvidence,
     messages.settings,
   ]) {
     await page.getByRole("button", { name }).click();

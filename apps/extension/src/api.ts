@@ -2,7 +2,7 @@ import { base64UrlEncode, canonicalBytes } from "@chitaozinho/protocol";
 
 import type { ChainEntry } from "./types";
 
-const API_BASE_URL = "http://127.0.0.1:8000";
+const API_BASE_URL = __CHITAOZINHO_ENDPOINTS__.api;
 
 function apiFetch(input: RequestInfo | URL, init?: RequestInit) {
   return fetch(input, { ...init, credentials: "include" });

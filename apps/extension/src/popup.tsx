@@ -1,5 +1,3 @@
-import { sha256 } from "@noble/hashes/sha2.js";
-import { bytesToHex } from "@chitaozinho/protocol";
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -14,6 +12,8 @@ interface PublicState {
   id: string;
   status: string;
   startedAt: string;
+  pageTitle?: string;
+  pageOrigin?: string;
   uploadedParts: number;
   durationMs: number;
   packageHash?: string;
@@ -26,7 +26,7 @@ interface PublicState {
   captureFinished: boolean;
 }
 
-type Screen = "home" | "new" | "captures" | "verify" | "settings";
+type Screen = "home" | "new" | "captures" | "settings";
 
 function App() {
   const [capture, setCapture] = useState<PublicState | null>(null);
@@ -36,9 +36,9 @@ function App() {
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [technicalError, setTechnicalError] = useState<string>();
   const [screen, setScreen] = useState<Screen>("home");
   const [sessions, setSessions] = useState<PublicState[]>([]);
-  const [verificationHash, setVerificationHash] = useState<string>();
 
   useEffect(() => {
     void refresh();
@@ -58,17 +58,24 @@ function App() {
     if (response.ok) setCapture(response.result as PublicState | null);
   }
 
+  function showError(caught: unknown) {
+    const detail = errorDetail(caught);
+    setError(friendlyError(detail));
+    setTechnicalError(detail);
+  }
+
   async function act(message: ExtensionMessage) {
     setBusy(true);
     setError(undefined);
+    setTechnicalError(undefined);
     try {
       const response = await send(message);
-      if (!response.ok) throw new Error(String(response.error));
+      if (!response.ok) throw response.error;
       const result = response.result as PublicState | null;
       setCapture(result);
       if (!result) setScreen("home");
     } catch (caught) {
-      setError(String(caught));
+      showError(caught);
     } finally {
       setBusy(false);
     }
@@ -77,35 +84,14 @@ function App() {
   async function openCaptures() {
     setBusy(true);
     setError(undefined);
+    setTechnicalError(undefined);
     try {
       const response = await send({ type: "LIST_SESSIONS" });
-      if (!response.ok) throw new Error(String(response.error));
+      if (!response.ok) throw response.error;
       setSessions(response.result as PublicState[]);
       setScreen("captures");
     } catch (caught) {
-      setError(String(caught));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function hashPackage(file: File) {
-    setBusy(true);
-    setError(undefined);
-    setVerificationHash(undefined);
-    try {
-      const hasher = sha256.create();
-      const chunkSize = 4 * 1024 * 1024;
-      for (let offset = 0; offset < file.size; offset += chunkSize) {
-        hasher.update(
-          new Uint8Array(
-            await file.slice(offset, offset + chunkSize).arrayBuffer(),
-          ),
-        );
-      }
-      setVerificationHash(`sha256:${bytesToHex(hasher.digest())}`);
-    } catch (caught) {
-      setError(String(caught));
+      showError(caught);
     } finally {
       setBusy(false);
     }
@@ -114,11 +100,12 @@ function App() {
   async function downloadCapture(sessionId: string) {
     setBusy(true);
     setError(undefined);
+    setTechnicalError(undefined);
     try {
       const response = await send({ type: "DOWNLOAD_PACKAGE", sessionId });
-      if (!response.ok) throw new Error(String(response.error));
+      if (!response.ok) throw response.error;
     } catch (caught) {
-      setError(String(caught));
+      showError(caught);
     } finally {
       setBusy(false);
     }
@@ -135,6 +122,16 @@ function App() {
           <strong>{t("appName")}</strong>
           <small>{t("appTagline")}</small>
         </div>
+        {authenticated && !capture && screen === "home" && (
+          <button
+            className="icon-button"
+            aria-label={t("settings")}
+            title={t("settings")}
+            onClick={() => setScreen("settings")}
+          >
+            ⚙
+          </button>
+        )}
       </header>
 
       {authenticated === false && (
@@ -159,7 +156,7 @@ function App() {
               setError(undefined);
               void requestMagicLink(email)
                 .then(() => setLinkSent(true))
-                .catch((caught: unknown) => setError(String(caught)))
+                .catch(showError)
                 .finally(() => setBusy(false));
             }}
           >
@@ -184,17 +181,26 @@ function App() {
           <h1 data-view-heading tabIndex={-1}>
             {t("homeTitle")}
           </h1>
-          <div className="menu-grid">
-            <button onClick={() => setScreen("new")}>{t("newCapture")}</button>
+          <p className="lead">{t("homeBody")}</p>
+          <button className="hero-action" onClick={() => setScreen("new")}>
+            <span aria-hidden="true">＋</span>
+            <span>
+              <strong>{t("newEvidence")}</strong>
+              <small>{t("newEvidenceHint")}</small>
+            </span>
+          </button>
+          <div className="secondary-actions">
             <button className="secondary" onClick={() => void openCaptures()}>
-              {t("myCaptures")}
+              {t("myEvidence")}
             </button>
-            <button className="secondary" onClick={() => setScreen("verify")}>
-              {t("verifyPackage")}
-            </button>
-            <button className="secondary" onClick={() => setScreen("settings")}>
-              {t("settings")}
-            </button>
+            <a
+              className="button secondary"
+              href={__CHITAOZINHO_ENDPOINTS__.verifier}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {t("verifyEvidence")}
+            </a>
           </div>
         </section>
       )}
@@ -202,11 +208,20 @@ function App() {
       {authenticated && !capture && screen === "new" && (
         <section>
           <BackButton onClick={() => setScreen("home")} />
+          <p className="step-label">{t("beforeStarting")}</p>
           <h1 data-view-heading tabIndex={-1}>
             {t("newCaptureTitle")}
           </h1>
           <p>{t("newCaptureBody")}</p>
-          <p className="notice">{t("sensitiveDataNotice")}</p>
+          <ol className="preparation-list">
+            <li>{t("prepareContext")}</li>
+            <li>{t("prepareNavigation")}</li>
+            <li>{t("prepareFinish")}</li>
+          </ol>
+          <details className="disclosure">
+            <summary>{t("responsibleUse")}</summary>
+            <p>{t("sensitiveDataNotice")}</p>
+          </details>
           <label className="consent">
             <input
               type="checkbox"
@@ -228,7 +243,7 @@ function App() {
         <section>
           <BackButton onClick={() => setScreen("home")} />
           <h1 data-view-heading tabIndex={-1}>
-            {t("myCaptures")}
+            {t("myEvidence")}
           </h1>
           {sessions.length === 0 ? (
             <p>{t("noCaptures")}</p>
@@ -237,11 +252,15 @@ function App() {
               {sessions.map((session) => (
                 <li key={session.id}>
                   <div>
-                    <strong>{statusLabel(session.status)}</strong>
+                    <strong>
+                      {session.pageTitle || t("untitledEvidence")}
+                    </strong>
+                    <small>
+                      {session.pageOrigin || statusLabel(session.status)}
+                    </small>
                     <small>
                       {new Date(session.startedAt).toLocaleString()}
                     </small>
-                    <code title={session.id}>{session.id.slice(0, 12)}…</code>
                   </div>
                   {session.status === "complete" && (
                     <button
@@ -259,57 +278,30 @@ function App() {
         </section>
       )}
 
-      {authenticated && !capture && screen === "verify" && (
-        <section>
-          <BackButton onClick={() => setScreen("home")} />
-          <h1 data-view-heading tabIndex={-1}>
-            {t("verifyPackage")}
-          </h1>
-          <p>{t("verifyPackageBody")}</p>
-          <label>
-            {t("selectPackage")}
-            <input
-              type="file"
-              accept=".zip,application/zip"
-              disabled={busy}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void hashPackage(file);
-              }}
-            />
-          </label>
-          {verificationHash && (
-            <output
-              className="hash-output"
-              aria-label={t("calculatedHash")}
-              role="status"
-            >
-              {verificationHash}
-            </output>
-          )}
-          <p className="notice">{t("fullVerificationNotice")}</p>
-        </section>
-      )}
-
       {authenticated && !capture && screen === "settings" && (
         <section>
           <BackButton onClick={() => setScreen("home")} />
           <h1 data-view-heading tabIndex={-1}>
             {t("settings")}
           </h1>
-          <dl>
-            <div>
-              <dt>{t("language")}</dt>
-              <dd>{chrome.i18n.getUILanguage()}</dd>
-            </div>
-            <div>
-              <dt>{t("apiEnvironment")}</dt>
-              <dd>{t("localDevelopment")}</dd>
-            </div>
-            <div>
-              <dt>{t("version")}</dt>
-              <dd>{__CHITAOZINHO_BUILD__.version}</dd>
-            </div>
+          <dl className="technical-list">
+            <Result
+              label={t("environment")}
+              value={__CHITAOZINHO_ENDPOINTS__.environment}
+            />
+            <Result
+              label={t("apiEnvironment")}
+              value={new URL(__CHITAOZINHO_ENDPOINTS__.api).host}
+            />
+            <Result
+              label={t("verifier")}
+              value={new URL(__CHITAOZINHO_ENDPOINTS__.verifier).host}
+            />
+            <Result label={t("language")} value={chrome.i18n.getUILanguage()} />
+            <Result
+              label={t("version")}
+              value={__CHITAOZINHO_BUILD__.version}
+            />
           </dl>
           <p>{t("settingsBody")}</p>
         </section>
@@ -336,24 +328,11 @@ function App() {
               {formatDuration(capture.durationMs)}
             </time>
           </div>
-          <dl>
-            <div>
-              <dt>{t("uploadedParts")}</dt>
-              <dd>{capture.uploadedParts}</dd>
-            </div>
-            <div>
-              <dt>{t("connection")}</dt>
-              <dd>{t("active")}</dd>
-            </div>
-            <div>
-              <dt>{t("session")}</dt>
-              <dd title={capture.id}>{capture.id.slice(0, 12)}…</dd>
-            </div>
-            <div>
-              <dt>{t("unavailable")}</dt>
-              <dd>{capture.unavailableArtifacts}</dd>
-            </div>
-          </dl>
+          {recording && (
+            <p className="saving-state">
+              <span aria-hidden="true">✓</span> {t("savingContinuously")}
+            </p>
+          )}
           {capture.unavailableArtifacts > 0 && (
             <p className="notice" role="status">
               {t("partialCapture")}
@@ -361,28 +340,29 @@ function App() {
           )}
           {recording && (
             <div className="actions">
+              <div className="secondary-actions">
+                <button
+                  className="secondary"
+                  disabled={busy}
+                  onClick={() => void act({ type: "ADD_SCREENSHOT" })}
+                >
+                  {t("recordImage")}
+                </button>
+                <button
+                  className="secondary"
+                  disabled={busy}
+                  onClick={() =>
+                    void act({ type: "ADD_MARKER", note: t("manualMarker") })
+                  }
+                >
+                  {t("markMoment")}
+                </button>
+              </div>
               <button
-                className="secondary"
-                disabled={busy}
-                onClick={() => void act({ type: "ADD_SCREENSHOT" })}
-              >
-                {t("screenshot")}
-              </button>
-              <button
-                className="secondary"
-                disabled={busy}
-                onClick={() =>
-                  void act({ type: "ADD_MARKER", note: t("manualMarker") })
-                }
-              >
-                {t("marker")}
-              </button>
-              <button
-                className="danger"
                 disabled={busy}
                 onClick={() => void act({ type: "STOP_CAPTURE" })}
               >
-                {t("finishAndDownload")}
+                {t("finishEvidence")}
               </button>
             </div>
           )}
@@ -406,12 +386,11 @@ function App() {
           {["error", "interrupted"].includes(capture.status) &&
             !capture.captureFinished && (
               <button
-                className="danger"
+                className="text-danger"
                 disabled={busy}
                 onClick={() => {
-                  if (window.confirm(t("discardCaptureConfirmation"))) {
+                  if (window.confirm(t("discardCaptureConfirmation")))
                     void act({ type: "DISCARD_FAILED_CAPTURE" });
-                  }
                 }}
               >
                 {t("discardCapture")}
@@ -419,9 +398,13 @@ function App() {
             )}
           {capture.status === "complete" && (
             <>
-              <p className="success" role="status">
-                {t("captureComplete")}
-              </p>
+              <div className="completion">
+                <span aria-hidden="true">✓</span>
+                <div>
+                  <h1>{t("evidenceReady")}</h1>
+                  <p>{t("captureComplete")}</p>
+                </div>
+              </div>
               <dl className="result-list">
                 <Result
                   label={t("integrity")}
@@ -440,43 +423,72 @@ function App() {
                   value={formatResult(capture.storageStatus)}
                 />
               </dl>
-              {capture.packageHash && (
-                <>
-                  <strong>{t("packageHash")}</strong>
-                  <output className="hash-output" aria-label={t("packageHash")}>
-                    {capture.packageHash}
-                  </output>
-                </>
-              )}
-              <button
-                className="secondary"
-                disabled={busy}
-                onClick={() => void downloadCapture(capture.id)}
-              >
-                {t("downloadAgain")}
-              </button>
-              <p className="notice">{t("fullVerificationNotice")}</p>
-              <button
-                className="secondary"
-                onClick={() => void act({ type: "DISMISS_RESULT" })}
-              >
-                {t("newCapture")}
-              </button>
+              <div className="actions">
+                <button
+                  disabled={busy}
+                  onClick={() => void downloadCapture(capture.id)}
+                >
+                  {t("downloadAgain")}
+                </button>
+                <a
+                  className="button secondary"
+                  href={__CHITAOZINHO_ENDPOINTS__.verifier}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {t("verifyNow")}
+                </a>
+                <button
+                  className="secondary"
+                  onClick={() => void act({ type: "DISMISS_RESULT" })}
+                >
+                  {t("newEvidence")}
+                </button>
+              </div>
             </>
           )}
+          <details className="disclosure technical-details">
+            <summary>{t("technicalDetails")}</summary>
+            <dl className="technical-list">
+              <Result
+                label={t("uploadedParts")}
+                value={String(capture.uploadedParts)}
+              />
+              <Result
+                label={t("unavailable")}
+                value={String(capture.unavailableArtifacts)}
+              />
+              <Result
+                label={t("session")}
+                value={`${capture.id.slice(0, 12)}…`}
+              />
+            </dl>
+            {capture.packageHash && (
+              <output className="hash-output" aria-label={t("packageHash")}>
+                {capture.packageHash}
+              </output>
+            )}
+          </details>
         </section>
       )}
+
       {(error || capture?.error) && (
-        <p role="alert" className="error">
-          {error ?? capture?.error}
-        </p>
+        <div role="alert" className="error">
+          <strong>{error ?? friendlyError(capture?.error ?? "")}</strong>
+          <p>{t("capturePreserved")}</p>
+          {(technicalError || capture?.error) && (
+            <details>
+              <summary>{t("technicalDetails")}</summary>
+              <code>{technicalError ?? capture?.error}</code>
+            </details>
+          )}
+        </div>
       )}
       {busy && (
         <p className="sr-only" role="status">
           {t("working")}
         </p>
       )}
-      <footer>{t("legalDisclaimer")}</footer>
     </main>
   );
 }
@@ -504,6 +516,39 @@ async function send(message: ExtensionMessage) {
     result?: unknown;
     error?: unknown;
   }>;
+}
+
+function errorDetail(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
+export function friendlyError(detail: string): string {
+  const normalized = detail.toLowerCase();
+  if (
+    normalized.includes("screen not found") ||
+    normalized.includes("active tab is unavailable")
+  )
+    return t("errorNoTab");
+  if (
+    normalized.includes("cannot be discarded") ||
+    normalized.includes("current state")
+  )
+    return t("errorStateChanged");
+  if (
+    normalized.includes("failed to fetch") ||
+    normalized.includes("network") ||
+    normalized.includes("connection")
+  )
+    return t("errorConnection");
+  if (normalized.includes("422") || normalized.includes("upload"))
+    return t("errorUpload");
+  return t("errorUnexpected");
 }
 
 function formatDuration(milliseconds: number): string {

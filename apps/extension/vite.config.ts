@@ -33,11 +33,19 @@ const buildIdentity = {
     resolve(repositoryRoot, "pnpm-lock.yaml"),
   ]),
 };
+const endpoints = {
+  api: process.env.CHITAOZINHO_API_BASE_URL ?? "http://127.0.0.1:8000",
+  verifier:
+    process.env.CHITAOZINHO_VERIFIER_URL ??
+    "https://verifier-web-staging.up.railway.app/validar",
+  environment: process.env.CHITAOZINHO_ENVIRONMENT ?? "desenvolvimento",
+};
 
 export default defineConfig({
   plugins: [react()],
   define: {
     __CHITAOZINHO_BUILD__: JSON.stringify(buildIdentity),
+    __CHITAOZINHO_ENDPOINTS__: JSON.stringify(endpoints),
   },
   resolve: {
     alias: {

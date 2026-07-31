@@ -26,6 +26,7 @@ body {
 }
 main {
   padding: 18px;
+  min-height: 300px;
 }
 header {
   display: flex;
@@ -35,6 +36,15 @@ header {
 }
 header div {
   display: grid;
+}
+.icon-button {
+  width: 40px;
+  min-height: 40px;
+  margin-left: auto;
+  padding: 0;
+  color: var(--secondary-text);
+  background: transparent;
+  font-size: 19px;
 }
 header small {
   color: var(--muted-text);
@@ -56,6 +66,17 @@ h1 {
 p {
   line-height: 1.45;
   color: var(--body-text);
+}
+.lead {
+  margin: 0 0 18px;
+}
+.step-label {
+  margin: 0 0 4px;
+  color: var(--brand);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 .notice {
   padding: 10px;
@@ -86,6 +107,17 @@ button {
   font-weight: 700;
   cursor: pointer;
 }
+.button {
+  display: grid;
+  width: 100%;
+  min-height: 44px;
+  place-items: center;
+  border-radius: 8px;
+  padding: 11px 12px;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
 input[type="email"] {
   width: 100%;
   min-height: 24px;
@@ -105,6 +137,8 @@ input[type="file"] {
 }
 input[type="email"]:focus-visible,
 button:focus-visible,
+summary:focus-visible,
+a:focus-visible,
 input[type="checkbox"]:focus-visible,
 input[type="file"]:focus-visible {
   outline: 3px solid var(--focus-ring);
@@ -118,12 +152,41 @@ button:disabled {
   background: var(--secondary-background);
   color: var(--secondary-text);
 }
+.hero-action {
+  display: flex;
+  min-height: 76px;
+  padding: 14px;
+  gap: 12px;
+  align-items: center;
+  text-align: left;
+}
+.hero-action > span:first-child {
+  font-size: 26px;
+  line-height: 1;
+}
+.hero-action > span:last-child {
+  display: grid;
+  gap: 3px;
+}
+.hero-action small {
+  color: #dcebe2;
+  font-weight: 500;
+}
+.secondary-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 9px;
+}
 .danger {
   background: var(--danger);
 }
 .actions {
   display: grid;
   gap: 8px;
+}
+.actions .secondary-actions {
+  margin-top: 0;
 }
 .menu-grid {
   display: grid;
@@ -156,6 +219,11 @@ button:disabled {
 .capture-list li div {
   display: grid;
   min-width: 0;
+}
+.capture-list li strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .capture-list small,
 .capture-list code {
@@ -196,6 +264,24 @@ button:disabled {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
 }
+.saving-state {
+  display: flex;
+  margin: -4px 0 18px;
+  gap: 7px;
+  align-items: center;
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 650;
+}
+.saving-state span {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 50%;
+  color: white;
+  background: var(--brand);
+}
 .dot {
   width: 10px;
   height: 10px;
@@ -210,6 +296,9 @@ dl {
   display: grid;
   gap: 8px;
   margin: 0 0 16px;
+}
+.technical-list {
+  margin-top: 12px;
 }
 dl div {
   display: flex;
@@ -228,9 +317,72 @@ dd {
   background: #e3f2e8;
   border-radius: 8px;
 }
+.completion {
+  display: flex;
+  margin: 4px 0 16px;
+  gap: 11px;
+  align-items: flex-start;
+}
+.completion > span {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border-radius: 50%;
+  color: white;
+  background: var(--brand);
+  font-weight: 800;
+}
+.completion h1 {
+  margin: 0 0 3px;
+}
+.completion p {
+  margin: 0;
+  font-size: 13px;
+}
 .error {
   color: var(--error);
   overflow-wrap: anywhere;
+}
+.error p {
+  margin-bottom: 8px;
+}
+.error code {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.disclosure {
+  margin: 14px 0;
+  color: var(--body-text);
+}
+.disclosure summary {
+  min-height: 24px;
+  color: var(--brand);
+  font-weight: 700;
+  cursor: pointer;
+}
+.disclosure p {
+  margin: 8px 0;
+}
+.technical-details {
+  padding-top: 10px;
+  border-top: 1px solid #dbe3dc;
+}
+.preparation-list {
+  display: grid;
+  margin: 14px 0;
+  padding-left: 24px;
+  gap: 9px;
+  color: var(--body-text);
+  line-height: 1.4;
+}
+.text-danger {
+  margin-top: 8px;
+  color: var(--danger);
+  background: transparent;
 }
 footer {
   margin-top: 18px;

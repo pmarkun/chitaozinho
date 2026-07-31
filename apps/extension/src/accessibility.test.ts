@@ -54,10 +54,7 @@ describe("popup accessibility guards", () => {
     );
   });
 
-  it("gives calculated and final package hashes accessible names", () => {
-    expect(popup.match(/aria-label=\{t\("calculatedHash"\)\}/g)).toHaveLength(
-      1,
-    );
+  it("gives the final package hash an accessible name", () => {
     expect(popup.match(/aria-label=\{t\("packageHash"\)\}/g)).toHaveLength(1);
   });
 

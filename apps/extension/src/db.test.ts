@@ -101,6 +101,35 @@ describe("capture database", () => {
     expect(await reopened.sessionReceipts("session-1")).toEqual([receipt]);
   });
 
+  it("keeps sessions created before friendly page labels were added", async () => {
+    const database = await import("./db");
+    const legacy = {
+      id: "legacy-session",
+      challenge: "challenge",
+      keyId: "key",
+      publicKey: new Uint8Array([1]),
+      privateKey: null,
+      clockId: "clock",
+      clockStartedAt: 1,
+      nextSequence: 0,
+      previousEntryHash: null,
+      tabId: 1,
+      windowId: 1,
+      startedAt: "2026-07-30T12:00:00.000Z",
+      status: "complete",
+      uploadedParts: 0,
+      durationMs: 0,
+      recordingActive: false,
+      captureFinished: true,
+      artifacts: [],
+    } as SessionRecord;
+    await database.saveSession(legacy);
+    const restored = await database.getSession(legacy.id);
+    expect(restored?.id).toBe(legacy.id);
+    expect(restored?.pageTitle).toBeUndefined();
+    expect(restored?.pageOrigin).toBeUndefined();
+  });
+
   it("atomically queues chain progress and acknowledges a pending part", async () => {
     const database = await import("./db");
     const session: SessionRecord = {

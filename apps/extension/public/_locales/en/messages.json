@@ -3,8 +3,15 @@
   "appDescription": {
     "message": "Verifiable capture and preservation of digital evidence."
   },
-  "appTagline": { "message": "verifiable capture" },
-  "homeTitle": { "message": "What would you like to do?" },
+  "appTagline": { "message": "verifiable digital evidence" },
+  "homeTitle": { "message": "Record what is happening" },
+  "homeBody": {
+    "message": "Create an integral, traceable package with context, sequence, and technical proof."
+  },
+  "newEvidence": { "message": "Create new evidence" },
+  "newEvidenceHint": { "message": "Record this tab from start to finish" },
+  "myEvidence": { "message": "My evidence" },
+  "verifyEvidence": { "message": "Verify evidence" },
   "myCaptures": { "message": "My captures" },
   "verifyPackage": { "message": "Verify package" },
   "settings": { "message": "Settings" },
@@ -36,17 +43,29 @@
   "accessLinkSent": {
     "message": "Check your email, open the link, and return here. This screen will detect access automatically."
   },
-  "newCaptureTitle": { "message": "New capture" },
+  "beforeStarting": { "message": "Before you start" },
+  "newCaptureTitle": { "message": "Prepare complete evidence" },
   "newCaptureBody": {
-    "message": "Collects tab video, screenshots, DOM, visible text, and browser-reported metadata. Iframes are best effort, canvas/WebGL cover visible pixels only, and DRM content is unavailable. It does not prove authorship or truthfulness."
+    "message": "Chitãozinho records video, images, page structure, visible text, and metadata, linking everything to the capture sequence."
   },
+  "prepareContext": {
+    "message": "Start on the page that identifies the content and its source."
+  },
+  "prepareNavigation": {
+    "message": "Browse calmly and show dates, profiles, addresses, and relevant context."
+  },
+  "prepareFinish": {
+    "message": "Finish in Chitãozinho to generate and download the evidence package."
+  },
+  "responsibleUse": { "message": "Responsible use" },
   "sensitiveDataNotice": {
-    "message": "Do not use for children's data, health or financial data, or trade secrets. Browse with context and respect third-party rights."
+    "message": "Only record content you are authorized to collect. Take extra care with sensitive data and third-party information."
   },
   "captureConsent": {
-    "message": "I understand the data collected, limitations, and risks."
+    "message": "I confirm that I am authorized to record this content and want to start collecting it."
   },
-  "startCapture": { "message": "Start tab capture" },
+  "startCapture": { "message": "Start recording" },
+  "savingContinuously": { "message": "Continuously saving and protecting" },
   "uploadedParts": { "message": "Uploaded parts" },
   "connection": { "message": "Connection" },
   "discardCapture": { "message": "Discard local capture" },
@@ -59,14 +78,41 @@
   "partialCapture": {
     "message": "This capture is partial. The package will record each unavailable item and its reason."
   },
-  "screenshot": { "message": "Screenshot" },
-  "marker": { "message": "Marker" },
+  "screenshot": { "message": "Record image" },
+  "marker": { "message": "Mark important moment" },
+  "recordImage": { "message": "Record image" },
+  "markMoment": { "message": "Mark moment" },
   "manualMarker": { "message": "Manual marker" },
-  "finishAndDownload": { "message": "Finish and download" },
+  "finishAndDownload": { "message": "Finish and generate evidence" },
+  "finishEvidence": { "message": "Finish and generate evidence" },
   "resumeCapture": { "message": "Resume in this tab" },
   "retryFinalization": { "message": "Retry finalization" },
   "captureComplete": {
-    "message": "Capture complete. The package was sent to your downloads folder."
+    "message": "The package was saved to your downloads folder and is ready to preserve or verify."
+  },
+  "evidenceReady": { "message": "Evidence generated successfully" },
+  "verifyNow": { "message": "Verify now" },
+  "technicalDetails": { "message": "Technical details" },
+  "capturePreserved": {
+    "message": "Your capture remains saved on this device whenever recovery is possible."
+  },
+  "untitledEvidence": { "message": "Untitled evidence" },
+  "environment": { "message": "Environment" },
+  "verifier": { "message": "Verifier" },
+  "errorNoTab": {
+    "message": "Open a regular browser tab and try starting the capture again."
+  },
+  "errorStateChanged": {
+    "message": "The capture state changed. Reopen the extension to see the available actions."
+  },
+  "errorConnection": {
+    "message": "The service could not be reached. Check your connection and try again."
+  },
+  "errorUpload": {
+    "message": "Part of the capture could not be recorded. Try resuming or finalizing again."
+  },
+  "errorUnexpected": {
+    "message": "This action could not be completed. Try again."
   },
   "integrity": { "message": "Integrity" },
   "timestamp": { "message": "Timestamp" },
@@ -91,10 +137,10 @@
   "unknown": { "message": "not verified" },
   "newCapture": { "message": "New capture" },
   "legalDisclaimer": {
-    "message": "Technical integrity does not guarantee definitive legal validity."
+    "message": "Integral, traceable, and verifiable packages."
   },
   "statusStarting": { "message": "Preparing" },
-  "statusRecording": { "message": "Recording" },
+  "statusRecording": { "message": "Capture in progress" },
   "statusFinalizing": { "message": "Finalizing" },
   "statusComplete": { "message": "Complete" },
   "statusInterrupted": { "message": "Interrupted" },
