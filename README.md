@@ -9,7 +9,7 @@ O contrato do produto está em [SPEC.md](SPEC.md) e o progresso verificável em
 
 ```sh
 nix develop
-uv sync
+uv sync --all-packages
 pnpm install
 scripts/check
 ```

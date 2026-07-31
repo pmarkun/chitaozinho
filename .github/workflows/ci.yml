@@ -32,6 +32,10 @@ jobs:
         with:
           fetch-depth: 0
       - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31.10.6
+      - name: Install locked dependencies
+        run: |
+          nix develop --command uv sync --all-packages --frozen
+          nix develop --command pnpm install --frozen-lockfile
       - name: Reject unversioned protocol changes
         if: github.event_name == 'pull_request'
         run: nix develop --command ./scripts/check-protocol-compatibility "origin/${GITHUB_BASE_REF}"
