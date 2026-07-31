@@ -97,3 +97,24 @@ This run proves the short functional flow. It does not satisfy the separate
   `0005_magic_link_auth (head)`.
 - Both temporary databases were removed after validation; the development
   database was not modified.
+
+## 2026-07-30 — Backend and infrastructure safety gates
+
+- The full repository gate passed with 64 Python tests, three opt-in service
+  tests skipped in the unit pass, 15 extension tests, four TypeScript protocol
+  tests and 21 Rust tests.
+- Six mocked OpenTofu plans prove that the isolated test uses one-day
+  `COMPLIANCE` retention, staging and production require at least 90 days,
+  Object Lock is enabled at bucket creation, and unknown environments or
+  regions outside `sa-east-1` are rejected.
+- Public startup now rejects SQLite, custom S3 endpoints, short retention,
+  unknown environments and broad extension CORS. It requires PostgreSQL, AWS
+  S3 in `sa-east-1`, KMS-backed keys, magic-link authentication and exact
+  Chromium extension IDs.
+- Final evidence receives the full configured retention from the later of
+  capture completion or protection time.
+- Timestamp failures persist only the exception type, emit structured worker
+  events without provider messages and retry with bounded exponential backoff.
+- OSV Scanner and Trivy passed for locked dependencies, committed secrets,
+  Docker, Terraform and workflow configuration. The documented exact
+  `brace-expansion@1.1.18` advisory exception remains the only exception.
