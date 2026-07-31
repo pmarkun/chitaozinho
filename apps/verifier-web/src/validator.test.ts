@@ -41,6 +41,16 @@ describe("web evidence verifier", () => {
     );
   });
 
+  it("recognizes both legacy and current methodology versions", async () => {
+    for (const methodologyVersion of ["0.1", "0.2"] as const) {
+      const fixture = await buildPackage({ methodologyVersion });
+      const report = await verifyEvidencePackage({ packageFile: fixture.file });
+      expect(
+        report.checks.find((check) => check.id === "methodology")?.status,
+      ).toBe("valid");
+    }
+  });
+
   it("rejects changed indexed content and a wrong detached checksum", async () => {
     const changed = await buildPackage({ tamperMethodology: true });
     await expect(
@@ -74,6 +84,7 @@ async function buildPackage(
   options: {
     tamperMethodology?: boolean;
     unsafePath?: boolean;
+    methodologyVersion?: "0.1" | "0.2";
   } = {},
 ): Promise<{
   file: File;
@@ -83,6 +94,7 @@ async function buildPackage(
   const server = await generateKeyPair();
   const client = await generateKeyPair();
   const sessionId = "synthetic-web-session";
+  const methodologyPath = `methodology/methodology-v${options.methodologyVersion ?? "0.1"}.md`;
   const entry = {
     protocol_version: "0.1.0",
     entry_type: "capture_started",
@@ -186,7 +198,7 @@ async function buildPackage(
   const members = new Map<string, Uint8Array>([
     ["README.txt", encode("Synthetic evidence package\n")],
     [
-      "methodology/methodology-v0.1.md",
+      methodologyPath,
       encode("Synthetic methodology processed locally in the browser.\n"),
     ],
     ["capture/note.txt", artifactContent],
@@ -261,7 +273,7 @@ async function buildPackage(
   );
   if (options.tamperMethodology) {
     members.set(
-      "methodology/methodology-v0.1.md",
+      methodologyPath,
       encode("Changed after the package index was signed.\n"),
     );
   }

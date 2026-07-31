@@ -1986,8 +1986,8 @@ def build_manifest(
             "client_signature_path": "signatures/capture-close.client.sig",
         },
         "limitations": [
-            "The package does not prove authorship of displayed content.",
-            "The package does not prove that displayed content is factually true.",
+            "The package attests technical integrity and continuity of the recorded capture.",
+            "Legal evaluation considers these technical findings together with the case context.",
         ],
     }
 

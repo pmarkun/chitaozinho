@@ -23,7 +23,7 @@ from .storage import DurableStorage
 PACKAGE_ASSETS = Path(__file__).with_name("package_assets")
 METHODOLOGY_MEMBERS = {
     "README.txt": "README.txt",
-    "methodology/methodology-v0.1.md": "methodology-v0.1.md",
+    "methodology/methodology-v0.2.md": "methodology-v0.2.md",
     "methodology/verification-guide.html": "verification-guide.html",
 }
 

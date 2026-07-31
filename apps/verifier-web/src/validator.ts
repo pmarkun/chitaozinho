@@ -273,8 +273,8 @@ export async function verifyEvidencePackage(
       ),
     );
 
-    const methodologyPresent = archive.entries.has(
-      "methodology/methodology-v0.1.md",
+    const methodologyPresent = [...archive.entries.keys()].some((path) =>
+      /^methodology\/methodology-v\d+\.\d+\.md$/.test(path),
     );
     checks.push(
       methodologyPresent

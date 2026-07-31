@@ -520,7 +520,7 @@ def test_session_event_part_finalize_and_idempotency(
         names = set(archive.namelist())
         methodology_paths = {
             "README.txt",
-            "methodology/methodology-v0.1.md",
+            "methodology/methodology-v0.2.md",
             "methodology/verification-guide.html",
         }
         assert methodology_paths.issubset(names)
@@ -529,7 +529,7 @@ def test_session_event_part_finalize_and_idempotency(
             {member["path"] for member in package_index["members"]}
         )
         assert b"localmente no navegador" in archive.read(
-            "methodology/methodology-v0.1.md"
+            "methodology/methodology-v0.2.md"
         )
     package_hash = client.get(f"/v1/sessions/{session_id}/package.sha256")
     assert package_hash.status_code == 200

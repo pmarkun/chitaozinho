@@ -845,7 +845,7 @@ chitaozinho-evidence-<session_id>.zip
 ├── package-index.json
 ├── capture-manifest.json
 ├── methodology/
-│   ├── methodology-v0.1.md
+│   ├── methodology-v0.2.md
 │   └── verification-guide.html
 ├── signatures/
 │   ├── capture-close.client.sig
