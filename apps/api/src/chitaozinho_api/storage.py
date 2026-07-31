@@ -79,13 +79,19 @@ class LocalDurableStorage:
         return relative.as_posix()
 
     def read(self, storage_key: str) -> bytes:
-        return (self.root / storage_key).read_bytes()
+        return self.resolve(storage_key).read_bytes()
 
     def resolve(self, storage_key: str) -> Path:
         relative = Path(storage_key)
         if relative.is_absolute() or ".." in relative.parts:
             raise ValueError("invalid storage key")
-        return self.root / relative
+        root = self.root.resolve()
+        candidate = (root / relative).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError as error:
+            raise ValueError("storage key escapes storage root") from error
+        return candidate
 
     def package_path(self, session_id: str) -> Path:
         validate_storage_identifier(session_id, "session id")
@@ -211,9 +217,7 @@ class S3DurableStorage:
                         Key=key,
                         Body=body,
                         ContentLength=source.stat().st_size,
-                        ChecksumSHA256=base64.b64encode(
-                            bytes.fromhex(digest_hex)
-                        ).decode("ascii"),
+                        ChecksumSHA256=base64.b64encode(bytes.fromhex(digest_hex)).decode("ascii"),
                         Metadata={"sha256": digest},
                         ObjectLockMode="COMPLIANCE",
                         ObjectLockRetainUntilDate=retain_until,

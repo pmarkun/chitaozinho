@@ -33,6 +33,23 @@ def test_storage_rejects_unsafe_identifiers(tmp_path: Path, identifier: str) -> 
         storage.put_part(session_id, identifier, 0, b"x")
 
 
+def test_local_storage_read_cannot_escape_storage_root(tmp_path: Path) -> None:
+    root = tmp_path / "storage"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.write_bytes(b"private server data")
+    storage = LocalDurableStorage(root)
+
+    with pytest.raises(ValueError, match="invalid storage key"):
+        storage.read("../outside")
+    with pytest.raises(ValueError, match="invalid storage key"):
+        storage.read(str(outside))
+
+    (root / "link").symlink_to(outside)
+    with pytest.raises(ValueError, match="escapes storage root"):
+        storage.read("link")
+
+
 def test_local_final_artifact_is_stored_but_not_claimed_as_locked(
     tmp_path: Path,
 ) -> None:
@@ -200,9 +217,7 @@ def test_retention_failure_is_explicit_and_audited(tmp_path: Path) -> None:
         assert status == "retention_failed"
         assert capture.storage_status == "retention_failed"
         event = database.scalar(
-            select(AuditEvent).where(
-                AuditEvent.event_type == "evidence_retention_evaluated"
-            )
+            select(AuditEvent).where(AuditEvent.event_type == "evidence_retention_evaluated")
         )
         assert event is not None
         assert event.details["storage_status"] == "retention_failed"
