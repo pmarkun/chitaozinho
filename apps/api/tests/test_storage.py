@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
+from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -48,6 +49,25 @@ def test_local_storage_read_cannot_escape_storage_root(tmp_path: Path) -> None:
     (root / "link").symlink_to(outside)
     with pytest.raises(ValueError, match="escapes storage root"):
         storage.read("link")
+
+
+def test_storage_reads_enforce_size_and_metadata_limits(tmp_path: Path) -> None:
+    local = LocalDurableStorage(tmp_path / "local", max_read_bytes=4)
+    oversized = local.root / "oversized.part"
+    oversized.write_bytes(b"12345")
+    with pytest.raises(ValueError, match="read limit"):
+        local.read("oversized.part")
+
+    s3 = S3DurableStorage.__new__(S3DurableStorage)
+    s3.bucket = "evidence-test"
+    s3.max_read_bytes = 4
+    s3.client = FakeReadClient(b"12345", reported_length=5)
+    with pytest.raises(ValueError, match="read limit"):
+        s3.read("oversized.part")
+
+    s3.client = FakeReadClient(b"1234", reported_length=3)
+    with pytest.raises(ValueError, match="does not match"):
+        s3.read("mismatched.part")
 
 
 def test_local_final_artifact_is_stored_but_not_claimed_as_locked(
@@ -273,3 +293,15 @@ class FakePartClient:
     def put_object(self, **arguments) -> dict:
         self.put_arguments = arguments
         return {}
+
+
+class FakeReadClient:
+    def __init__(self, content: bytes, reported_length: int) -> None:
+        self.content = content
+        self.reported_length = reported_length
+
+    def get_object(self, **_arguments) -> dict:
+        return {
+            "Body": BytesIO(self.content),
+            "ContentLength": self.reported_length,
+        }

@@ -30,8 +30,13 @@ class FinalStorageResult:
 
 
 class LocalDurableStorage:
-    def __init__(self, root: Path) -> None:
+    def __init__(
+        self,
+        root: Path,
+        max_read_bytes: int = 8 * 1024 * 1024,
+    ) -> None:
         self.root = root
+        self.max_read_bytes = max_read_bytes
         self.root.mkdir(parents=True, exist_ok=True)
 
     def check_ready(self) -> None:
@@ -79,7 +84,11 @@ class LocalDurableStorage:
         return relative.as_posix()
 
     def read(self, storage_key: str) -> bytes:
-        return self.resolve(storage_key).read_bytes()
+        with self.resolve(storage_key).open("rb") as source:
+            data = source.read(self.max_read_bytes + 1)
+        if len(data) > self.max_read_bytes:
+            raise ValueError("stored part exceeds configured read limit")
+        return data
 
     def resolve(self, storage_key: str) -> Path:
         relative = Path(storage_key)
@@ -124,6 +133,7 @@ class S3DurableStorage:
         self.root = settings.storage_path
         self.bucket = settings.s3_bucket
         self.kms_key_id = settings.s3_kms_key_id
+        self.max_read_bytes = settings.max_part_size
         self.client = boto3.client(
             "s3",
             endpoint_url=settings.s3_endpoint_url,
@@ -178,7 +188,17 @@ class S3DurableStorage:
 
     def read(self, storage_key: str) -> bytes:
         response = self.client.get_object(Bucket=self.bucket, Key=storage_key)
-        return response["Body"].read()
+        length = response.get("ContentLength")
+        body = response["Body"]
+        try:
+            if not isinstance(length, int) or length < 0 or length > self.max_read_bytes:
+                raise ValueError("stored part exceeds configured read limit")
+            data = body.read(self.max_read_bytes + 1)
+        finally:
+            body.close()
+        if len(data) != length or len(data) > self.max_read_bytes:
+            raise ValueError("stored part length does not match storage metadata")
+        return data
 
     def package_path(self, session_id: str) -> Path:
         validate_storage_identifier(session_id, "session id")
@@ -271,7 +291,10 @@ DurableStorage = LocalDurableStorage | S3DurableStorage
 
 def create_storage(settings: Settings) -> DurableStorage:
     if settings.storage_backend == "local":
-        return LocalDurableStorage(settings.storage_path)
+        return LocalDurableStorage(
+            settings.storage_path,
+            max_read_bytes=settings.max_part_size,
+        )
     if settings.storage_backend == "s3":
         return S3DurableStorage(settings)
     raise ValueError(f"unsupported storage backend: {settings.storage_backend}")
