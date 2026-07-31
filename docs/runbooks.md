@@ -75,6 +75,16 @@ pacotes, provas, banco ou audit trail para recuperar capacidade.
 ## Railway e rollback
 
 - Faça deploy primeiro em staging e aguarde `/readyz`.
+- Antes da promoção, gere evidência read-only de TLS, health, métricas e
+  autenticação:
+
+  ```sh
+  nix develop --command python scripts/check-public-environment.py \
+    --base-url https://api-staging.example \
+    --metrics-token "$CHITAOZINHO_METRICS_TOKEN" \
+    --output /tmp/chitaozinho-public-environment.json
+  ```
+
 - Execute migração e smoke funcional antes de promover a mesma imagem.
 - Em falha de aplicação, restaure a versão anterior da imagem; em falha de
   dados, use apenas o restore isolado validado.
