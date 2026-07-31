@@ -136,7 +136,7 @@ This run proves the short functional flow. It does not satisfy the separate
 
 ## 2026-07-30 — Backend and infrastructure safety gates
 
-- The full repository gate passed with 74 Python tests, three opt-in service
+- The full repository gate passed with 78 Python tests, three opt-in service
   tests skipped in the unit pass, 19 extension tests, four TypeScript protocol
   tests and 21 Rust tests.
 - The Ceph configuration guard pins Squid `19.2.5` by multi-architecture image
@@ -146,6 +146,8 @@ This run proves the short functional flow. It does not satisfy the separate
   unknown storage providers and broad extension CORS. It requires PostgreSQL,
   Ceph RGW, SSE-KMS, a mounted operational signing seed, magic-link
   authentication and exact Chromium extension IDs.
+- OSV and Trivy passed after the migration with no unresolved dependency,
+  secret or infrastructure finding.
 - Final evidence receives the full configured retention from the later of
   capture completion or protection time.
 - Timestamp failures persist only the exception type, emit structured worker
