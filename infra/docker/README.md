@@ -30,4 +30,7 @@ shell so Railway's injected `$PORT` is expanded before Uvicorn starts.
 
 The public verifier uses `Dockerfile.verifier-web` and
 `infra/railway/verifier-web.json`. It serves the static build through Caddy,
-checks `/health` and keeps validation local to the browser.
+checks `/health` and keeps validation local to the browser. The root
+`railway.json` intentionally mirrors this configuration, making the safe
+public verifier the default target for `railway up`; API and worker must use
+their explicit service-specific configuration paths.

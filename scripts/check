@@ -29,5 +29,6 @@ python scripts/check-openbao-config.py
 python -m json.tool infra/railway/api.json >/dev/null
 python -m json.tool infra/railway/worker.json >/dev/null
 python -m json.tool infra/railway/verifier-web.json >/dev/null
+python -m json.tool railway.json >/dev/null
 python scripts/check-railway-config.py
 python scripts/check-monitoring-config.py

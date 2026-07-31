@@ -9,6 +9,7 @@ ROOT = Path(__file__).parents[1]
 API_PATH = ROOT / "infra" / "railway" / "api.json"
 WORKER_PATH = ROOT / "infra" / "railway" / "worker.json"
 VERIFIER_WEB_PATH = ROOT / "infra" / "railway" / "verifier-web.json"
+DEFAULT_PATH = ROOT / "railway.json"
 SCHEMA = "https://railway.com/railway.schema.json"
 BACKEND_BUILD = {
     "builder": "DOCKERFILE",
@@ -120,7 +121,10 @@ def reject_forbidden_keys(value: object, *, name: str) -> None:
 
 
 def main() -> None:
-    validate_configs(load(API_PATH), load(WORKER_PATH), load(VERIFIER_WEB_PATH))
+    verifier_web = load(VERIFIER_WEB_PATH)
+    validate_configs(load(API_PATH), load(WORKER_PATH), verifier_web)
+    if load(DEFAULT_PATH) != verifier_web:
+        raise ValueError("root railway.json must deploy the public verifier safely")
     print("Railway configuration valid: isolated api, worker and verifier contracts")
 
 
