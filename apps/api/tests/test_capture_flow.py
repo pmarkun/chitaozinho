@@ -10,7 +10,7 @@ from zipfile import ZipFile
 import chitaozinho_api.main as main_module
 import pytest
 from chitaozinho_api.config import Settings
-from chitaozinho_api.main import create_app
+from chitaozinho_api.main import advertised_retention_policy, create_app
 from chitaozinho_api.models import AuditEvent, Incident, Job, TimestampAttempt
 from chitaozinho_protocol import (
     DOMAINS,
@@ -59,6 +59,24 @@ def signed_entry(entry: dict) -> dict:
         "entry": entry,
         "entry_hash": sha256_identifier(canonical_bytes(entry)),
         "signature_hex": sign_canonical(DOMAINS["entry"], entry, CLIENT_SEED).hex(),
+    }
+
+
+def test_session_creation_advertises_effective_retention(client: TestClient) -> None:
+    response = client.post("/v1/sessions")
+
+    assert response.status_code == 201
+    assert response.json()["retention_policy"] == {
+        "mode": "development",
+        "days": None,
+    }
+    assert advertised_retention_policy("staging", 90) == {
+        "mode": "COMPLIANCE",
+        "days": 90,
+    }
+    assert advertised_retention_policy("production", 1825) == {
+        "mode": "COMPLIANCE",
+        "days": 1825,
     }
 
 

@@ -448,7 +448,10 @@ def create_app(
             server_challenge=capture_session.server_challenge,
             server_time=now,
             upload_policy={"max_part_size": settings.max_part_size},
-            retention_policy={"mode": "development", "days": None},
+            retention_policy=advertised_retention_policy(
+                settings.env,
+                settings.retention_days,
+            ),
             server_public_key_id=active_signer.key_id,
             next_sequence=0,
         )
@@ -1462,6 +1465,15 @@ def require_signer(signer: ServerSigner | None) -> ServerSigner:
             "server signing key is not configured",
         )
     return signer
+
+
+def advertised_retention_policy(
+    environment: str,
+    retention_days: int,
+) -> dict[str, str | int | None]:
+    if environment in {"development", "test"}:
+        return {"mode": "development", "days": None}
+    return {"mode": "COMPLIANCE", "days": retention_days}
 
 
 def record_incident(
