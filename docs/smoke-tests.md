@@ -107,6 +107,15 @@ This run proves the short functional flow. It does not satisfy the separate
   and attestations, plus immutable/idempotent part writes against Garage S3.
 - The existing development database was not migrated, reused or modified.
 
+## 2026-07-30 — Railway API command
+
+- The exact Docker start command expanded an injected synthetic `PORT`, started
+  Uvicorn and served `{"status":"ok"}` from `/healthz`.
+- The manifest wraps the command in `sh -c` because Railway does not expand
+  environment variables directly in Docker/image start-command overrides.
+- The semantic config gate also verified the migration, `/readyz`, restart,
+  process-separation and no-volume invariants.
+
 ## 2026-07-30 — Backend and infrastructure safety gates
 
 - The full repository gate passed with 66 Python tests, three opt-in service

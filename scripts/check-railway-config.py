@@ -17,6 +17,11 @@ RESTART = {
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 5,
 }
+API_START = (
+    "sh -c 'exec uvicorn chitaozinho_api.main:create_app --factory "
+    '--host 0.0.0.0 --port "$PORT" --no-access-log\''
+)
+WORKER_START = "python -m chitaozinho_api.worker"
 
 
 def load(path: Path) -> dict[str, Any]:
@@ -38,14 +43,7 @@ def validate_configs(
     if api_deploy.get("preDeployCommand") != ["alembic upgrade head"]:
         raise ValueError("api must apply the exact forward migration before deploy")
     api_start = api_deploy.get("startCommand")
-    if (
-        not isinstance(api_start, str)
-        or "chitaozinho_api.main:create_app" not in api_start
-        or "--factory" not in api_start
-        or "--host 0.0.0.0" not in api_start
-        or "--port $PORT" not in api_start
-        or "--no-access-log" not in api_start
-    ):
+    if api_start != API_START:
         raise ValueError("api start command violates the public runtime contract")
     if api_deploy.get("healthcheckPath") != "/readyz":
         raise ValueError("api deploy health check must use dependency-aware /readyz")
@@ -58,7 +56,7 @@ def validate_configs(
     if "healthcheckPath" in worker_deploy:
         raise ValueError("worker must not advertise an HTTP readiness endpoint")
     worker_start = worker_deploy.get("startCommand")
-    if worker_start != "python -m chitaozinho_api.worker":
+    if worker_start != WORKER_START:
         raise ValueError("worker start command violates the runtime contract")
     if api_start == worker_start:
         raise ValueError("api and worker processes must remain separate")

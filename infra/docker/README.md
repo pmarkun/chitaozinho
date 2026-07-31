@@ -25,4 +25,5 @@ corresponding config path. They do not authorize or perform a deployment.
 `scripts/check-railway-config.py` rejects drift from the deployment contract:
 the API alone runs migrations and gates traffic on `/readyz`, API and worker
 remain separate processes with bounded restarts, and neither template can
-declare a Railway volume for evidence.
+declare a Railway volume for evidence. The Docker API command uses an explicit
+shell so Railway's injected `$PORT` is expanded before Uvicorn starts.

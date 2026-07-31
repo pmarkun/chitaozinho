@@ -8,7 +8,7 @@
     "preDeployCommand": [
       "alembic upgrade head"
     ],
-    "startCommand": "uvicorn chitaozinho_api.main:create_app --factory --host 0.0.0.0 --port $PORT --no-access-log",
+    "startCommand": "sh -c 'exec uvicorn chitaozinho_api.main:create_app --factory --host 0.0.0.0 --port \"$PORT\" --no-access-log'",
     "healthcheckPath": "/readyz",
     "healthcheckTimeout": 30,
     "restartPolicyType": "ON_FAILURE",
