@@ -95,6 +95,8 @@ def test_extension_cors_preflight() -> None:
 
 
 def test_non_local_environment_fails_closed_without_tls_and_external_storage() -> None:
+    with pytest.raises(ValidationError, match="development.*test.*staging.*production"):
+        Settings(env="preview")  # type: ignore[arg-type]
     with pytest.raises(ValidationError, match="HTTPS"):
         Settings(env="staging", public_base_url="http://example.test")
     with pytest.raises(ValidationError, match="external S3"):
@@ -115,6 +117,8 @@ def test_non_local_environment_fails_closed_without_tls_and_external_storage() -
         "storage_backend": "s3",
         "s3_kms_key_id": "arn:aws:kms:sa-east-1:123456789012:key/evidence",
     }
+    with pytest.raises(ValidationError, match="at least 90 days"):
+        Settings(**kms_storage, retention_days=1)
     with pytest.raises(ValidationError, match="plaintext"):
         Settings(
             **kms_storage,

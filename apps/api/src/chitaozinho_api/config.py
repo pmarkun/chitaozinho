@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -14,7 +15,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    env: str = "development"
+    env: Literal["development", "test", "staging", "production"] = "development"
     database_url: str = "sqlite:///data/chitaozinho.db"
     storage_backend: str = "local"
     storage_path: Path = Path("data/artifacts")
@@ -107,6 +108,10 @@ class Settings(BaseSettings):
             if self.s3_kms_key_id is None:
                 raise ValueError(
                     "customer-managed S3 KMS key is required outside local development"
+                )
+            if self.retention_days < 90:
+                raise ValueError(
+                    "staging and production retention must be at least 90 days"
                 )
             if self.server_seed_hex is not None:
                 raise ValueError(
