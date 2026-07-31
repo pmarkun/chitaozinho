@@ -279,7 +279,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Runbooks cobrem TSA, OpenTimestamps, storage, banco e rotação de chaves.
 - [x] SBOM e assinatura de builds são gerados por release.
 - [ ] Política de retenção e exclusão foi revisada juridicamente.
-- [ ] Teste de restauração e rollback foi concluído.
+- [x] Teste de restauração e rollback foi concluído.
 - [ ] Revisão de segurança foi concluída.
 
 ## 8. Rastreabilidade dos requisitos

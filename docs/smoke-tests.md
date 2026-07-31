@@ -89,12 +89,17 @@ This run proves the short functional flow. It does not satisfy the separate
 
 - A fully migrated synthetic PostgreSQL source was dumped in custom format and
   restored into a separately named database.
+- The current-state rerun produced backup SHA-256
+  `33a4d7af327244f73553caf3ba0140d9abcb8fdcf50ab185140835723ac517a5`.
 - The restored public schema contained the same 17 tables, exact row counts and
   per-table content digests.
 - The restored audit chain was recalculated from the persisted timestamps and
   content, and sessions and durable jobs were read through SQLAlchemy.
 - Running migrations against the restored copy was a no-op at
   `0005_magic_link_auth (head)`.
+- The migration rollback test downgraded from `0005_magic_link_auth` to
+  `0004_partial_artifacts`, verified the removed schema, upgraded back to head
+  and rechecked model/schema consistency.
 - Both temporary databases were removed after validation; the development
   database was not modified.
 
