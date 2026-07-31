@@ -209,8 +209,8 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] Downloads usam autorização e URLs expiráveis.
 - [x] Sessões não podem ser enumeradas.
 - [x] Limites de tamanho, duração, partes e taxa estão definidos.
-- [ ] Uso de CPU, memória e disco é medido durante captura.
-- [ ] A captura não degrada significativamente a página observada.
+- [x] Uso de CPU, memória e disco é medido durante captura.
+- [x] A captura não degrada significativamente a página observada.
 - [x] Falhas de disco, rede, storage e processo possuem recuperação documentada.
 - [x] Ameaças e limitações aparecem na interface e no relatório.
 - [x] Nenhum dado pessoal é publicado em blockchain.
@@ -319,7 +319,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 - [x] RNF-003 — preservar buffer durante indisponibilidade.
 - [x] RNF-004 — manter build identificável, changelog e logs seguros.
 - [x] RNF-005 — verificar fora da plataforma.
-- [ ] RNF-006 — respeitar limites de desempenho e memória.
+- [x] RNF-006 — respeitar limites de desempenho e memória.
 - [x] RNF-007 — suportar multipart e processamento assíncrono.
 - [ ] RNF-008 — atender WCAG 2.2 AA.
 - [x] RNF-009 — preparar pt-BR e inglês.

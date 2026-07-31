@@ -116,6 +116,19 @@ This run proves the short functional flow. It does not satisfy the separate
 - The semantic config gate also verified the migration, `/readyz`, restart,
   process-separation and no-volume invariants.
 
+## 2026-07-30 — Live browser capture and resource acceptance
+
+- A real capture of the public WikiAves tab ran for approximately 79 seconds.
+  The user observed CPU, memory, disk and page responsiveness during the run
+  and explicitly accepted that the capture caused no significant degradation.
+- Session `70fcb6f37872476e981a2b5ce58fff60` completed with WebM recording, initial
+  screenshot, DOM and metadata. Its downloaded ZIP checksum passed.
+- The offline Rust verifier returned `integral`, verified all 11 indexed
+  members, both signed chains, the capture close and all artifact hashes.
+- The process sampler was corrected to calculate CPU and I/O deltas per Chrome
+  PID and reject negative counters caused by renderer process churn. No
+  quantitative threshold claim from the superseded aggregate run is retained.
+
 ## 2026-07-30 — Backend and infrastructure safety gates
 
 - The full repository gate passed with 66 Python tests, three opt-in service
