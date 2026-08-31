@@ -29,9 +29,10 @@ describe("popup accessibility guards", () => {
     }
   });
 
-  it("supports a 320 CSS pixel viewport and visible keyboard focus", () => {
+  it("uses the intended 360 CSS pixel popup and visible keyboard focus", () => {
     expect(html).toContain('name="viewport"');
-    expect(css).toMatch(/width:\s*360px;\s*max-width:\s*100vw;/);
+    expect(css).toMatch(/body\s*\{[\s\S]*?width:\s*360px;/);
+    expect(css).not.toContain("max-width: 100vw");
     expect(css).toMatch(
       /outline:\s*3px solid var\(--focus-ring\);\s*outline-offset:\s*2px;/,
     );

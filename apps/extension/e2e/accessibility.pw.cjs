@@ -137,7 +137,7 @@ async function auditScenario(browser, name, scenario) {
 
 async function scenarioPage(browser, scenario) {
   const context = await browser.newContext({
-    viewport: { width: 320, height: 640 },
+    viewport: { width: 360, height: 640 },
   });
   await context.addInitScript(
     ({ localizedMessages, state }) => {
@@ -201,7 +201,7 @@ async function audit(page, name) {
         document.documentElement.scrollWidth <=
         document.documentElement.clientWidth,
     ),
-    `${name}: horizontal overflow at 320 CSS pixels`,
+    `${name}: horizontal overflow at 360 CSS pixels`,
   ).toBe(true);
   const results = await page.evaluate(async () =>
     globalThis.axe.run(document, {

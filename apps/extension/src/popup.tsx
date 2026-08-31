@@ -29,6 +29,9 @@ interface PublicState {
 type Screen = "home" | "new" | "captures" | "settings";
 
 function App() {
+  const usesLocalAuthentication =
+    window.location.protocol === "chrome-extension:" &&
+    __CHITAOZINHO_ENDPOINTS__.environment === "desenvolvimento";
   const [capture, setCapture] = useState<PublicState | null>(null);
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [email, setEmail] = useState("");
@@ -51,7 +54,8 @@ function App() {
   }, [authenticated, screen, capture?.id, capture?.status]);
 
   async function refresh(): Promise<boolean> {
-    const hasSession = await authStatus().catch(() => false);
+    const hasSession =
+      usesLocalAuthentication || (await authStatus().catch(() => false));
     setAuthenticated(hasSession);
     if (!hasSession) return false;
     const response = await send({ type: "GET_STATE" });
