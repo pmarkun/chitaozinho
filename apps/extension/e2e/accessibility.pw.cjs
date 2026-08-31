@@ -72,7 +72,7 @@ test("stale login recovers when the local API is already authenticated", async (
   browser,
 }) => {
   const page = await scenarioPage(browser, {
-    authenticated: [false, true],
+    authenticated: [false, false],
     magicLinkStatus: 404,
   });
   await page

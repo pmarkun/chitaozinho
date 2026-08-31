@@ -67,6 +67,16 @@ function App() {
       await requestMagicLink(email);
       setLinkSent(true);
     } catch (caught) {
+      const detail = errorDetail(caught);
+      if (
+        __CHITAOZINHO_ENDPOINTS__.environment === "desenvolvimento" &&
+        detail.includes("authentication unavailable")
+      ) {
+        setAuthenticated(true);
+        setError(undefined);
+        setTechnicalError(undefined);
+        return;
+      }
       // The local API authenticates automatically and intentionally has no
       // magic-link endpoint. Recover if the popup still showed its stale login
       // state while the development server was starting.
