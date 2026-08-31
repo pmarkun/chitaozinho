@@ -68,6 +68,24 @@ test("login and authenticated navigation have no automatic WCAG violations", asy
   await page.context().close();
 });
 
+test("stale login recovers when the local API is already authenticated", async ({
+  browser,
+}) => {
+  const page = await scenarioPage(browser, {
+    authenticated: [false, true],
+    magicLinkStatus: 404,
+  });
+  await page
+    .getByRole("textbox", { name: messages.emailLabel })
+    .fill("teste@example.test");
+  await page.getByRole("button", { name: messages.sendAccessLink }).click();
+  await expect(
+    page.getByRole("heading", { name: messages.homeTitle }),
+  ).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await page.context().close();
+});
+
 test("capture states have no automatic WCAG violations", async ({
   browser,
 }) => {
@@ -142,10 +160,21 @@ async function scenarioPage(browser, scenario) {
       };
       globalThis.fetch = async (input) => {
         if (String(input).endsWith("/v1/auth/session")) {
+          const authenticated = Array.isArray(state.authenticated)
+            ? (state.authenticated.shift() ?? true)
+            : state.authenticated;
+          return new Response(JSON.stringify({ authenticated }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        if (String(input).endsWith("/v1/auth/magic-links")) {
           return new Response(
-            JSON.stringify({ authenticated: state.authenticated }),
+            state.magicLinkStatus === 404
+              ? JSON.stringify({ detail: "authentication unavailable" })
+              : "{}",
             {
-              status: 200,
+              status: state.magicLinkStatus ?? 200,
               headers: { "Content-Type": "application/json" },
             },
           );

@@ -50,12 +50,35 @@ function App() {
     document.querySelector<HTMLElement>("[data-view-heading]")?.focus();
   }, [authenticated, screen, capture?.id, capture?.status]);
 
-  async function refresh() {
+  async function refresh(): Promise<boolean> {
     const hasSession = await authStatus().catch(() => false);
     setAuthenticated(hasSession);
-    if (!hasSession) return;
+    if (!hasSession) return false;
     const response = await send({ type: "GET_STATE" });
     if (response.ok) setCapture(response.result as PublicState | null);
+    return true;
+  }
+
+  async function requestAccessLink() {
+    setBusy(true);
+    setError(undefined);
+    setTechnicalError(undefined);
+    try {
+      await requestMagicLink(email);
+      setLinkSent(true);
+    } catch (caught) {
+      // The local API authenticates automatically and intentionally has no
+      // magic-link endpoint. Recover if the popup still showed its stale login
+      // state while the development server was starting.
+      if (await refresh()) {
+        setError(undefined);
+        setTechnicalError(undefined);
+      } else {
+        showError(caught);
+      }
+    } finally {
+      setBusy(false);
+    }
   }
 
   function showError(caught: unknown) {
@@ -151,14 +174,7 @@ function App() {
           </label>
           <button
             disabled={busy || !email}
-            onClick={() => {
-              setBusy(true);
-              setError(undefined);
-              void requestMagicLink(email)
-                .then(() => setLinkSent(true))
-                .catch(showError)
-                .finally(() => setBusy(false));
-            }}
+            onClick={() => void requestAccessLink()}
           >
             {t("sendAccessLink")}
           </button>
