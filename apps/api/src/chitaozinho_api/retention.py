@@ -35,6 +35,15 @@ def protect_final_artifact(
             retain_until,
         )
         status = result.status
+        if (
+            settings.env == "beta"
+            and result.status == "stored"
+            and (
+                capture_session.storage_expires_at is None
+                or capture_session.storage_expires_at < retain_until
+            )
+        ):
+            capture_session.storage_expires_at = retain_until
         details = {
             "artifact_name": name,
             "artifact_hash": digest,

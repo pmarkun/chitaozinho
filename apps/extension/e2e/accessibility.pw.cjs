@@ -68,11 +68,26 @@ test("login and authenticated navigation have no automatic WCAG violations", asy
   await page.context().close();
 });
 
+test("beta warning remains visible without horizontal overflow in a short popup", async ({
+  browser,
+}) => {
+  const page = await scenarioPage(
+    browser,
+    { authenticated: false },
+    { width: 360, height: 420 },
+  );
+  await expect(page.getByText(messages.betaTitle)).toBeVisible();
+  await expect(page.getByText(messages.betaRetention)).toBeVisible();
+  await expect(page.getByText(messages.betaNoImmutability)).toBeVisible();
+  await audit(page, "short beta login");
+  await page.context().close();
+});
+
 test("stale login recovers when the local API is already authenticated", async ({
   browser,
 }) => {
   const page = await scenarioPage(browser, {
-    authenticated: [false, false],
+    authenticated: [false, true],
     magicLinkStatus: 404,
   });
   await page
@@ -117,7 +132,25 @@ test("capture states have no automatic WCAG violations", async ({
         integrityStatus: "complete",
         timestampStatus: "valid",
         blockchainStatus: "confirmed",
-        storageStatus: "locked",
+        storageStatus: "stored",
+      },
+    ],
+    [
+      "expired",
+      {
+        ...baseCapture,
+        status: "complete",
+        captureFinished: true,
+        storageStatus: "expired",
+      },
+    ],
+    [
+      "expiration failed",
+      {
+        ...baseCapture,
+        status: "complete",
+        captureFinished: true,
+        storageStatus: "expiration_failed",
       },
     ],
   ];
@@ -135,9 +168,13 @@ async function auditScenario(browser, name, scenario) {
   await page.context().close();
 }
 
-async function scenarioPage(browser, scenario) {
+async function scenarioPage(
+  browser,
+  scenario,
+  viewport = { width: 360, height: 640 },
+) {
   const context = await browser.newContext({
-    viewport: { width: 360, height: 640 },
+    viewport,
   });
   await context.addInitScript(
     ({ localizedMessages, state }) => {

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
+from urllib.error import HTTPError, URLError
 
 import chitaozinho_api.main as main_module
 import pytest
+from chitaozinho_api.auth import resend_magic_link_sender
 from chitaozinho_api.config import Settings
 from chitaozinho_api.download_tokens import (
     create_download_token,
@@ -22,6 +26,38 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 SERVER_SEED = "11" * 32
+
+
+class ResendResponse:
+    status = 200
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_arguments) -> None:
+        return None
+
+    def read(self, _limit: int) -> bytes:
+        return b""
+
+
+class ResendOpener:
+    def __init__(self) -> None:
+        self.request = None
+
+    def open(self, request, *, timeout: int):
+        assert timeout == 15
+        self.request = request
+        return ResendResponse()
+
+
+class FailingResendOpener:
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+
+    def open(self, _request, *, timeout: int):
+        assert timeout == 15
+        raise self.error
 
 
 def test_magic_link_is_single_use_and_creates_an_authorized_cookie(
@@ -118,6 +154,52 @@ def test_magic_link_is_single_use_and_creates_an_authorized_cookie(
     )
 
 
+def test_resend_sender_uses_bounded_http_api_without_sdk() -> None:
+    opener = ResendOpener()
+    settings = Settings(
+        email_provider="resend",
+        resend_api_key="re_" + ("x" * 32),
+        resend_from="Chitãozinho <beta@example.test>",
+    )
+    with patch("chitaozinho_api.auth.build_opener", return_value=opener):
+        sender = resend_magic_link_sender(settings)
+        sender("Person@Example.com", "https://api.example.test/access#token")
+
+    assert opener.request is not None
+    assert opener.request.full_url == "https://api.resend.com/emails"
+    assert opener.request.get_header("Authorization").startswith("Bearer re_")
+    assert opener.request.get_header("User-agent") == "chitaozinho-api/0.1.0"
+    payload = json.loads(opener.request.data)
+    assert payload["to"] == ["person@example.com"]
+    assert payload["from"] == "Chitãozinho <beta@example.test>"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        HTTPError("https://api.resend.com/emails", 302, "redirect", {}, None),
+        HTTPError("https://api.resend.com/emails", 429, "rate limited", {}, None),
+        HTTPError("https://api.resend.com/emails", 500, "failure", {}, None),
+        URLError("timeout"),
+    ],
+)
+def test_resend_sender_fails_closed_on_redirect_rate_limit_error_and_timeout(
+    error: Exception,
+) -> None:
+    settings = Settings(
+        email_provider="resend",
+        resend_api_key="re_" + ("x" * 32),
+        resend_from="Chitãozinho <beta@example.test>",
+    )
+    with patch(
+        "chitaozinho_api.auth.build_opener",
+        return_value=FailingResendOpener(error),
+    ):
+        sender = resend_magic_link_sender(settings)
+        with pytest.raises(RuntimeError, match="Resend request failed"):
+            sender("person@example.com", "https://api.example.test/access#token")
+
+
 def test_expired_magic_link_and_delivery_failure_fail_closed(
     tmp_path: Path,
 ) -> None:
@@ -163,7 +245,7 @@ def test_expired_magic_link_and_delivery_failure_fail_closed(
         "/v1/auth/magic-links",
         json={"email": "person@example.com"},
     )
-    assert response.status_code == 503
+    assert response.status_code == 202
     assert "synthetic" not in response.text
     with failing_app.state.session_factory() as database:
         failure = database.scalar(
@@ -173,6 +255,35 @@ def test_expired_magic_link_and_delivery_failure_fail_closed(
         )
         assert failure is not None
         assert failure.details == {"error_type": "RuntimeError"}
+
+
+def test_magic_link_rate_limit_is_persistent_and_returns_uniform_response(
+    tmp_path: Path,
+) -> None:
+    delivered: list[str] = []
+    app = create_app(
+        auth_settings(tmp_path, magic_link_email_limit_per_hour=2),
+        magic_link_sender=lambda _email, link: delivered.append(link),
+        create_tables=True,
+    )
+    client = TestClient(app)
+
+    responses = [
+        client.post(
+            "/v1/auth/magic-links",
+            headers={"X-Forwarded-For": "203.0.113.9"},
+            json={"email": "person@example.com"},
+        )
+        for _ in range(3)
+    ]
+
+    assert [response.status_code for response in responses] == [202, 202, 202]
+    assert len(delivered) == 2
+    with app.state.session_factory() as database:
+        limited = database.scalar(
+            select(AuditEvent).where(AuditEvent.event_type == "magic_link_rate_limited")
+        )
+        assert limited is not None
 
 
 def test_download_urls_are_owner_authorized_bound_and_expiring(
@@ -267,13 +378,18 @@ def auth_settings(
     tmp_path: Path,
     *,
     database_name: str = "auth.db",
+    **overrides,
 ) -> Settings:
+    values = {
+        "auth_mode": "magic_link",
+        "auth_token_pepper": "test-pepper-that-is-longer-than-32-characters",
+        "database_url": f"sqlite:///{tmp_path / database_name}",
+        "storage_path": tmp_path / "artifacts",
+        "server_key_id": "server-test",
+        "server_seed_hex": SERVER_SEED,
+        "public_base_url": "http://testserver",
+        **overrides,
+    }
     return Settings(
-        auth_mode="magic_link",
-        auth_token_pepper="test-pepper-that-is-longer-than-32-characters",
-        database_url=f"sqlite:///{tmp_path / database_name}",
-        storage_path=tmp_path / "artifacts",
-        server_key_id="server-test",
-        server_seed_hex=SERVER_SEED,
-        public_base_url="http://testserver",
+        **values,
     )

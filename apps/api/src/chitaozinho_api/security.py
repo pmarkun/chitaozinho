@@ -4,6 +4,7 @@ import base64
 import json
 import ssl
 import stat
+import threading
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -57,13 +58,14 @@ class ServerSigner:
             return None
         active_transit_client = None
         if settings.openbao_addr is not None:
-            assert settings.openbao_token is not None
             assert settings.openbao_transit_key is not None
             assert settings.openbao_transit_key_version is not None
             active_transit_client = transit_client or OpenBaoTransitClient(
                 settings.openbao_addr,
                 settings.openbao_token,
                 settings.openbao_ca_bundle,
+                role_id=settings.openbao_role_id,
+                secret_id=settings.openbao_secret_id,
             )
             key_document = active_transit_client.read_key(
                 settings.openbao_transit_mount,
@@ -213,13 +215,20 @@ class OpenBaoTransitClient:
     def __init__(
         self,
         address: str,
-        token: str,
+        token: str | None,
         ca_bundle: Path | None,
         *,
+        role_id: str | None = None,
+        secret_id: str | None = None,
         timeout_seconds: float = 5.0,
     ) -> None:
         self.address = address.rstrip("/")
         self.token = token
+        self.role_id = role_id
+        self.secret_id = secret_id
+        self.token_expires_at: datetime | None = None
+        self.token_renewable = False
+        self._auth_lock = threading.Lock()
         self.timeout_seconds = timeout_seconds
         context = ssl.create_default_context(
             cafile=str(ca_bundle) if ca_bundle is not None else None
@@ -252,18 +261,78 @@ class OpenBaoTransitClient:
         path: str,
         payload: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        self._ensure_token()
+        assert self.token is not None
+        return self._perform_request(method, path, payload, token=self.token)
+
+    def _ensure_token(self) -> None:
+        if self.role_id is None:
+            if self.token is None:
+                raise RuntimeError("OpenBao authentication is not configured")
+            return
+        with self._auth_lock:
+            now = datetime.now(UTC)
+            if (
+                self.token is not None
+                and self.token_expires_at is not None
+                and self.token_expires_at > now + timedelta(seconds=60)
+            ):
+                return
+            if self.token is not None and self.token_renewable:
+                try:
+                    document = self._perform_request(
+                        "POST",
+                        "auth/token/renew-self",
+                        {},
+                        token=self.token,
+                    )
+                    self._accept_auth(document)
+                    return
+                except RuntimeError:
+                    self.token = None
+            if self.secret_id is None:
+                raise RuntimeError("OpenBao AppRole secret is not configured")
+            document = self._perform_request(
+                "POST",
+                "auth/approle/login",
+                {"role_id": self.role_id, "secret_id": self.secret_id},
+                token=None,
+            )
+            self._accept_auth(document)
+
+    def _accept_auth(self, document: dict[str, Any]) -> None:
+        auth = document.get("auth")
+        if not isinstance(auth, dict) or not isinstance(auth.get("client_token"), str):
+            raise RuntimeError("OpenBao authentication returned an invalid response")
+        lease_duration = auth.get("lease_duration")
+        if not isinstance(lease_duration, int) or lease_duration <= 0:
+            raise RuntimeError("OpenBao authentication returned an invalid lease")
+        self.token = auth["client_token"]
+        self.token_renewable = auth.get("renewable") is True
+        self.token_expires_at = datetime.now(UTC) + timedelta(seconds=lease_duration)
+
+    def _perform_request(
+        self,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None,
+        *,
+        token: str | None,
+    ) -> dict[str, Any]:
         body = None
         if payload is not None:
             body = json.dumps(payload, separators=(",", ":")).encode()
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+        if token is not None:
+            headers["X-Vault-Token"] = token
         request = Request(
             f"{self.address}/v1/{path}",
             data=body,
             method=method,
-            headers={
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-                "X-Vault-Token": self.token,
-            },
+            headers=headers,
         )
         try:
             with self.opener.open(request, timeout=self.timeout_seconds) as response:

@@ -36,6 +36,8 @@ from .auth import (
     create_magic_link,
     exchange_magic_link,
     magic_link_url,
+    register_magic_link_attempt,
+    resend_magic_link_sender,
     smtp_magic_link_sender,
 )
 from .config import Settings
@@ -111,7 +113,11 @@ def create_app(
     storage = storage or create_storage(settings)
     signer = ServerSigner.from_settings(settings)
     if settings.auth_mode == "magic_link" and magic_link_sender is None:
-        magic_link_sender = smtp_magic_link_sender(settings)
+        magic_link_sender = (
+            resend_magic_link_sender(settings)
+            if settings.email_provider == "resend"
+            else smtp_magic_link_sender(settings)
+        )
     factory = sessionmaker(engine, expire_on_commit=False)
     if create_tables:
         Base.metadata.create_all(engine)
@@ -365,17 +371,33 @@ def create_app(
     )
     def request_magic_link(
         body: MagicLinkRequest,
+        request: Request,
         database: Session = Depends(get_session),
     ) -> Response:
         if settings.auth_mode != "magic_link" or magic_link_sender is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "authentication unavailable")
         try:
-            user_id, token = create_magic_link(database, settings, body.email)
+            allowed = register_magic_link_attempt(
+                database,
+                settings,
+                body.email,
+                magic_link_client_ip(request),
+            )
         except ValueError as error:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
                 "invalid email address",
             ) from error
+        if not allowed:
+            append_audit_event(
+                database,
+                "magic_link_rate_limited",
+                subject_id=None,
+                details={},
+            )
+            database.commit()
+            return Response(status_code=status.HTTP_202_ACCEPTED)
+        user_id, token = create_magic_link(database, settings, body.email)
         append_audit_event(
             database,
             "magic_link_requested",
@@ -393,10 +415,7 @@ def create_app(
                 details={"error_type": type(error).__name__},
             )
             database.commit()
-            raise HTTPException(
-                status.HTTP_503_SERVICE_UNAVAILABLE,
-                "authentication delivery unavailable",
-            ) from error
+            return Response(status_code=status.HTTP_202_ACCEPTED)
         return Response(status_code=status.HTTP_202_ACCEPTED)
 
     @app.post(
@@ -770,7 +789,7 @@ def create_app(
             part_hash=expected_part_hash,
             size=len(data),
             storage_key=storage_key,
-            persistence_state="durable_staging",
+            persistence_state=storage.persistence_state,
             idempotency_key=idempotency_key,
         )
         receipt_payload = {
@@ -783,7 +802,7 @@ def create_app(
             "part_hash": expected_part_hash,
             "previous_receipt_hash": capture_session.last_receipt_hash,
             "server_time": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-            "persistence_state": "durable_staging",
+            "persistence_state": storage.persistence_state,
         }
         receipt_hash = sha256_identifier(canonical_bytes(receipt_payload))
         receipt = Receipt(
@@ -1126,6 +1145,7 @@ def create_app(
         database: Session = Depends(get_session),
     ) -> DownloadUrlsResponse:
         capture_session = require_capture_session(database, session_id)
+        require_storage_active(capture_session)
         if capture_session.manifest is None:
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
@@ -1149,6 +1169,7 @@ def create_app(
     ) -> FileResponse:
         active_signer = require_signer(signer)
         capture_session = require_capture_session(database, session_id, for_update=True)
+        require_storage_active(capture_session)
         if capture_session.manifest is None:
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
@@ -1195,6 +1216,7 @@ def create_app(
     ) -> FileResponse:
         active_signer = require_signer(signer)
         capture_session = require_capture_session(database, session_id, for_update=True)
+        require_storage_active(capture_session)
         if capture_session.manifest is None:
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
@@ -1429,6 +1451,7 @@ def create_app(
     ) -> FileResponse:
         active_signer = require_signer(signer)
         capture_session = require_capture_session(database, session_id, for_update=True)
+        require_storage_active(capture_session)
         try:
             bundle_path, bundle_hash, storage_status = ensure_proof_bundle(
                 database,
@@ -1495,13 +1518,35 @@ def require_signer(signer: ServerSigner | None) -> ServerSigner:
     return signer
 
 
+def require_storage_active(capture_session: CaptureSession) -> None:
+    if (
+        capture_session.storage_expired_at is not None
+        or capture_session.storage_status == "expired"
+    ):
+        raise HTTPException(
+            status.HTTP_410_GONE,
+            "session storage has expired",
+        )
+
+
 def advertised_retention_policy(
     environment: str,
     retention_days: int,
 ) -> dict[str, str | int | None]:
     if environment in {"development", "test"}:
         return {"mode": "development", "days": None}
+    if environment == "beta":
+        return {"mode": "temporary", "days": retention_days, "immutable": False}
     return {"mode": "COMPLIANCE", "days": retention_days}
+
+
+def magic_link_client_ip(request: Request) -> str:
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        return forwarded.split(",", 1)[0].strip()[:128]
+    if request.client is not None:
+        return request.client.host[:128]
+    return "unknown"
 
 
 def allowed_extension_origin_pattern(settings: Settings) -> str:

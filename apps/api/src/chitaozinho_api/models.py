@@ -41,6 +41,17 @@ class MagicLinkToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class MagicLinkRequestAttempt(Base):
+    __tablename__ = "magic_link_request_attempts"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    email_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    ip_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+
+
 class AccessToken(Base):
     __tablename__ = "access_tokens"
 
@@ -84,6 +95,8 @@ class CaptureSession(Base):
         String(32), nullable=False, default="not_submitted"
     )
     storage_status: Mapped[str] = mapped_column(String(32), nullable=False, default="staging")
+    storage_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    storage_expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ChainEntry(Base):

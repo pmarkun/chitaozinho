@@ -19,6 +19,10 @@ jobs:
           fetch-depth: 0
       - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31.10.6
       - name: Build release artifacts and SPDX SBOMs
+        env:
+          CHITAOZINHO_API_BASE_URL: https://api-staging.up.railway.app
+          CHITAOZINHO_VERIFIER_URL: https://verifier-web-staging.up.railway.app/validar
+          CHITAOZINHO_ENVIRONMENT: beta
         run: nix develop --command ./scripts/build-release-artifacts dist/release
       - name: Sign every release artifact with GitHub OIDC
         shell: bash
@@ -41,5 +45,6 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" \
             --verify-tag \
             --generate-notes \
+            --prerelease \
             --title "Chitãozinho ${GITHUB_REF_NAME}" \
             dist/release/*

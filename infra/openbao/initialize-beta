@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+
+: "${BAO_ADDR:?BAO_ADDR is required}"
+: "${BAO_CACERT:?BAO_CACERT is required}"
+: "${1:?usage: initialize-beta OUTPUT_JSON}"
+
+output=$1
+if [ -e "$output" ]; then
+  echo "refusing to overwrite $output" >&2
+  exit 2
+fi
+umask 077
+bao operator init -key-shares=3 -key-threshold=2 -format=json > "$output"
+chmod 600 "$output"
+echo "OpenBao initialized; unseal shares and initial root token were written to $output"

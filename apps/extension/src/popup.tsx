@@ -171,6 +171,14 @@ function App() {
         )}
       </header>
 
+      {__CHITAOZINHO_ENDPOINTS__.environment === "beta" && (
+        <aside className="beta-notice" aria-label={t("betaTitle")}>
+          <strong>{t("betaTitle")}</strong>
+          <span>{t("betaRetention")}</span>
+          <small>{t("betaNoImmutability")}</small>
+        </aside>
+      )}
+
       {authenticated === false && (
         <section>
           <h1 data-view-heading tabIndex={-1}>
@@ -618,6 +626,8 @@ function formatResult(status?: string): string {
       stored: t("stored"),
       locked: t("locked"),
       retention_failed: t("retentionFailed"),
+      expired: t("expired"),
+      expiration_failed: t("expirationFailed"),
       unknown: t("unknown"),
     }[status] ?? status
   );

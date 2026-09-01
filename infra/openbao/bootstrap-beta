@@ -1,0 +1,58 @@
+#!/bin/sh
+set -eu
+
+: "${BAO_ADDR:?BAO_ADDR is required}"
+: "${BAO_CACERT:?BAO_CACERT is required}"
+: "${BAO_TOKEN:?BAO_TOKEN must contain the initial root token}"
+: "${OPENBAO_OPERATOR_PASSWORD:?OPENBAO_OPERATOR_PASSWORD is required}"
+: "${1:?usage: bootstrap-beta OUTPUT_ENV}"
+
+output=$1
+if [ -e "$output" ]; then
+  echo "refusing to overwrite $output" >&2
+  exit 2
+fi
+
+bao secrets enable transit 2>/dev/null || bao secrets list -format=json | grep -q '"transit/"'
+bao write transit/keys/chitaozinho-server \
+  type=ed25519 \
+  derived=false \
+  exportable=false \
+  allow_plaintext_backup=false >/dev/null
+bao policy write chitaozinho-signing-runtime infra/openbao/signing-runtime-policy.hcl >/dev/null
+
+bao auth enable approle 2>/dev/null || bao auth list -format=json | grep -q '"approle/"'
+for role in chitaozinho-api chitaozinho-worker; do
+  bao write "auth/approle/role/$role" \
+    token_policies=chitaozinho-signing-runtime \
+    token_period=1h \
+    token_explicit_max_ttl=0 \
+    secret_id_ttl=0 \
+    secret_id_num_uses=0 >/dev/null
+done
+
+bao policy write chitaozinho-operator infra/openbao/operator-policy.hcl >/dev/null
+bao auth enable userpass 2>/dev/null || bao auth list -format=json | grep -q '"userpass/"'
+bao write auth/userpass/users/chitaozinho-operator \
+  password="$OPENBAO_OPERATOR_PASSWORD" \
+  policies=chitaozinho-operator \
+  token_ttl=30m \
+  token_max_ttl=2h >/dev/null
+
+api_role_id=$(bao read -field=role_id auth/approle/role/chitaozinho-api/role-id)
+api_secret_id=$(bao write -f -field=secret_id auth/approle/role/chitaozinho-api/secret-id)
+worker_role_id=$(bao read -field=role_id auth/approle/role/chitaozinho-worker/role-id)
+worker_secret_id=$(bao write -f -field=secret_id auth/approle/role/chitaozinho-worker/secret-id)
+
+umask 077
+{
+  printf 'API_OPENBAO_ROLE_ID=%s\n' "$api_role_id"
+  printf 'API_OPENBAO_SECRET_ID=%s\n' "$api_secret_id"
+  printf 'WORKER_OPENBAO_ROLE_ID=%s\n' "$worker_role_id"
+  printf 'WORKER_OPENBAO_SECRET_ID=%s\n' "$worker_secret_id"
+} > "$output"
+chmod 600 "$output"
+
+bao token revoke -self >/dev/null
+echo "OpenBao bootstrapped; AppRole credentials were written to $output"
+echo "The initial root token was revoked. Use userpass for routine administration."

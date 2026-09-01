@@ -5,6 +5,7 @@
   "default_locale": "pt_BR",
   "version": "0.1.0",
   "minimum_chrome_version": "116",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzJAnuWR06DMvHtAa9X7tlT3+TnTRwKHEnRSHhZlPGG1vY+lT+ssFyEs0qr0uPL24LExE9nYTbllCR1mFfSNZd1f/zeDv3JUes11dmiR9MjK5Y6VgUfiOe9fTNKQaLmpHIFiINP5/Z4kzPIt9hohJ3TJxcUZgqO9yhahPfj49UpSV03bMqplQR1EEXe1dNanUj++RVbjEGHTmq6M70qTVFPcZZu+kiT1VGxSYFedzICGEooA6elf2jj7HPg/BkzWRi2UUkVbM76pw6k/ypACemcgmPQXc4TT6HwaEFA0bx2+QHXLs6ISEA1xfsG3x/fPooOgPqkLvFv6eUKT426NdiQIDAQAB",
   "action": {
     "default_popup": "popup.html",
     "default_title": "__MSG_appName__"
@@ -21,5 +22,9 @@
     "storage",
     "tabCapture"
   ],
-  "host_permissions": ["http://127.0.0.1:8000/*", "http://localhost:8000/*"]
+  "host_permissions": [
+    "http://127.0.0.1:8000/*",
+    "http://localhost:8000/*",
+    "https://api-staging.up.railway.app/*"
+  ]
 }

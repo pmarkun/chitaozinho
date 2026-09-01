@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import os
+import shutil
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime
@@ -11,6 +12,7 @@ from pathlib import Path
 from re import fullmatch
 
 import boto3
+from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from .config import Settings
@@ -38,6 +40,7 @@ class LocalDurableStorage:
         self.root = root
         self.max_read_bytes = max_read_bytes
         self.root.mkdir(parents=True, exist_ok=True)
+        self.persistence_state = "stored"
 
     def check_ready(self) -> None:
         if not self.root.is_dir() or not os.access(self.root, os.R_OK | os.W_OK):
@@ -125,6 +128,13 @@ class LocalDurableStorage:
             retain_until=None,
         )
 
+    def delete_session(self, session_id: str) -> None:
+        validate_storage_identifier(session_id, "session id")
+        shutil.rmtree(self.root / session_id, ignore_errors=True)
+        shutil.rmtree(self.root / "final" / session_id, ignore_errors=True)
+        self.package_path(session_id).unlink(missing_ok=True)
+        self.package_path(session_id).with_suffix(".zip.sha256").unlink(missing_ok=True)
+
 
 class S3DurableStorage:
     def __init__(self, settings: Settings) -> None:
@@ -133,15 +143,19 @@ class S3DurableStorage:
         self.root = settings.storage_path
         self.bucket = settings.s3_bucket
         self.kms_key_id = settings.s3_kms_key_id
+        self.provider = settings.storage_provider
+        self.persistence_state = "stored" if self.provider == "railway" else "durable_staging"
         self.max_read_bytes = settings.max_part_size
-        self.client = boto3.client(
-            "s3",
+        client_arguments = dict(
             endpoint_url=settings.s3_endpoint_url,
             region_name=settings.s3_region,
             aws_access_key_id=settings.s3_access_key_id,
             aws_secret_access_key=settings.s3_secret_access_key,
             verify=(str(settings.s3_ca_bundle) if settings.s3_ca_bundle is not None else True),
         )
+        if settings.storage_provider == "railway":
+            client_arguments["config"] = Config(s3={"addressing_style": "virtual"})
+        self.client = boto3.client("s3", **client_arguments)
 
     def check_ready(self) -> None:
         self.client.head_bucket(Bucket=self.bucket)
@@ -171,6 +185,8 @@ class S3DurableStorage:
                 raise FileExistsError(next(iter(existing_keys)))
             if not compare_digest(self.read(key), data):
                 raise FileExistsError(key)
+            if getattr(self, "provider", "ceph") == "railway":
+                self._validate_part(key, f"sha256:{digest}", len(data))
             return key
         encryption: dict[str, str] = {}
         if self.kms_key_id is not None:
@@ -183,8 +199,11 @@ class S3DurableStorage:
             Key=key,
             Body=data,
             ContentLength=len(data),
+            Metadata={"sha256": f"sha256:{digest}"},
             **encryption,
         )
+        if getattr(self, "provider", "ceph") == "railway":
+            self._validate_part(key, f"sha256:{digest}", len(data))
         return key
 
     def read(self, storage_key: str) -> bytes:
@@ -224,6 +243,35 @@ class S3DurableStorage:
             raise ValueError("final object digest does not match source")
         key = f"final/{session_id}/{name}/{digest_hex}"
         head = self._head_final(key)
+        if getattr(self, "provider", "ceph") == "railway":
+            if head is None:
+                try:
+                    with source.open("rb") as body:
+                        self.client.put_object(
+                            Bucket=self.bucket,
+                            Key=key,
+                            Body=body,
+                            ContentLength=source.stat().st_size,
+                            Metadata={"sha256": digest},
+                            IfNoneMatch="*",
+                        )
+                except ClientError as error:
+                    code = str(error.response.get("Error", {}).get("Code", ""))
+                    if code not in {"PreconditionFailed", "412"}:
+                        raise
+                head = self._head_final(key)
+            if (
+                head is None
+                or head.get("Metadata", {}).get("sha256") != digest
+                or head.get("ContentLength") != source.stat().st_size
+            ):
+                raise RuntimeError("final object integrity could not be verified")
+            return FinalStorageResult(
+                key=key,
+                status="stored",
+                version_id=None,
+                retain_until=None,
+            )
         if head is None:
             encryption: dict[str, str] = {"ServerSideEncryption": "AES256"}
             if self.kms_key_id is not None:
@@ -276,6 +324,37 @@ class S3DurableStorage:
             version_id=str(head["VersionId"]),
             retain_until=stored_until,
         )
+
+    def delete_session(self, session_id: str) -> None:
+        validate_storage_identifier(session_id, "session id")
+        prefixes = (f"sessions/{session_id}/", f"final/{session_id}/")
+        for prefix in prefixes:
+            while True:
+                page = self.client.list_objects_v2(
+                    Bucket=self.bucket,
+                    Prefix=prefix,
+                    MaxKeys=1000,
+                )
+                objects = page.get("Contents", [])
+                if not objects:
+                    break
+                for item in objects:
+                    self.client.delete_object(Bucket=self.bucket, Key=item["Key"])
+            remaining = self.client.list_objects_v2(
+                Bucket=self.bucket,
+                Prefix=prefix,
+                MaxKeys=1,
+            ).get("Contents", [])
+            if remaining:
+                raise RuntimeError("session storage deletion could not be verified")
+
+    def _validate_part(self, key: str, digest: str, size: int) -> None:
+        head = self.client.head_object(Bucket=self.bucket, Key=key)
+        if (
+            head.get("ContentLength") != size
+            or head.get("Metadata", {}).get("sha256") != digest
+        ):
+            raise RuntimeError("stored part integrity could not be verified")
 
     def _head_final(self, key: str) -> dict | None:
         try:

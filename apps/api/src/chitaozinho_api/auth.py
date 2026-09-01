@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import secrets
 import smtplib
@@ -9,12 +10,14 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 from typing import Protocol
+from urllib.error import HTTPError, URLError
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from .config import Settings
-from .models import AccessToken, MagicLinkToken, User
+from .models import AccessToken, MagicLinkRequestAttempt, MagicLinkToken, User
 
 COOKIE_NAME = "chitaozinho_session"
 CONSUME_HTML = """<!doctype html>
@@ -55,6 +58,11 @@ if (!token) {
 
 class MagicLinkSender(Protocol):
     def __call__(self, email: str, link: str) -> None: ...
+
+
+class RejectRedirects(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
 
 
 def normalize_email(value: str) -> str:
@@ -152,6 +160,53 @@ def authenticate_access_token(
     return access.user_id
 
 
+def register_magic_link_attempt(
+    database: Session,
+    settings: Settings,
+    email: str,
+    client_ip: str,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    current = now or datetime.now(UTC)
+    cutoff = current - timedelta(hours=1)
+    normalized = normalize_email(email)
+    email_hash = rate_limit_hash(settings, "email", normalized)
+    ip_hash = rate_limit_hash(settings, "ip", client_ip or "unknown")
+    email_count = database.scalar(
+        select(func.count())
+        .select_from(MagicLinkRequestAttempt)
+        .where(
+            MagicLinkRequestAttempt.email_hash == email_hash,
+            MagicLinkRequestAttempt.created_at >= cutoff,
+        )
+    )
+    ip_count = database.scalar(
+        select(func.count())
+        .select_from(MagicLinkRequestAttempt)
+        .where(
+            MagicLinkRequestAttempt.ip_hash == ip_hash,
+            MagicLinkRequestAttempt.created_at >= cutoff,
+        )
+    )
+    database.add(
+        MagicLinkRequestAttempt(
+            email_hash=email_hash,
+            ip_hash=ip_hash,
+            created_at=current,
+        )
+    )
+    database.execute(
+        delete(MagicLinkRequestAttempt).where(
+            MagicLinkRequestAttempt.created_at < current - timedelta(days=1)
+        )
+    )
+    return (
+        int(email_count or 0) < settings.magic_link_email_limit_per_hour
+        and int(ip_count or 0) < settings.magic_link_ip_limit_per_hour
+    )
+
+
 def smtp_magic_link_sender(settings: Settings) -> MagicLinkSender:
     if settings.smtp_host is None or settings.smtp_from is None:
         raise ValueError("SMTP is not configured")
@@ -180,6 +235,49 @@ def smtp_magic_link_sender(settings: Settings) -> MagicLinkSender:
     return send
 
 
+def resend_magic_link_sender(settings: Settings) -> MagicLinkSender:
+    if settings.resend_api_key is None or settings.resend_from is None:
+        raise ValueError("Resend is not configured")
+    opener = build_opener(RejectRedirects(), HTTPSHandler(context=ssl.create_default_context()))
+
+    def send(email: str, link: str) -> None:
+        payload = {
+            "to": [normalize_email(email)],
+            "from": settings.resend_from,
+            "subject": "Seu acesso ao Chitãozinho",
+            "text": (
+                "Abra este link para entrar no Chitãozinho. "
+                "Ele expira e só pode ser usado uma vez:\n\n"
+                f"{link}\n"
+            ),
+        }
+        request = Request(
+            "https://api.resend.com/emails",
+            data=json.dumps(payload, separators=(",", ":")).encode(),
+            method="POST",
+            headers={
+                "Accept": "application/json",
+                "Authorization": f"Bearer {settings.resend_api_key}",
+                "Content-Type": "application/json",
+                "User-Agent": "chitaozinho-api/0.1.0",
+            },
+        )
+        try:
+            with opener.open(request, timeout=15) as response:
+                content = response.read(65_537)
+                code = response.status
+        except HTTPError as error:
+            raise RuntimeError(f"Resend request failed with HTTP {error.code}") from error
+        except (OSError, URLError) as error:
+            raise RuntimeError("Resend request failed") from error
+        if len(content) > 65_536:
+            raise RuntimeError("Resend response exceeds the safety limit")
+        if not 200 <= code < 300:
+            raise RuntimeError(f"Resend request failed with HTTP {code}")
+
+    return send
+
+
 def magic_link_url(settings: Settings, token: str) -> str:
     return f"{settings.public_base_url.rstrip('/')}/v1/auth/consume#{token}"
 
@@ -187,6 +285,11 @@ def magic_link_url(settings: Settings, token: str) -> str:
 def token_hash(settings: Settings, token: str) -> str:
     pepper = settings.auth_token_pepper or ""
     return hashlib.sha256(f"{pepper}\0{token}".encode()).hexdigest()
+
+
+def rate_limit_hash(settings: Settings, kind: str, value: str) -> str:
+    pepper = settings.auth_token_pepper or "development"
+    return hashlib.sha256(f"{pepper}\0rate-limit\0{kind}\0{value}".encode()).hexdigest()
 
 
 def aware(value: datetime) -> datetime:

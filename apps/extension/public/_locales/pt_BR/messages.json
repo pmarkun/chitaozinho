@@ -4,6 +4,11 @@
     "message": "Captura e preservação verificável de evidências digitais."
   },
   "appTagline": { "message": "evidência digital verificável" },
+  "betaTitle": { "message": "Beta — dados não críticos" },
+  "betaRetention": { "message": "Armazenado por 30 dias" },
+  "betaNoImmutability": {
+    "message": "Sem garantia de imutabilidade ou Object Lock."
+  },
   "homeTitle": { "message": "Registre o que está acontecendo" },
   "homeBody": {
     "message": "Crie um pacote íntegro e rastreável, com contexto, sequência e provas técnicas."
@@ -134,6 +139,8 @@
   "stored": { "message": "armazenado" },
   "locked": { "message": "armazenado com retenção" },
   "retentionFailed": { "message": "falha na retenção" },
+  "expired": { "message": "armazenamento expirado" },
+  "expirationFailed": { "message": "falha ao expirar armazenamento" },
   "unknown": { "message": "não verificado" },
   "newCapture": { "message": "Nova captura" },
   "legalDisclaimer": {
