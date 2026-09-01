@@ -20,6 +20,11 @@ Set these as sealed Railway variables before considering the beta ready:
   certificate, revocation snapshot and offline root public document.
 - OpenBao: the TLS server certificate and key from the private operator store.
 
+The beta sender is `Chitãozinho <acesso@mail.arapy.ia.br>`. The Resend domain
+is `mail.arapy.ia.br`; its DKIM, SPF and MX records are DNS-only records in the
+Cloudflare `arapy.ia.br` zone. Set this full sender value in
+`CHITAOZINHO_RESEND_FROM` after Resend reports the domain as verified.
+
 The internal CA certificate is public and versioned at `infra/openbao/ca.crt`.
 The CA key, TLS server key, extension signing key, Shamir shares, root token and
 AppRole SecretIDs must never enter Git, build artifacts or Railway logs.
