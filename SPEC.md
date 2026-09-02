@@ -559,6 +559,11 @@ Todo JSON usado em hash ou assinatura deve ser serializado com JSON Canonicaliza
 
 Assinaturas são calculadas sobre os bytes ASCII do prefixo de domínio concatenados aos 32 bytes brutos do digest. Nenhuma biblioteca pode assinar uma serialização própria ou dependente da linguagem.
 
+Certificados de chave operacional usam o domínio
+`CHITAOZINHO/KEY_CERTIFICATE/v1`; snapshots cumulativos de revogação usam
+`CHITAOZINHO/KEY_REVOCATION_LIST/v1`. São objetos assinados distintos e um não
+é incorporado à entrada de assinatura do outro.
+
 ### 9.4 Recibos
 
 ```text
@@ -1610,29 +1615,32 @@ Resultado esperado: falha explícita e localizada.
 
 ```text
 /chitaozinho
+├── .railway/
+│   └── railway.ts
 ├── apps/
 │   ├── extension/
 │   ├── api/
 │   ├── verifier-cli/
-│   ├── verifier-web/
-│   └── admin-web/
+│   └── verifier-web/
 ├── packages/
 │   ├── schemas/
-│   ├── crypto/
-│   ├── canonical-json/
-│   └── evidence-format/
+│   ├── protocol-py/
+│   ├── protocol-rs/
+│   └── protocol-ts/
 ├── infra/
 │   ├── docker/
 │   ├── ceph/
+│   ├── local/
 │   ├── openbao/
-│   ├── railway/
 │   └── monitoring/
 ├── docs/
-│   ├── threat-model.md
-│   ├── evidence-format.md
-│   ├── legal-limitations.md
+│   ├── README.md
+│   ├── operations.md
+│   ├── security.md
 │   └── verification.md
+├── scripts/
 ├── test-vectors/
+├── ACEITE.md
 ├── SPEC.md
 ├── LICENSE
 └── README.md

@@ -25,9 +25,10 @@ O valor literal `aws:kms` em chamadas S3 é o identificador definido pelo
 protocolo compatível do RGW; ele não usa a AWS.
 
 Crie cada bucket já com Object Lock habilitado. Para o ensaio isolado, use
-retenção padrão de um dia em modo `COMPLIANCE`; staging e produção exigem ao
-menos 90 dias. O script abaixo recusa buckets preexistentes, exige uma
-confirmação explícita e produz um relatório privado:
+retenção padrão de um dia em modo `COMPLIANCE`; ambientes probatórios baseados
+em Ceph exigem ao menos 90 dias. O beta Railway não usa Ceph e não faz essa
+promessa. O script abaixo recusa buckets preexistentes, exige uma confirmação
+explícita e produz um relatório privado:
 
 ```sh
 CHITAOZINHO_PROVISION_CEPH_BUCKET=I_ACCEPT_NEW_IMMUTABLE_BUCKET \

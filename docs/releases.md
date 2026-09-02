@@ -1,28 +1,35 @@
 # Releases
 
-A `vX.Y.Z` tag must match the shared Rust, Python and extension version. The
-release workflow builds a Linux verifier, the unpacked-extension ZIP, the
-static online/offline web verifier ZIP and an OCI API archive from a clean
-checkout. It emits artifact SPDX JSON SBOMs, a source dependency SBOM covering
-the Rust, Python, npm, Ceph and workflow manifests, and SHA-256 checksums.
+As versões publicadas estão em
+[github.com/pmarkun/chitaozinho/releases](https://github.com/pmarkun/chitaozinho/releases).
+O histórico resumido fica no [`CHANGELOG.md`](../CHANGELOG.md).
 
-Every artifact, SBOM and checksum file receives a Sigstore bundle created by
-`cosign sign-blob` with GitHub OIDC. Consumers can verify identity, repository
-and workflow provenance with `cosign verify-blob` and the adjacent
-`.sigstore.json` bundle. No long-lived signing key is stored in GitHub or
-Railway.
+Uma tag `vX.Y.Z` deve coincidir com as versões compartilhadas de Rust, Python e
+extensão. O workflow gera, a partir de checkout limpo:
 
-Build locally into a new empty directory:
+- binário Linux do verificador;
+- ZIP da extensão descompactada;
+- ZIP do verificador web estático, online e offline;
+- arquivo OCI da API;
+- SBOM SPDX JSON de cada artefato e das dependências da fonte;
+- checksums SHA-256.
+
+Cada artefato, SBOM e checksum recebe um bundle Sigstore criado com
+`cosign sign-blob` e a identidade OIDC do GitHub. Não existe chave duradoura de
+release no GitHub ou no Railway. O consumidor confere identidade, repositório e
+workflow com `cosign verify-blob` e o `.sigstore.json` adjacente.
+
+Para gerar localmente em um diretório novo e vazio:
 
 ```sh
-nix develop --command ./scripts/build-release-artifacts /tmp/chitaozinho-release
+nix develop --command ./scripts/build-release-artifacts \
+  /tmp/chitaozinho-release
 ```
 
-The workflow publishes only immutable tags. It does not deploy Railway
-services; deployment remains a separately authorized operation.
+O workflow publica somente tags imutáveis e não faz deploy no Railway. Deploy é
+uma operação separada.
 
-Staging and production must configure `CHITAOZINHO_SOFTWARE_COMMIT` with the
-exact 40-64 character source commit and `CHITAOZINHO_SOFTWARE_BUILD_HASH` with
-the `sha256:` digest of the promoted OCI artifact. Public startup rejects
-development, unknown or zero identities, so every generated manifest remains
-bound to the deployed backend build.
+Staging e produção configuram `CHITAOZINHO_SOFTWARE_COMMIT` com o commit exato
+e `CHITAOZINHO_SOFTWARE_BUILD_HASH` com o digest `sha256:` da imagem promovida.
+Ambientes públicos recusam identidades de desenvolvimento, desconhecidas ou
+zeradas, mantendo cada manifesto vinculado ao build efetivamente implantado.

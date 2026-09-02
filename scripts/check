@@ -2,6 +2,7 @@
 set -euo pipefail
 
 actionlint
+python scripts/check-repository-hygiene.py
 
 pnpm -r format
 pnpm -r lint
