@@ -80,6 +80,10 @@ def validate_graph(graph: dict[str, Any]) -> None:
         raise ValueError("OpenTimestamps processor runtime contract changed")
     if openbao.get("networking"):
         raise ValueError("OpenBao must not be publicly exposed")
+    if openbao["deploy"].get("healthcheckPath") != "/healthz":
+        raise ValueError("OpenBao must expose seal-aware readiness")
+    if openbao["deploy"].get("healthcheckTimeout") != 600:
+        raise ValueError("OpenBao readiness must leave time for manual unseal")
     attachments = openbao.get("volumeAttachments") or {}
     if set(attachments) != {"openbao-data"}:
         raise ValueError("OpenBao must have exactly one persistent volume")
@@ -90,6 +94,41 @@ def validate_graph(graph: dict[str, Any]) -> None:
             raise ValueError("evidence services must not use Railway volumes")
     if verifier["deploy"].get("healthcheckPath") != "/health":
         raise ValueError("verifier healthcheck changed")
+
+    expected_watch_patterns = {
+        "api": {
+            "/.dockerignore",
+            "/Dockerfile",
+            "/alembic.ini",
+            "/pyproject.toml",
+            "/uv.lock",
+            "/apps/api/**",
+            "/packages/protocol-py/**",
+            "/infra/openbao/ca.crt",
+        },
+        "openbao": {
+            "/.dockerignore",
+            "/Dockerfile.openbao",
+            "/infra/openbao/railway-entrypoint.sh",
+            "/infra/openbao/readiness-server.sh",
+        },
+        "verifier-web": {
+            "/.dockerignore",
+            "/Dockerfile.verifier-web",
+            "/package.json",
+            "/pnpm-lock.yaml",
+            "/pnpm-workspace.yaml",
+            "/apps/verifier-web/**",
+            "/packages/protocol-ts/**",
+            "/infra/railway/verifier-web.Caddyfile",
+        },
+    }
+    for name in ("worker", "retention-cleanup", "ots-processor"):
+        expected_watch_patterns[name] = expected_watch_patterns["api"]
+    for name, expected_patterns in expected_watch_patterns.items():
+        actual_patterns = set((by_name[name].get("build") or {}).get("watchPatterns") or [])
+        if actual_patterns != expected_patterns:
+            raise ValueError(f"{name} deploy scope must match its runtime inputs")
 
     for name in ("api", "worker", "retention-cleanup", "ots-processor"):
         variables = by_name[name].get("variables") or {}

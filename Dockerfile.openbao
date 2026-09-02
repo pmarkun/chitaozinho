@@ -2,8 +2,9 @@ FROM ghcr.io/openbao/openbao@sha256:11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8
 
 USER root
 COPY --chmod=0755 infra/openbao/railway-entrypoint.sh /usr/local/bin/chitaozinho-openbao
+COPY --chmod=0755 infra/openbao/readiness-server.sh /usr/local/bin/chitaozinho-openbao-readiness
 RUN mkdir -p /openbao/config /openbao/data \
     && chown -R openbao:openbao /openbao/config /openbao/data
 USER openbao
 ENTRYPOINT ["/usr/bin/dumb-init", "--", "/usr/local/bin/chitaozinho-openbao"]
-EXPOSE 8200 8201
+EXPOSE 8080 8200 8201

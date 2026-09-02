@@ -13,6 +13,32 @@ import {
 
 const region = "us-east4-eqdc4a";
 const mib = 1024 * 1024;
+const backendWatchPatterns = [
+  "/.dockerignore",
+  "/Dockerfile",
+  "/alembic.ini",
+  "/pyproject.toml",
+  "/uv.lock",
+  "/apps/api/**",
+  "/packages/protocol-py/**",
+  "/infra/openbao/ca.crt",
+];
+const openbaoWatchPatterns = [
+  "/.dockerignore",
+  "/Dockerfile.openbao",
+  "/infra/openbao/railway-entrypoint.sh",
+  "/infra/openbao/readiness-server.sh",
+];
+const verifierWatchPatterns = [
+  "/.dockerignore",
+  "/Dockerfile.verifier-web",
+  "/package.json",
+  "/pnpm-lock.yaml",
+  "/pnpm-workspace.yaml",
+  "/apps/verifier-web/**",
+  "/packages/protocol-ts/**",
+  "/infra/railway/verifier-web.Caddyfile",
+];
 
 export default defineRailway(() => {
   const source = github("pmarkun/chitaozinho", { branch: "main" });
@@ -63,7 +89,11 @@ export default defineRailway(() => {
 
   const api = service("api", {
     source,
-    build: { builder: "DOCKERFILE", dockerfilePath: "Dockerfile" },
+    build: {
+      builder: "DOCKERFILE",
+      dockerfilePath: "Dockerfile",
+      watchPatterns: backendWatchPatterns,
+    },
     start:
       'sh -c \'exec uvicorn chitaozinho_api.main:create_app --factory --host 0.0.0.0 --port "$PORT" --no-access-log\'',
     preDeploy: "alembic upgrade head",
@@ -83,7 +113,11 @@ export default defineRailway(() => {
 
   const worker = service("worker", {
     source,
-    build: { builder: "DOCKERFILE", dockerfilePath: "Dockerfile" },
+    build: {
+      builder: "DOCKERFILE",
+      dockerfilePath: "Dockerfile",
+      watchPatterns: backendWatchPatterns,
+    },
     start: "python -m chitaozinho_api.worker",
     replicas: { [region]: 1 },
     deploy: {
@@ -96,7 +130,11 @@ export default defineRailway(() => {
 
   const cleanup = fn("retention-cleanup", {
     source,
-    build: { builder: "DOCKERFILE", dockerfilePath: "Dockerfile" },
+    build: {
+      builder: "DOCKERFILE",
+      dockerfilePath: "Dockerfile",
+      watchPatterns: backendWatchPatterns,
+    },
     start: "python -m chitaozinho_api.retention_cleanup",
     deploy: {
       cronSchedule: "15 3 * * *",
@@ -130,7 +168,11 @@ export default defineRailway(() => {
 
   const otsProcessor = fn("ots-processor", {
     source,
-    build: { builder: "DOCKERFILE", dockerfilePath: "Dockerfile" },
+    build: {
+      builder: "DOCKERFILE",
+      dockerfilePath: "Dockerfile",
+      watchPatterns: backendWatchPatterns,
+    },
     start: "python -m chitaozinho_api.ots_processor",
     deploy: {
       cronSchedule: "*/15 * * * *",
@@ -142,7 +184,13 @@ export default defineRailway(() => {
 
   const openbao = service("openbao", {
     source,
-    build: { builder: "DOCKERFILE", dockerfilePath: "Dockerfile.openbao" },
+    build: {
+      builder: "DOCKERFILE",
+      dockerfilePath: "Dockerfile.openbao",
+      watchPatterns: openbaoWatchPatterns,
+    },
+    healthcheck: "/healthz",
+    healthcheckTimeout: 600,
     replicas: { [region]: 1 },
     deploy: {
       restartPolicyType: "ON_FAILURE",
@@ -159,7 +207,11 @@ export default defineRailway(() => {
 
   const verifierWeb = service("verifier-web", {
     source,
-    build: { builder: "DOCKERFILE", dockerfilePath: "Dockerfile.verifier-web" },
+    build: {
+      builder: "DOCKERFILE",
+      dockerfilePath: "Dockerfile.verifier-web",
+      watchPatterns: verifierWatchPatterns,
+    },
     healthcheck: "/health",
     healthcheckTimeout: 30,
     replicas: { [region]: 1 },

@@ -22,4 +22,11 @@ nix develop --command python scripts/check-railway-config.py
 
 O validador protege a separação de processos, cron schedules, healthchecks,
 limites de memória, rede privada do OpenBao, volume exclusivo e referências de
-segredos do processador OpenTimestamps.
+segredos do processador OpenTimestamps. Os `watchPatterns` limitam rebuilds aos
+arquivos usados por cada imagem; em especial, mudanças apenas na API ou na
+documentação não reiniciam o OpenBao.
+
+O OpenBao responde ao healthcheck interno em `/healthz` pela porta `$PORT`. O
+probe só retorna `200` quando `/v1/sys/health` confirma que o cofre está
+inicializado e desbloqueado. Em um deploy legítimo do OpenBao, o Railway aguarda
+até dez minutos para o desbloqueio manual antes de rejeitar a nova versão.

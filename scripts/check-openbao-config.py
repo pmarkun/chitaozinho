@@ -22,12 +22,17 @@ def main() -> None:
         "11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8ac76f526e175c6d24641"
     ) in image
     entrypoint = (ROOT / "infra/openbao/railway-entrypoint.sh").read_text()
+    readiness = (ROOT / "infra/openbao/readiness-server.sh").read_text()
     assert '"path": "/openbao/data/raft"' in entrypoint
     assert '"tls_min_version": "tls13"' in entrypoint
     assert '"file_path": "stdout"' in entrypoint
     assert '"audit": [' in entrypoint
     assert "OPENBAO_TLS_CERT_PEM is required" in entrypoint
     assert "OPENBAO_TLS_KEY_PEM is required" in entrypoint
+    assert "chitaozinho-openbao-readiness" in entrypoint
+    assert 'https://127.0.0.1:8200/v1/sys/health' in readiness
+    assert '503 Service Unavailable' in readiness
+    assert 'nc -lk -p "$listen_port" -e "$0"' in readiness
 
 
 if __name__ == "__main__":
