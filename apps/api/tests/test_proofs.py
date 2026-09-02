@@ -16,6 +16,7 @@ from chitaozinho_api.proofs import (
     inspect_ots,
     parse_openssl_time,
     stamp_ots,
+    upgrade_ots,
     verify_merkle_proof,
     verify_rfc3161_response,
 )
@@ -128,6 +129,46 @@ def test_ots_inspection_distinguishes_proof_from_node_verification(
         ),
     )
     assert inspect_ots(tmp_path / "proof.ots") == expected
+
+
+def test_ots_upgrade_treats_pending_calendar_confirmation_as_retryable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = tmp_path / "original.ots"
+    complement = tmp_path / "complement.ots"
+    original.write_bytes(b"pending-proof")
+
+    def pending(command: list[str]) -> subprocess.CompletedProcess[str]:
+        raise subprocess.CalledProcessError(
+            1,
+            command,
+            stderr="Calendar: Pending confirmation in Bitcoin blockchain\n"
+            "Failed! Timestamp not complete",
+        )
+
+    monkeypatch.setattr(proofs, "run_checked", pending)
+
+    assert upgrade_ots(original, complement) is False
+    assert complement.read_bytes() == original.read_bytes()
+
+
+def test_ots_upgrade_does_not_hide_unexpected_client_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = tmp_path / "original.ots"
+    original.write_bytes(b"pending-proof")
+    monkeypatch.setattr(
+        proofs,
+        "run_checked",
+        lambda command: (_ for _ in ()).throw(
+            subprocess.CalledProcessError(1, command, stderr="network failure")
+        ),
+    )
+
+    with pytest.raises(subprocess.CalledProcessError, match="returned non-zero"):
+        upgrade_ots(original, tmp_path / "complement.ots")
 
 
 def test_rfc3161_chain_is_verified_at_signed_generation_time(
