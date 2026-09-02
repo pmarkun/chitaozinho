@@ -47,6 +47,8 @@ cat > /openbao/config/railway.json <<'EOF'
 EOF
 if [ "$(id -u)" = 0 ]; then
   chown openbao:openbao /openbao/config/railway.json
+  su-exec openbao /usr/local/bin/chitaozinho-openbao-readiness &
   exec su-exec openbao bao server -config=/openbao/config
 fi
+/usr/local/bin/chitaozinho-openbao-readiness &
 exec bao server -config=/openbao/config
