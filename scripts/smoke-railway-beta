@@ -1,0 +1,286 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import ssl
+import sys
+import urllib.error
+import urllib.request
+from datetime import UTC, datetime
+from pathlib import Path
+
+from chitaozinho_protocol import (
+    DOMAINS,
+    base64url_encode,
+    canonical_bytes,
+    sha256_identifier,
+    sign_canonical,
+)
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+EXTENSION_ORIGIN = "chrome-extension://ekdgmdbnkfmjeppmmceeigojgemklpgd"
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run a synthetic Railway beta capture")
+    parser.add_argument("--base-url", required=True)
+    parser.add_argument("--token-file", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    return parser.parse_args()
+
+
+class Client:
+    def __init__(self, base_url: str, token: str) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.token = token
+        self.opener = urllib.request.build_opener(
+            urllib.request.HTTPSHandler(context=ssl.create_default_context())
+        )
+
+    def request(
+        self,
+        method: str,
+        path_or_url: str,
+        *,
+        body: dict | bytes | None = None,
+        headers: dict[str, str] | None = None,
+        expected: tuple[int, ...] = (200,),
+        authenticate: bool = True,
+    ) -> tuple[bytes, dict[str, str], int]:
+        url = path_or_url if path_or_url.startswith("https://") else f"{self.base_url}{path_or_url}"
+        request_headers = {"User-Agent": "chitaozinho-beta-smoke/0.1.0"}
+        data: bytes | None
+        if isinstance(body, dict):
+            data = json.dumps(body, separators=(",", ":")).encode()
+            request_headers["Content-Type"] = "application/json"
+        else:
+            data = body
+        if authenticate:
+            request_headers["Authorization"] = f"Bearer {self.token}"
+            request_headers["Origin"] = EXTENSION_ORIGIN
+        request_headers.update(headers or {})
+        request = urllib.request.Request(
+            url,
+            data=data,
+            headers=request_headers,
+            method=method,
+        )
+        try:
+            with self.opener.open(request, timeout=30) as response:
+                payload = response.read()
+                status = response.status
+                response_headers = {key.lower(): value for key, value in response.headers.items()}
+        except urllib.error.HTTPError as error:
+            payload = error.read()
+            status = error.code
+            response_headers = {key.lower(): value for key, value in error.headers.items()}
+        if status not in expected:
+            detail = payload.decode(errors="replace")[:500]
+            raise RuntimeError(f"{method} {url} returned HTTP {status}: {detail}")
+        return payload, response_headers, status
+
+    def json(self, method: str, path: str, **kwargs) -> dict:
+        payload, _, _ = self.request(method, path, **kwargs)
+        document = json.loads(payload)
+        if not isinstance(document, dict):
+            raise RuntimeError(f"{method} {path} returned non-object JSON")
+        return document
+
+
+def signed_entry(entry: dict, seed: bytes) -> dict:
+    return {
+        "entry": entry,
+        "entry_hash": sha256_identifier(canonical_bytes(entry)),
+        "signature_hex": sign_canonical(DOMAINS["entry"], entry, seed).hex(),
+    }
+
+
+def main() -> int:
+    args = parse_args()
+    token = args.token_file.read_text().strip()
+    if len(token) < 32:
+        raise RuntimeError("access token file is empty or invalid")
+    args.output.mkdir(parents=True, exist_ok=True)
+    client = Client(args.base_url, token)
+
+    private_key = Ed25519PrivateKey.generate()
+    seed = private_key.private_bytes(
+        serialization.Encoding.Raw,
+        serialization.PrivateFormat.Raw,
+        serialization.NoEncryption(),
+    )
+    public_key = private_key.public_key().public_bytes(
+        serialization.Encoding.Raw,
+        serialization.PublicFormat.Raw,
+    )
+    created = client.json("POST", "/v1/sessions", expected=(201,))
+    session_id = str(created["session_id"])
+    challenge = str(created["server_challenge"])
+    retention = created.get("retention_policy")
+    if retention != {"mode": "temporary", "days": 30, "immutable": False}:
+        raise RuntimeError(f"unexpected retention policy: {retention!r}")
+
+    client.request(
+        "POST",
+        f"/v1/sessions/{session_id}/keys",
+        body={"key_id": "railway-smoke", "public_key": base64url_encode(public_key)},
+        expected=(204,),
+    )
+    wall_time = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    start_entry = {
+        "protocol_version": "0.1.0",
+        "entry_type": "capture_started",
+        "session_id": session_id,
+        "sequence": 0,
+        "previous_entry_hash": None,
+        "client_clock_id": "railway-smoke-clock",
+        "client_monotonic_time": 0,
+        "client_wall_time": wall_time,
+        "server_challenge": challenge,
+    }
+    signed_start = signed_entry(start_entry, seed)
+    client.request(
+        "POST",
+        f"/v1/sessions/{session_id}/events",
+        body=signed_start,
+        headers={"Idempotency-Key": f"smoke-start-{session_id}"},
+        expected=(201,),
+    )
+
+    part = b"Chitaozinho Railway beta synthetic evidence\n"
+    part_hash = sha256_identifier(part)
+    part_entry = {
+        "protocol_version": "0.1.0",
+        "entry_type": "artifact_part",
+        "session_id": session_id,
+        "sequence": 1,
+        "artifact_id": "smoke-text",
+        "part_number": 0,
+        "part_hash": part_hash,
+        "previous_entry_hash": signed_start["entry_hash"],
+        "client_clock_id": "railway-smoke-clock",
+        "client_monotonic_time": 1_000_000,
+        "client_wall_time": wall_time,
+        "server_challenge": challenge,
+    }
+    signed_part = signed_entry(part_entry, seed)
+    receipt = client.json(
+        "PUT",
+        f"/v1/sessions/{session_id}/artifacts/smoke-text/parts/0",
+        body=part,
+        headers={
+            "Idempotency-Key": f"smoke-part-{session_id}",
+            "X-Entry-Json": base64url_encode(canonical_bytes(part_entry)),
+            "X-Entry-Hash": signed_part["entry_hash"],
+            "X-Entry-Signature": signed_part["signature_hex"],
+            "Content-Type": "application/octet-stream",
+        },
+        expected=(201,),
+    )
+    if receipt.get("persistence_state") != "stored":
+        raise RuntimeError(f"unexpected persistence state: {receipt!r}")
+
+    complete_entry = {
+        "protocol_version": "0.1.0",
+        "entry_type": "artifact_completed",
+        "session_id": session_id,
+        "sequence": 2,
+        "artifact_id": "smoke-text",
+        "artifact_hash": part_hash,
+        "previous_entry_hash": signed_part["entry_hash"],
+        "client_clock_id": "railway-smoke-clock",
+        "client_monotonic_time": 2_000_000,
+        "client_wall_time": wall_time,
+        "server_challenge": challenge,
+    }
+    signed_complete = signed_entry(complete_entry, seed)
+    client.request(
+        "POST",
+        f"/v1/sessions/{session_id}/artifacts/smoke-text/complete",
+        body={
+            "entry": signed_complete,
+            "part_count": 1,
+            "size": len(part),
+            "artifact_hash": part_hash,
+            "path": "capture/smoke.txt",
+            "media_type": "text/plain",
+            "method": "synthetic-smoke",
+            "provenance": "client_reported",
+        },
+        expected=(201,),
+    )
+    finish_entry = {
+        "protocol_version": "0.1.0",
+        "entry_type": "capture_finished",
+        "session_id": session_id,
+        "sequence": 3,
+        "previous_entry_hash": signed_complete["entry_hash"],
+        "client_clock_id": "railway-smoke-clock",
+        "client_monotonic_time": 3_000_000,
+        "client_wall_time": wall_time,
+        "server_challenge": challenge,
+    }
+    signed_finish = signed_entry(finish_entry, seed)
+    client.request(
+        "POST",
+        f"/v1/sessions/{session_id}/events",
+        body=signed_finish,
+        headers={"Idempotency-Key": f"smoke-finish-{session_id}"},
+        expected=(201,),
+    )
+    capture_close = {
+        "protocol_version": "0.1.0",
+        "session_id": session_id,
+        "session_root": signed_finish["entry_hash"],
+        "last_entry_hash": signed_finish["entry_hash"],
+        "entry_count": 4,
+        "artifacts": [
+            {
+                "artifact_id": "smoke-text",
+                "path": "capture/smoke.txt",
+                "size": len(part),
+                "status": "captured",
+                "artifact_hash": part_hash,
+            }
+        ],
+        "known_gaps": [],
+        "client_key_id": "railway-smoke",
+        "client_public_key": base64url_encode(public_key),
+    }
+    finalized = client.json(
+        "POST",
+        f"/v1/sessions/{session_id}/finalize",
+        body={
+            "capture_close": capture_close,
+            "signature_hex": sign_canonical(DOMAINS["capture_close"], capture_close, seed).hex(),
+        },
+    )
+    urls = client.json("POST", f"/v1/sessions/{session_id}/download-urls")
+    package, package_headers, _ = client.request(
+        "GET", str(urls["package_url"]), authenticate=False
+    )
+    checksum, _, _ = client.request("GET", str(urls["checksum_url"]), authenticate=False)
+    package_path = args.output / f"chitaozinho-{session_id}.zip"
+    package_path.write_bytes(package)
+    (args.output / f"chitaozinho-{session_id}.zip.sha256").write_bytes(checksum)
+    report = {
+        "session_id": session_id,
+        "capture_status": finalized.get("status"),
+        "manifest_hash": finalized.get("manifest_hash"),
+        "persistence_state": receipt.get("persistence_state"),
+        "storage_status": package_headers.get("x-storage-status"),
+        "package_hash": package_headers.get("x-package-sha256"),
+        "package_path": str(package_path),
+    }
+    (args.output / "smoke-report.json").write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n"
+    )
+    json.dump(report, sys.stdout, sort_keys=True)
+    sys.stdout.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
