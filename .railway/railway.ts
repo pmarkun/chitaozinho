@@ -35,7 +35,7 @@ export default defineRailway(() => {
     CHITAOZINHO_S3_ACCESS_KEY_ID: ref(evidence, "ACCESS_KEY_ID"),
     CHITAOZINHO_S3_SECRET_ACCESS_KEY: ref(evidence, "SECRET_ACCESS_KEY"),
     CHITAOZINHO_RETENTION_DAYS: "30",
-    CHITAOZINHO_PUBLIC_BASE_URL: "https://api-staging.up.railway.app",
+    CHITAOZINHO_PUBLIC_BASE_URL: "https://api-staging-db23.up.railway.app",
     CHITAOZINHO_AUTH_MODE: "magic_link",
     CHITAOZINHO_AUTH_TOKEN_PEPPER: preserve(),
     CHITAOZINHO_EMAIL_PROVIDER: "resend",
@@ -71,7 +71,7 @@ export default defineRailway(() => {
       limitOverride: { containers: { memoryBytes: 384 * mib } },
     },
     networking: {
-      serviceDomains: { "api-staging.up.railway.app": { port: 8000 } },
+      serviceDomains: { "api-staging-db23.up.railway.app": { port: 8080 } },
     },
     env: backendEnv,
   });

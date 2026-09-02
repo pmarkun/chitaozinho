@@ -20,7 +20,7 @@ jobs:
       - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31.10.6
       - name: Build release artifacts and SPDX SBOMs
         env:
-          CHITAOZINHO_API_BASE_URL: https://api-staging.up.railway.app
+          CHITAOZINHO_API_BASE_URL: https://api-staging-db23.up.railway.app
           CHITAOZINHO_VERIFIER_URL: https://verifier-web-staging.up.railway.app/validar
           CHITAOZINHO_ENVIRONMENT: beta
         run: nix develop --command ./scripts/build-release-artifacts dist/release
