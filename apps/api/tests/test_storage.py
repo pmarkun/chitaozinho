@@ -8,6 +8,7 @@ import pytest
 from botocore.exceptions import ClientError
 from chitaozinho_api.config import Settings
 from chitaozinho_api.models import AuditEvent, Base, CaptureSession
+from chitaozinho_api.proof_storage import LocalProofStorage, S3ProofStorage
 from chitaozinho_api.retention import protect_final_artifact, retention_deadline
 from chitaozinho_api.storage import LocalDurableStorage, S3DurableStorage
 from sqlalchemy import create_engine, select
@@ -25,6 +26,33 @@ def test_storage_never_overwrites_part(tmp_path: Path) -> None:
     with pytest.raises(FileExistsError):
         storage.put_part("session", "recording", 0, b"changed")
     assert storage.read(key) == b"original"
+
+
+def test_proof_storage_is_shared_keyed_and_never_overwrites(tmp_path: Path) -> None:
+    storage = LocalProofStorage(tmp_path / "proofs")
+    storage.put_once("merkle/batch/root.bin.ots", b"original-proof")
+    storage.put_once("merkle/batch/root.bin.ots", b"original-proof")
+    assert storage.read("merkle/batch/root.bin.ots") == b"original-proof"
+
+    with pytest.raises(FileExistsError):
+        storage.put_once("merkle/batch/root.bin.ots", b"different-proof")
+    with pytest.raises(ValueError, match="invalid proof key"):
+        storage.read("../secret")
+
+
+def test_s3_proof_storage_uses_conditional_plain_upload() -> None:
+    client = FakeProofClient()
+    storage = S3ProofStorage.__new__(S3ProofStorage)
+    storage.bucket = "beta-bucket"
+    storage.client = client
+
+    storage.put_once("merkle/batch/root.bin.ots", b"proof")
+
+    assert client.put_arguments["Key"] == "proofs/merkle/batch/root.bin.ots"
+    assert client.put_arguments["IfNoneMatch"] == "*"
+    assert "ServerSideEncryption" not in client.put_arguments
+    assert "ObjectLockMode" not in client.put_arguments
+    assert storage.read("merkle/batch/root.bin.ots") == b"proof"
 
 
 @pytest.mark.parametrize("identifier", ["..", ".", "with/slash", ""])
@@ -383,6 +411,38 @@ class FakeRailwayClient:
             )
         content, metadata = self.objects[Key]
         return {"ContentLength": len(content), "Metadata": metadata}
+
+
+class FakeProofClient:
+    def __init__(self) -> None:
+        self.objects: dict[str, tuple[bytes, dict[str, str]]] = {}
+        self.put_arguments: dict = {}
+
+    def put_object(self, *, Key: str, Body, Metadata: dict[str, str], **arguments) -> dict:
+        self.put_arguments = {
+            "Key": Key,
+            "Metadata": Metadata,
+            **arguments,
+        }
+        if Key in self.objects:
+            raise ClientError(
+                {"Error": {"Code": "PreconditionFailed", "Message": "exists"}},
+                "PutObject",
+            )
+        self.objects[Key] = (bytes(Body), Metadata)
+        return {}
+
+    def head_object(self, *, Key: str, **_arguments) -> dict:
+        content, metadata = self.objects[Key]
+        return {"ContentLength": len(content), "Metadata": metadata}
+
+    def get_object(self, *, Key: str, **_arguments) -> dict:
+        content, metadata = self.objects[Key]
+        return {
+            "Body": BytesIO(content),
+            "ContentLength": len(content),
+            "Metadata": metadata,
+        }
 
 
 class FakeReadClient:

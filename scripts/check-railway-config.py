@@ -45,6 +45,7 @@ def validate_graph(graph: dict[str, Any]) -> None:
         "api",
         "worker",
         "retention-cleanup",
+        "ots-processor",
         "openbao",
         "verifier-web",
     }
@@ -54,6 +55,7 @@ def validate_graph(graph: dict[str, Any]) -> None:
     api = by_name["api"]
     worker = by_name["worker"]
     cleanup = by_name["retention-cleanup"]
+    ots_processor = by_name["ots-processor"]
     openbao = by_name["openbao"]
     verifier = by_name["verifier-web"]
     if api["deploy"].get("preDeployCommand") != ["alembic upgrade head"]:
@@ -70,6 +72,12 @@ def validate_graph(graph: dict[str, Any]) -> None:
         "python -m chitaozinho_api.retention_cleanup"
     ):
         raise ValueError("retention cleanup runtime contract changed")
+    if ots_processor["deploy"].get("cronSchedule") != "*/15 * * * *":
+        raise ValueError("OpenTimestamps processor schedule changed")
+    if ots_processor["deploy"].get("startCommand") != (
+        "python -m chitaozinho_api.ots_processor"
+    ):
+        raise ValueError("OpenTimestamps processor runtime contract changed")
     if openbao.get("networking"):
         raise ValueError("OpenBao must not be publicly exposed")
     attachments = openbao.get("volumeAttachments") or {}
@@ -77,13 +85,13 @@ def validate_graph(graph: dict[str, Any]) -> None:
         raise ValueError("OpenBao must have exactly one persistent volume")
     if attachments["openbao-data"].get("mountPath") != "/openbao/data":
         raise ValueError("OpenBao Raft volume must remain mounted at /openbao/data")
-    for name in ("api", "worker", "retention-cleanup"):
+    for name in ("api", "worker", "retention-cleanup", "ots-processor"):
         if by_name[name].get("volumeAttachments"):
             raise ValueError("evidence services must not use Railway volumes")
     if verifier["deploy"].get("healthcheckPath") != "/health":
         raise ValueError("verifier healthcheck changed")
 
-    for name in ("api", "worker", "retention-cleanup"):
+    for name in ("api", "worker", "retention-cleanup", "ots-processor"):
         variables = by_name[name].get("variables") or {}
 
         def literal(key: str, service_variables: dict = variables) -> str | None:
@@ -95,6 +103,8 @@ def validate_graph(graph: dict[str, Any]) -> None:
             raise ValueError("backend service must use Railway Bucket")
         if literal("CHITAOZINHO_RETENTION_DAYS") != "30":
             raise ValueError("beta retention must remain 30 days")
+        if literal("CHITAOZINHO_OTS_ENABLED") != "true":
+            raise ValueError("OpenTimestamps must remain enabled in beta")
         if literal("CHITAOZINHO_EMAIL_PROVIDER") != "resend":
             raise ValueError("beta email must use the Resend HTTP API")
         for key in ("CHITAOZINHO_RESEND_API_KEY", "CHITAOZINHO_RESEND_FROM"):

@@ -35,6 +35,11 @@ export default defineRailway(() => {
     CHITAOZINHO_S3_ACCESS_KEY_ID: ref(evidence, "ACCESS_KEY_ID"),
     CHITAOZINHO_S3_SECRET_ACCESS_KEY: ref(evidence, "SECRET_ACCESS_KEY"),
     CHITAOZINHO_RETENTION_DAYS: "30",
+    CHITAOZINHO_OTS_ENABLED: "true",
+    CHITAOZINHO_OTS_BATCH_SIZE: "100",
+    CHITAOZINHO_OTS_UPGRADE_RETRY_SECONDS: "3600",
+    CHITAOZINHO_OTS_CALENDARS:
+      "https://alice.btc.calendar.opentimestamps.org,https://bob.btc.calendar.opentimestamps.org,https://finney.calendar.eternitywall.com,https://ots.btc.catallaxy.com",
     CHITAOZINHO_PUBLIC_BASE_URL: "https://api-staging-db23.up.railway.app",
     CHITAOZINHO_AUTH_MODE: "magic_link",
     CHITAOZINHO_AUTH_TOKEN_PEPPER: preserve(),
@@ -101,6 +106,18 @@ export default defineRailway(() => {
     env: backendEnv,
   });
 
+  const otsProcessor = fn("ots-processor", {
+    source,
+    build: { builder: "DOCKERFILE", dockerfilePath: "Dockerfile" },
+    start: "python -m chitaozinho_api.ots_processor",
+    deploy: {
+      cronSchedule: "*/15 * * * *",
+      restartPolicyType: "NEVER",
+      limitOverride: { containers: { memoryBytes: 256 * mib } },
+    },
+    env: backendEnv,
+  });
+
   const openbao = service("openbao", {
     source,
     build: { builder: "DOCKERFILE", dockerfilePath: "Dockerfile.openbao" },
@@ -135,6 +152,16 @@ export default defineRailway(() => {
   });
 
   return project("chitaozinho", {
-    resources: [database, evidence, openbaoData, api, worker, cleanup, openbao, verifierWeb],
+    resources: [
+      database,
+      evidence,
+      openbaoData,
+      api,
+      worker,
+      cleanup,
+      otsProcessor,
+      openbao,
+      verifierWeb,
+    ],
   });
 });

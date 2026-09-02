@@ -467,12 +467,17 @@ def test_session_event_part_finalize_and_idempotency(
         root_file.write_bytes(bytes.fromhex(root_hash[7:]))
         proof_file.write_bytes(b"immutable-original-proof")
 
-    def fake_upgrade(original: Path, complement: Path) -> None:
+    def fake_upgrade(original: Path, complement: Path) -> bool:
         complement.parent.mkdir(parents=True, exist_ok=True)
         complement.write_bytes(original.read_bytes() + b"-confirmed")
+        return True
 
     monkeypatch.setattr("chitaozinho_api.proof_service.stamp_ots", fake_stamp)
     monkeypatch.setattr("chitaozinho_api.proof_service.upgrade_ots", fake_upgrade)
+    monkeypatch.setattr(
+        "chitaozinho_api.proof_service.inspect_ots",
+        lambda _proof: "confirmed",
+    )
     monkeypatch.setattr(
         "chitaozinho_api.proof_service.verify_ots",
         lambda _root, _proof: "confirmed",

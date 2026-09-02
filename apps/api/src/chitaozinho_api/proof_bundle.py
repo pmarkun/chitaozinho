@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from .audit import append_audit_event
 from .config import Settings
 from .models import Attestation, CaptureSession
+from .proof_storage import ProofStorage, create_proof_storage
 from .retention import protect_final_artifact
 from .security import ServerSigner
 from .storage import DurableStorage
@@ -29,7 +30,9 @@ def ensure_proof_bundle(
     storage: DurableStorage,
     signer: ServerSigner,
     capture_session: CaptureSession,
+    proof_storage: ProofStorage | None = None,
 ) -> tuple[Path, str, str]:
+    proof_storage = proof_storage or create_proof_storage(settings)
     if capture_session.manifest_hash is None:
         raise ValueError("session has no immutable manifest")
     attestations = list(
@@ -60,7 +63,7 @@ def ensure_proof_bundle(
             digest=bundle_hash,
         )
         return target, bundle_hash, storage_status
-    members = proof_bundle_members(settings, attestations)
+    members = proof_bundle_members(proof_storage, attestations)
     index = {
         "schema_version": "0.1.0",
         "session_id": capture_session.id,
@@ -127,7 +130,7 @@ def ensure_proof_bundle(
 
 
 def proof_bundle_members(
-    settings: Settings,
+    proof_storage: ProofStorage,
     attestations: list[Attestation],
 ) -> dict[str, bytes]:
     records = [
@@ -147,8 +150,7 @@ def proof_bundle_members(
         for path in referenced_proof_paths(attestation.document):
             if path in members:
                 continue
-            source = checked_proof_path(settings.proofs_path, path)
-            members[path] = source.read_bytes()
+            members[path] = proof_storage.read(path)
     return members
 
 

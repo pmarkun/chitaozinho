@@ -1113,7 +1113,7 @@ fn verify_ots_document(root_hash: &str, proof_path: &Path, status: &str) -> Resu
     let root_file = temporary.path().join("root.bin");
     fs::write(&root_file, root_digest)?;
     match status {
-        "pending_confirmation" | "submitted" => {
+        "pending_confirmation" | "submitted" | "bitcoin_attestation_available" => {
             let output = run_ots(&["info"], Some(proof_path), None)
                 .context("run OpenTimestamps proof inspection")?;
             ensure!(
@@ -1274,7 +1274,10 @@ fn merge_temporal_status(
             "timestamp_valid"
         });
     }
-    if timestamp == "pending" || blockchain == "pending_confirmation" {
+    if timestamp == "pending"
+        || blockchain == "pending_confirmation"
+        || blockchain == "bitcoin_attestation_available"
+    {
         return Ok(match current {
             "confirmed" => "confirmed",
             "timestamp_valid" => "timestamp_valid",

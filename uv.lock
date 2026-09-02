@@ -205,7 +205,7 @@ wheels = [
 
 [[package]]
 name = "chitaozinho-api"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "apps/api" }
 dependencies = [
     { name = "aiosqlite" },
@@ -248,7 +248,7 @@ dev = [
 
 [[package]]
 name = "chitaozinho-protocol"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "packages/protocol-py" }
 dependencies = [
     { name = "cryptography" },
@@ -275,7 +275,7 @@ dev = [
 
 [[package]]
 name = "chitaozinho-workspace"
-version = "0.1.0"
+version = "0.1.1"
 source = { virtual = "." }
 
 [[package]]

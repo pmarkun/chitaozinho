@@ -221,7 +221,9 @@ def write_merkle_proof(proof: MerkleProof, output: Path) -> None:
 
 def stamp_ots(root_hash: str, root_file: Path, proof_file: Path, calendars: list[str]) -> None:
     write_new(root_file, digest_bytes(root_hash))
-    command = ["ots", "stamp"]
+    if len(calendars) < 2:
+        raise ValueError("OpenTimestamps requires at least two public calendars")
+    command = ["ots", "--no-cache", "stamp", "-m", "2"]
     for calendar in calendars:
         command.extend(["--calendar", calendar])
     command.append(str(root_file))
@@ -232,19 +234,39 @@ def stamp_ots(root_hash: str, root_file: Path, proof_file: Path, calendars: list
         generated.rename(proof_file)
 
 
-def upgrade_ots(original: Path, complement: Path) -> None:
+def upgrade_ots(original: Path, complement: Path) -> bool:
     if complement.exists():
         raise FileExistsError(complement)
     complement.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(original, complement)
     try:
-        run_checked(["ots", "upgrade", str(complement)])
+        before = complement.read_bytes()
+        run_checked(["ots", "--no-cache", "upgrade", str(complement)])
+        return complement.read_bytes() != before
     finally:
         complement.with_name(complement.name + ".bak").unlink(missing_ok=True)
 
 
-def verify_ots(root_file: Path, proof_file: Path) -> str:
-    result = run_checked(["ots", "verify", "-f", str(root_file), str(proof_file)])
+def inspect_ots(proof_file: Path) -> str:
+    result = run_checked(["ots", "info", str(proof_file)])
+    output = f"{result.stdout}\n{result.stderr}"
+    if "BitcoinBlockHeaderAttestation" in output:
+        return "bitcoin_attestation_available"
+    if "PendingAttestation" in output:
+        return "pending_confirmation"
+    return "verification_failed"
+
+
+def verify_ots(
+    root_file: Path,
+    proof_file: Path,
+    bitcoin_node_url: str | None = None,
+) -> str:
+    command = ["ots"]
+    if bitcoin_node_url is not None:
+        command.extend(["--bitcoin-node", bitcoin_node_url])
+    command.extend(["verify", "-f", str(root_file), str(proof_file)])
+    result = run_checked(command)
     output = f"{result.stdout}\n{result.stderr}".lower()
     if "pending" in output:
         return "pending_confirmation"

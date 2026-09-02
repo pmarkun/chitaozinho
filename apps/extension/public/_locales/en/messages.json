@@ -128,6 +128,7 @@
   "incomplete": { "message": "integral, but incomplete" },
   "pending": { "message": "pending" },
   "confirmed": { "message": "confirmed" },
+  "bitcoinAttestationAvailable": { "message": "Bitcoin proof available" },
   "notRequested": { "message": "not requested" },
   "notSubmitted": { "message": "not submitted" },
   "submitted": { "message": "submitted" },

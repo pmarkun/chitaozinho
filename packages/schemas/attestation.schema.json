@@ -46,6 +46,7 @@
         "not_submitted",
         "submitted",
         "pending_confirmation",
+        "bitcoin_attestation_available",
         "confirmed",
         "verification_failed"
       ]

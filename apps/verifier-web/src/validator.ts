@@ -769,7 +769,11 @@ async function verifyProofBundle(
       previous = documentHash;
       const timestampStatus = record.document.timestamp_status;
       const blockchainStatus = record.document.blockchain_status;
-      if (timestampStatus === "valid" || blockchainStatus === "confirmed") {
+      if (
+        timestampStatus === "valid" ||
+        blockchainStatus === "confirmed" ||
+        blockchainStatus === "bitcoin_attestation_available"
+      ) {
         temporalProof = "signed_claims_only";
       }
     }

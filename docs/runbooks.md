@@ -28,11 +28,22 @@ rollback de deploy e qualquer ação em produção exigem autorização explíci
 
 ## OpenTimestamps
 
-- Preserve o `.ots` inicial e consulte o job pelo mesmo idempotency key.
-- Uma confirmação gera complemento e attestation novos, sem substituir a prova
-  anterior.
-- Se calendários estiverem indisponíveis, mantenha `pending_confirmation` e
-  reprocesse pelo worker; não publique hashes de sessão individuais.
+- O `ots-processor` roda a cada 15 minutos, agrupa até 100 manifests com salt
+  numa raiz Merkle e submete somente a raiz aos calendários públicos Alice,
+  Bob, Finney e Catallaxy. O serviço não usa conta, API key ou calendário
+  próprio.
+- Preserve o `.ots` inicial no Bucket. Cada atualização gera um complemento e
+  uma attestation novos, sem substituir a prova anterior.
+- `pending_confirmation` significa que os calendários ainda não devolveram a
+  ligação a um bloco. `bitcoin_attestation_available` significa que essa prova
+  já está no complemento, mas o servidor não declarou verificação independente
+  da cadeia. Somente um `ots verify` bem-sucedido contra Bitcoin Core promove
+  o lote a `confirmed`.
+- Se calendários estiverem indisponíveis, o job persistente aplica backoff e
+  tenta novamente; não publique hashes de sessão individuais.
+- Provas de associação por sessão seguem a expiração de 30 dias. Raízes Merkle
+  e `.ots` compartilhados podem ser preservados sem revelar o manifest de uma
+  sessão isolada.
 
 ## Storage
 

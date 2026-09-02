@@ -327,7 +327,11 @@ class S3DurableStorage:
 
     def delete_session(self, session_id: str) -> None:
         validate_storage_identifier(session_id, "session id")
-        prefixes = (f"sessions/{session_id}/", f"final/{session_id}/")
+        prefixes = (
+            f"sessions/{session_id}/",
+            f"final/{session_id}/",
+            f"proofs/sessions/{session_id}/",
+        )
         for prefix in prefixes:
             while True:
                 page = self.client.list_objects_v2(
