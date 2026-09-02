@@ -241,7 +241,12 @@ def upgrade_ots(original: Path, complement: Path) -> bool:
     shutil.copyfile(original, complement)
     try:
         before = complement.read_bytes()
-        run_checked(["ots", "--no-cache", "upgrade", str(complement)])
+        try:
+            run_checked(["ots", "--no-cache", "upgrade", str(complement)])
+        except subprocess.CalledProcessError as error:
+            output = f"{error.stdout or ''}\n{error.stderr or ''}".lower()
+            if "pending confirmation" not in output and "timestamp not complete" not in output:
+                raise
         return complement.read_bytes() != before
     finally:
         complement.with_name(complement.name + ".bak").unlink(missing_ok=True)
