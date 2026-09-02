@@ -53,7 +53,9 @@ AppRole SecretIDs must never enter Git, build artifacts or Railway logs.
 O serviço privado `ots-processor` executa `python -m
 chitaozinho_api.ots_processor` a cada 15 minutos e termina após o lote. Ele usa
 o PostgreSQL para coordenação e o Bucket para compartilhar provas com API e
-worker; não monta volume Railway.
+worker; não monta volume Railway. Os documentos de confiança e credenciais
+necessários são referências internas às variáveis do worker, sem duplicar seus
+valores na configuração ou no Git.
 
 O beta usa quatro calendários públicos e gratuitos, sem segredo:
 
