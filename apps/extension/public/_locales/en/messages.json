@@ -4,6 +4,11 @@
     "message": "Verifiable capture and preservation of digital evidence."
   },
   "appTagline": { "message": "verifiable digital evidence" },
+  "betaTitle": { "message": "Beta — non-critical data only" },
+  "betaRetention": { "message": "Stored for 30 days" },
+  "betaNoImmutability": {
+    "message": "No immutability or Object Lock guarantee."
+  },
   "homeTitle": { "message": "Record what is happening" },
   "homeBody": {
     "message": "Create an integral, traceable package with context, sequence, and technical proof."
@@ -134,6 +139,8 @@
   "stored": { "message": "stored" },
   "locked": { "message": "stored with retention" },
   "retentionFailed": { "message": "retention failed" },
+  "expired": { "message": "storage expired" },
+  "expirationFailed": { "message": "storage expiration failed" },
   "unknown": { "message": "not verified" },
   "newCapture": { "message": "New capture" },
   "legalDisclaimer": {

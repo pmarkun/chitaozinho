@@ -211,7 +211,11 @@ def test_public_metrics_require_dedicated_bearer_token(
     assert "chitaozinho_http_requests_total" in accepted.text
 
 
-def test_non_local_environment_fails_closed_without_tls_and_external_storage() -> None:
+def test_non_local_environment_fails_closed_without_tls_and_external_storage(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
     with pytest.raises(ValidationError, match="retry maximum"):
         Settings(
             worker_retry_base_seconds=10,
@@ -297,11 +301,12 @@ def test_non_local_environment_fails_closed_without_tls_and_external_storage() -
             **kms_storage,
             server_seed_hex="11" * 32,
         )
-    with pytest.raises(ValidationError, match="OpenBao Transit"):
+    with pytest.raises(ValidationError, match="OpenBao.*Transit"):
         Settings(**kms_storage)
     signing_envelope = {
         "openbao_addr": "https://openbao.example.test",
-        "openbao_token": "o" * 32,
+        "openbao_role_id": "r" * 16,
+        "openbao_secret_id": "s" * 32,
         "openbao_transit_key": "chitaozinho-server",
         "openbao_transit_key_version": 1,
     }
@@ -385,6 +390,7 @@ def test_non_local_environment_fails_closed_without_tls_and_external_storage() -
 
 def test_settings_repr_redacts_credentials_and_key_material() -> None:
     settings = Settings(
+        _env_file=None,
         s3_access_key_id="access-id",
         s3_secret_access_key="storage-secret",
         server_seed_hex="11" * 32,
@@ -393,6 +399,7 @@ def test_settings_repr_redacts_credentials_and_key_material() -> None:
         metrics_token="metrics-secret-value-that-is-long",
     )
     openbao_settings = Settings(
+        _env_file=None,
         openbao_addr="https://openbao.example.test",
         openbao_token="openbao-secret-token-value",
         openbao_transit_key="chitaozinho-server",
@@ -407,6 +414,45 @@ def test_settings_repr_redacts_credentials_and_key_material() -> None:
     assert "pepper-secret" not in rendered
     assert "smtp-secret" not in rendered
     assert "metrics-secret" not in rendered
+
+
+def test_beta_requires_railway_storage_approle_resend_and_temporary_retention() -> None:
+    base = {
+        "_env_file": None,
+        "env": "beta",
+        "public_base_url": "https://api.example.test",
+        "database_url": "postgresql+psycopg://service@database/chitaozinho",
+        "storage_backend": "s3",
+        "storage_provider": "railway",
+        "s3_endpoint_url": "https://storage.railway.app",
+        "s3_region": "auto",
+        "s3_access_key_id": "access",
+        "s3_secret_access_key": "secret",
+        "retention_days": 30,
+        "openbao_addr": "https://openbao.railway.internal:8200",
+        "openbao_role_id": "r" * 16,
+        "openbao_secret_id": "s" * 32,
+        "openbao_transit_key": "chitaozinho-server",
+        "openbao_transit_key_version": 1,
+        "server_certificate_json": "{}",
+        "server_revocation_list_json": "{}",
+        "server_root_public_json": "{}",
+        "auth_mode": "magic_link",
+        "auth_token_pepper": "p" * 32,
+        "email_provider": "resend",
+        "resend_api_key": "re_" + ("x" * 32),
+        "resend_from": "Chitãozinho <beta@example.test>",
+        "extension_ids": "abcdefghijklmnopabcdefghijklmnop",
+        "metrics_token": "m" * 32,
+        "software_commit": "a" * 40,
+        "software_build_hash": "sha256:" + ("b" * 64),
+    }
+    settings = Settings(**base)
+    assert settings.s3_kms_key_id is None
+    with pytest.raises(ValidationError, match="exactly 30 days"):
+        Settings(**{**base, "retention_days": 31})
+    with pytest.raises(ValidationError, match="static OpenBao tokens"):
+        Settings(**{**base, "openbao_token": "t" * 32})
 
 
 def test_empty_optional_environment_value_is_not_treated_as_configuration(

@@ -4,6 +4,7 @@ import base64
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from chitaozinho_api.config import Settings
@@ -12,12 +13,56 @@ from chitaozinho_api.key_management import (
     issue_revocation_list,
     public_key_from_seed,
 )
-from chitaozinho_api.security import ServerSigner
+from chitaozinho_api.security import OpenBaoTransitClient, ServerSigner
 from chitaozinho_protocol import DOMAINS, verify_canonical
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from jsonschema import Draft202012Validator, FormatChecker
 
 SCHEMA_DIR = Path(__file__).parents[3] / "packages" / "schemas"
+
+
+class BaoResponse:
+    def __init__(self, document: dict) -> None:
+        self.document = document
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_arguments) -> None:
+        return None
+
+    def read(self, _limit: int) -> bytes:
+        return json.dumps(self.document).encode()
+
+
+class BaoOpener:
+    def __init__(self) -> None:
+        self.paths: list[str] = []
+
+    def open(self, request, *, timeout: float):
+        assert timeout == 5
+        self.paths.append(request.full_url)
+        if request.full_url.endswith("/auth/approle/login"):
+            return BaoResponse(
+                {
+                    "auth": {
+                        "client_token": "leased-token",
+                        "lease_duration": 3600,
+                        "renewable": True,
+                    }
+                }
+            )
+        if request.full_url.endswith("/auth/token/renew-self"):
+            return BaoResponse(
+                {
+                    "auth": {
+                        "client_token": "renewed-token",
+                        "lease_duration": 3600,
+                        "renewable": True,
+                    }
+                }
+            )
+        return BaoResponse({"data": {"keys": {}}})
 
 
 def test_root_signs_operational_key_certificate(tmp_path: Path) -> None:
@@ -240,7 +285,11 @@ def test_server_signer_reads_private_mounted_seed(tmp_path: Path) -> None:
     seed_path.chmod(0o600)
 
     signer = ServerSigner.from_settings(
-        Settings(server_key_id="server-file-test", server_seed_path=seed_path)
+        Settings(
+            _env_file=None,
+            server_key_id="server-file-test",
+            server_seed_path=seed_path,
+        )
     )
 
     assert signer is not None
@@ -249,8 +298,31 @@ def test_server_signer_reads_private_mounted_seed(tmp_path: Path) -> None:
     seed_path.chmod(0o640)
     with pytest.raises(ValueError, match="group or others"):
         ServerSigner.from_settings(
-            Settings(server_key_id="server-file-test", server_seed_path=seed_path)
+            Settings(
+                _env_file=None,
+                server_key_id="server-file-test",
+                server_seed_path=seed_path,
+            )
         )
+
+
+def test_openbao_approle_login_and_lease_renewal() -> None:
+    opener = BaoOpener()
+    with patch("chitaozinho_api.security.build_opener", return_value=opener):
+        client = OpenBaoTransitClient(
+            "https://openbao.example.test",
+            None,
+            None,
+            role_id="role-id",
+            secret_id="secret-id",
+        )
+        client.read_key("transit", "signing")
+        client.token_expires_at = datetime.now(UTC)
+        client.read_key("transit", "signing")
+
+    assert sum(path.endswith("/auth/approle/login") for path in opener.paths) == 1
+    assert sum(path.endswith("/auth/token/renew-self") for path in opener.paths) == 1
+    assert opener.paths[-1].endswith("/transit/keys/signing")
 
 
 def test_server_signer_uses_pinned_openbao_transit_key() -> None:
@@ -258,6 +330,7 @@ def test_server_signer_uses_pinned_openbao_transit_key() -> None:
     transit = FakeTransitClient(seed, key_version=3)
     signer = ServerSigner.from_settings(
         Settings(
+            _env_file=None,
             server_key_id="server-openbao-test",
             openbao_addr="https://openbao.example.test",
             openbao_token="synthetic-openbao-token",

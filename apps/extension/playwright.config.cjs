@@ -11,7 +11,11 @@ module.exports = {
     viewport: { width: 320, height: 640 },
   },
   webServer: {
-    command: "python -m http.server 4173 --bind 127.0.0.1 --directory dist",
+    command:
+      "CHITAOZINHO_API_BASE_URL=https://api-staging.up.railway.app " +
+      "CHITAOZINHO_VERIFIER_URL=https://verifier-web-staging.up.railway.app/validar " +
+      "CHITAOZINHO_ENVIRONMENT=beta pnpm build && " +
+      "python -m http.server 4173 --bind 127.0.0.1 --directory dist",
     cwd: __dirname,
     url: "http://127.0.0.1:4173/popup.html",
     reuseExistingServer: false,

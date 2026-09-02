@@ -11,7 +11,13 @@ import chitaozinho_api.main as main_module
 import pytest
 from chitaozinho_api.config import Settings
 from chitaozinho_api.main import advertised_retention_policy, create_app
-from chitaozinho_api.models import AuditEvent, Incident, Job, TimestampAttempt
+from chitaozinho_api.models import (
+    AuditEvent,
+    CaptureSession,
+    Incident,
+    Job,
+    TimestampAttempt,
+)
 from chitaozinho_protocol import (
     DOMAINS,
     base64url_encode,
@@ -74,10 +80,39 @@ def test_session_creation_advertises_effective_retention(client: TestClient) -> 
         "mode": "COMPLIANCE",
         "days": 90,
     }
+    assert advertised_retention_policy("beta", 30) == {
+        "mode": "temporary",
+        "days": 30,
+        "immutable": False,
+    }
     assert advertised_retention_policy("production", 1825) == {
         "mode": "COMPLIANCE",
         "days": 1825,
     }
+
+
+def test_expired_session_downloads_return_gone(client: TestClient) -> None:
+    now = datetime.now(UTC)
+    with client.app.state.session_factory() as database:
+        database.add(
+            CaptureSession(
+                id="expired-session",
+                server_challenge="challenge",
+                status="complete",
+                next_sequence=0,
+                created_at=now,
+                updated_at=now,
+                ended_at=now,
+                manifest={"protocol_version": "0.1.0"},
+                storage_status="expired",
+                storage_expires_at=now,
+                storage_expired_at=now,
+            )
+        )
+        database.commit()
+
+    response = client.post("/v1/sessions/expired-session/download-urls")
+    assert response.status_code == 410
 
 
 def test_session_event_part_finalize_and_idempotency(
@@ -209,7 +244,7 @@ def test_session_event_part_finalize_and_idempotency(
     assert uploaded.status_code == 201
     receipt = uploaded.json()
     assert receipt["part_hash"] == part_hash
-    assert receipt["persistence_state"] == "durable_staging"
+    assert receipt["persistence_state"] == "stored"
     assert verify_canonical(
         DOMAINS["receipt"],
         receipt["receipt"],

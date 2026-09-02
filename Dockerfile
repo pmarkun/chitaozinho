@@ -36,6 +36,13 @@ COPY --chown=chitaozinho:chitaozinho apps/api/src/chitaozinho_api /app/src/chita
 COPY --chown=chitaozinho:chitaozinho packages/protocol-py/src/chitaozinho_protocol /app/src/chitaozinho_protocol
 COPY --chown=chitaozinho:chitaozinho alembic.ini /app/alembic.ini
 COPY --chown=chitaozinho:chitaozinho apps/api/migrations /app/apps/api/migrations
+COPY --chown=chitaozinho:chitaozinho infra/openbao/ca.crt /app/infra/openbao/ca.crt
+RUN find /app/src -type f -print0 \
+    | sort -z \
+    | xargs -0 sha256sum \
+    | sha256sum \
+    | awk '{print "sha256:" $1}' > /app/SOURCE_SHA256 \
+    && chown chitaozinho:chitaozinho /app/SOURCE_SHA256
 
 USER chitaozinho
 EXPOSE 8000

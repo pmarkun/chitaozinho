@@ -14,56 +14,67 @@ railway = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(railway)
 
 
-def configs() -> tuple[dict, dict, dict]:
-    return (
-        railway.load(railway.API_PATH),
-        railway.load(railway.WORKER_PATH),
-        railway.load(railway.VERIFIER_WEB_PATH),
-    )
+def graph() -> dict:
+    return railway.load_graph()
 
 
-def test_committed_railway_configs_satisfy_runtime_contract() -> None:
-    api, worker, verifier_web = configs()
-    railway.validate_configs(api, worker, verifier_web)
+def resource(document: dict, name: str) -> dict:
+    return next(value for value in document["resources"] if value["name"] == name)
 
 
-@pytest.mark.parametrize(
-    ("field", "value", "message"),
-    [
-        ("preDeployCommand", [], "forward migration"),
-        ("healthcheckPath", "/healthz", "dependency-aware"),
-        (
-            "startCommand",
-            "uvicorn chitaozinho_api.main:create_app --factory",
-            "runtime contract",
-        ),
-    ],
-)
-def test_api_contract_rejects_unsafe_deploy_changes(
-    field: str,
-    value: object,
-    message: str,
-) -> None:
-    api, worker, verifier_web = configs()
-    api["deploy"][field] = value
-    with pytest.raises(ValueError, match=message):
-        railway.validate_configs(api, worker, verifier_web)
+def test_committed_railway_iac_satisfies_beta_runtime_contract() -> None:
+    railway.validate_graph(graph())
+
+
+def test_api_contract_rejects_unsafe_deploy_changes() -> None:
+    document = graph()
+    resource(document, "api")["deploy"]["healthcheckPath"] = "/healthz"
+    with pytest.raises(ValueError, match="dependency-aware"):
+        railway.validate_graph(document)
 
 
 def test_worker_cannot_run_migrations_or_mount_evidence_volume() -> None:
-    api, worker, verifier_web = configs()
-    worker_with_migration = copy.deepcopy(worker)
-    worker_with_migration["deploy"]["preDeployCommand"] = ["alembic upgrade head"]
+    document = graph()
+    resource(document, "worker")["deploy"]["preDeployCommand"] = [
+        "alembic upgrade head"
+    ]
     with pytest.raises(ValueError, match="must not race"):
-        railway.validate_configs(api, worker_with_migration, verifier_web)
+        railway.validate_graph(document)
 
-    worker["deploy"]["volumes"] = [{"mountPath": "/app/data"}]
-    with pytest.raises(ValueError, match="must not declare Railway volumes"):
-        railway.validate_configs(api, worker, verifier_web)
+    document = graph()
+    resource(document, "worker")["volumeAttachments"] = {
+        "unsafe": {"mountPath": "/app/data"}
+    }
+    with pytest.raises(ValueError, match="must not use Railway volumes"):
+        railway.validate_graph(document)
 
 
-def test_verifier_uses_static_container_contract() -> None:
-    api, worker, verifier_web = configs()
-    verifier_web["deploy"]["startCommand"] = "pnpm dev"
-    with pytest.raises(ValueError, match="immutable container command"):
-        railway.validate_configs(api, worker, verifier_web)
+def test_openbao_must_be_private_and_persistent() -> None:
+    document = graph()
+    unsafe = copy.deepcopy(document)
+    resource(unsafe, "openbao")["networking"] = {
+        "serviceDomains": {"openbao.example.test": {}}
+    }
+    with pytest.raises(ValueError, match="must not be publicly exposed"):
+        railway.validate_graph(unsafe)
+
+    resource(document, "openbao")["volumeAttachments"] = {}
+    with pytest.raises(ValueError, match="exactly one persistent volume"):
+        railway.validate_graph(document)
+
+
+def test_beta_storage_and_approle_guards_cannot_drift() -> None:
+    document = graph()
+    api = resource(document, "api")
+    api["variables"]["CHITAOZINHO_STORAGE_PROVIDER"]["value"] = "ceph"
+    with pytest.raises(ValueError, match="Railway Bucket"):
+        railway.validate_graph(document)
+
+    document = graph()
+    api = resource(document, "api")
+    api["variables"]["CHITAOZINHO_OPENBAO_TOKEN"] = {
+        "type": "literal",
+        "value": "unsafe",
+    }
+    with pytest.raises(ValueError, match="static OpenBao token"):
+        railway.validate_graph(document)

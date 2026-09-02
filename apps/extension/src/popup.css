@@ -48,6 +48,21 @@ header div {
 header small {
   color: var(--muted-text);
 }
+.beta-notice {
+  display: grid;
+  gap: 3px;
+  margin: -10px 0 18px;
+  padding: 10px 12px;
+  border: 1px solid #e5c16e;
+  border-radius: 8px;
+  color: #654500;
+  background: #fff8df;
+  line-height: 1.35;
+}
+.beta-notice span,
+.beta-notice small {
+  color: #654500;
+}
 .brand-mark {
   display: grid;
   place-items: center;

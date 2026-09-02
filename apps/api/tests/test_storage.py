@@ -174,6 +174,41 @@ def test_s3_final_artifact_uses_and_verifies_configured_kms_key(
         )
 
 
+def test_railway_storage_verifies_integrity_without_claiming_object_lock(
+    tmp_path: Path,
+) -> None:
+    content = b"railway beta package"
+    source = tmp_path / "package.zip"
+    source.write_bytes(content)
+    digest = f"sha256:{sha256(content).hexdigest()}"
+    client = FakeRailwayClient()
+    storage = S3DurableStorage.__new__(S3DurableStorage)
+    storage.root = tmp_path
+    storage.bucket = "beta-bucket"
+    storage.kms_key_id = None
+    storage.provider = "railway"
+    storage.persistence_state = "stored"
+    storage.client = client
+
+    part_key = storage.put_part("session", "recording", 0, b"part")
+    result = storage.protect_final(
+        "session",
+        "evidence-package.zip",
+        source,
+        digest,
+        datetime.now(UTC) + timedelta(days=30),
+    )
+
+    assert part_key.startswith("sessions/session/")
+    assert result.status == "stored"
+    assert result.version_id is None
+    assert result.retain_until is None
+    assert "ServerSideEncryption" not in client.final_arguments
+    assert "SSEKMSKeyId" not in client.final_arguments
+    assert "ObjectLockMode" not in client.final_arguments
+    assert client.final_arguments["IfNoneMatch"] == "*"
+
+
 def test_s3_parts_request_configured_kms_key() -> None:
     kms_key_id = "chitaozinho-evidence"
     client = FakePartClient()
@@ -319,6 +354,35 @@ class FakePartClient:
     def put_object(self, **arguments) -> dict:
         self.put_arguments = arguments
         return {}
+
+
+class FakeRailwayClient:
+    def __init__(self) -> None:
+        self.objects: dict[str, tuple[bytes, dict[str, str]]] = {}
+        self.final_arguments: dict = {}
+
+    def list_objects_v2(self, *, Prefix: str, **_arguments) -> dict:
+        return {
+            "Contents": [
+                {"Key": key} for key in sorted(self.objects) if key.startswith(Prefix)
+            ]
+        }
+
+    def put_object(self, *, Key: str, Body, Metadata: dict[str, str], **arguments) -> dict:
+        content = Body.read() if hasattr(Body, "read") else bytes(Body)
+        self.objects[Key] = (content, Metadata)
+        if Key.startswith("final/"):
+            self.final_arguments = {"Key": Key, "Metadata": Metadata, **arguments}
+        return {}
+
+    def head_object(self, *, Key: str, **_arguments) -> dict:
+        if Key not in self.objects:
+            raise ClientError(
+                {"Error": {"Code": "404", "Message": "not found"}},
+                "HeadObject",
+            )
+        content, metadata = self.objects[Key]
+        return {"ContentLength": len(content), "Metadata": metadata}
 
 
 class FakeReadClient:

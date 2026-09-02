@@ -18,10 +18,10 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    env: Literal["development", "test", "staging", "production"] = "development"
+    env: Literal["development", "test", "beta", "staging", "production"] = "development"
     database_url: str = "sqlite:///data/chitaozinho.db"
     storage_backend: str = "local"
-    storage_provider: Literal["local", "garage", "ceph"] = "local"
+    storage_provider: Literal["local", "garage", "railway", "ceph"] = "local"
     storage_path: Path = Path("data/artifacts")
     proofs_path: Path = Path("data/proofs")
     s3_endpoint_url: str | None = None
@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     server_seed_path: Path | None = None
     openbao_addr: str | None = None
     openbao_token: str | None = Field(default=None, min_length=16, repr=False)
+    openbao_role_id: str | None = Field(default=None, min_length=8, repr=False)
+    openbao_secret_id: str | None = Field(default=None, min_length=8, repr=False)
     openbao_transit_mount: str = Field(
         default="transit",
         pattern=r"^[a-zA-Z0-9_-]+$",
@@ -85,6 +87,11 @@ class Settings(BaseSettings):
     smtp_password: str | None = Field(default=None, repr=False)
     smtp_from: str | None = None
     smtp_starttls: bool = True
+    email_provider: Literal["smtp", "resend"] = "smtp"
+    resend_api_key: str | None = Field(default=None, min_length=16, repr=False)
+    resend_from: str | None = None
+    magic_link_email_limit_per_hour: int = Field(default=5, ge=1, le=100)
+    magic_link_ip_limit_per_hour: int = Field(default=20, ge=1, le=1000)
     extension_ids: str = ""
     cors_origin_regex: str = r"^chrome-extension://[a-p]{32}$"
     metrics_token: str | None = Field(default=None, min_length=32, repr=False)
@@ -103,6 +110,7 @@ class Settings(BaseSettings):
     software_version: str = "0.1.0"
     software_commit: str = "development"
     software_build_hash: str = "sha256:" + ("0" * 64)
+    software_build_hash_path: Path | None = None
     tsa_url: str | None = None
     tsa_ca_bundle: Path | None = None
     tsa_untrusted_chain: Path | None = None
@@ -113,6 +121,12 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def production_safety(self) -> Settings:
+        if self.software_build_hash_path is not None:
+            try:
+                build_hash = self.software_build_hash_path.read_text(encoding="ascii").strip()
+            except (OSError, UnicodeError) as error:
+                raise ValueError("software build identity file is unreadable") from error
+            object.__setattr__(self, "software_build_hash", build_hash)
         if self.worker_retry_max_seconds < self.worker_retry_base_seconds:
             raise ValueError("worker retry maximum must not be shorter than its base delay")
         if self.env not in {"development", "test"}:
@@ -120,10 +134,13 @@ class Settings(BaseSettings):
                 raise ValueError("HTTPS public_base_url is required outside local development")
             if self.storage_backend != "s3":
                 raise ValueError("external S3 storage is required outside local development")
-            if self.storage_provider != "ceph":
-                raise ValueError("Ceph RGW is required outside local development")
+            expected_provider = "railway" if self.env == "beta" else "ceph"
+            if self.storage_provider != expected_provider:
+                if expected_provider == "ceph":
+                    raise ValueError("Ceph RGW is required outside local development")
+                raise ValueError("Railway Bucket storage is required in beta")
             if self.s3_endpoint_url is None:
-                raise ValueError("Ceph RGW endpoint is required outside local development")
+                raise ValueError("S3 endpoint is required outside local development")
             endpoint = urlsplit(self.s3_endpoint_url)
             if (
                 endpoint.scheme != "https"
@@ -134,18 +151,18 @@ class Settings(BaseSettings):
                 or endpoint.query
                 or endpoint.fragment
             ):
-                raise ValueError("Ceph RGW endpoint must be an HTTPS origin")
+                raise ValueError("S3 endpoint must be an HTTPS origin")
             if self.s3_access_key_id is None or self.s3_secret_access_key is None:
-                raise ValueError(
-                    "Ceph RGW access credentials are required outside local development"
-                )
-            if self.s3_kms_key_id is None:
+                raise ValueError("S3 access credentials are required outside local development")
+            if self.env != "beta" and self.s3_kms_key_id is None:
                 raise ValueError("Ceph RGW SSE-KMS key is required outside local development")
             if make_url(self.database_url).get_backend_name() != "postgresql":
                 raise ValueError("PostgreSQL database is required outside local development")
-            if self.s3_region != "ceph":
+            if self.env != "beta" and self.s3_region != "ceph":
                 raise ValueError("evidence storage must use the Ceph RGW region")
-            if self.retention_days < 90:
+            if self.env == "beta" and self.retention_days != 30:
+                raise ValueError("beta retention must be exactly 30 days")
+            if self.env != "beta" and self.retention_days < 90:
                 raise ValueError("staging and production retention must be at least 90 days")
             if self.server_seed_hex is not None:
                 raise ValueError(
@@ -153,11 +170,16 @@ class Settings(BaseSettings):
                 )
             if (
                 self.openbao_addr is None
-                or self.openbao_token is None
+                or self.openbao_role_id is None
+                or self.openbao_secret_id is None
                 or self.openbao_transit_key is None
                 or self.openbao_transit_key_version is None
             ):
-                raise ValueError("OpenBao Transit signing is required outside local development")
+                raise ValueError(
+                    "OpenBao AppRole Transit signing is required outside local development"
+                )
+            if self.openbao_token is not None:
+                raise ValueError("static OpenBao tokens are forbidden outside local development")
             openbao = urlsplit(self.openbao_addr)
             if (
                 openbao.scheme != "https"
@@ -190,10 +212,13 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "authentication token pepper is required outside local development"
                 )
-            if self.smtp_host is None or self.smtp_from is None:
-                raise ValueError("SMTP host and sender are required outside local development")
-            if not self.smtp_starttls:
-                raise ValueError("SMTP STARTTLS is required outside local development")
+            if self.email_provider == "smtp":
+                if self.smtp_host is None or self.smtp_from is None:
+                    raise ValueError("SMTP host and sender are required outside local development")
+                if not self.smtp_starttls:
+                    raise ValueError("SMTP STARTTLS is required outside local development")
+            elif self.resend_api_key is None or self.resend_from is None:
+                raise ValueError("Resend API key and sender are required")
             if not self.parsed_extension_ids():
                 raise ValueError(
                     "at least one exact Chromium extension ID is required outside local development"
@@ -212,7 +237,6 @@ class Settings(BaseSettings):
             raise ValueError("unsupported authentication mode")
         openbao_values = [
             self.openbao_addr,
-            self.openbao_token,
             self.openbao_transit_key,
             self.openbao_transit_key_version,
         ]
@@ -220,6 +244,14 @@ class Settings(BaseSettings):
             value is not None for value in openbao_values
         ):
             raise ValueError("OpenBao Transit signing configuration is incomplete")
+        if (self.openbao_role_id is None) != (self.openbao_secret_id is None):
+            raise ValueError("OpenBao AppRole configuration is incomplete")
+        if self.openbao_token is not None and self.openbao_role_id is not None:
+            raise ValueError("configure only one OpenBao authentication method")
+        if self.openbao_addr is not None and not (
+            self.openbao_token is not None or self.openbao_role_id is not None
+        ):
+            raise ValueError("OpenBao authentication is not configured")
         seed_sources = [
             self.server_seed_hex is not None,
             self.server_seed_path is not None,

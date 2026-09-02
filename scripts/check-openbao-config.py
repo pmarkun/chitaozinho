@@ -16,6 +16,19 @@ def main() -> None:
     forbidden = ("create", "delete", "sudo", "transit/keys/*", 'capabilities = ["*"]')
     assert all(value not in policy for value in forbidden)
 
+    image = (ROOT / "Dockerfile.openbao").read_text()
+    assert (
+        "ghcr.io/openbao/openbao@sha256:"
+        "11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8ac76f526e175c6d24641"
+    ) in image
+    entrypoint = (ROOT / "infra/openbao/railway-entrypoint.sh").read_text()
+    assert '"path": "/openbao/data/raft"' in entrypoint
+    assert '"tls_min_version": "tls13"' in entrypoint
+    assert '"file_path": "stdout"' in entrypoint
+    assert '"audit": [' in entrypoint
+    assert "OPENBAO_TLS_CERT_PEM is required" in entrypoint
+    assert "OPENBAO_TLS_KEY_PEM is required" in entrypoint
+
 
 if __name__ == "__main__":
     main()

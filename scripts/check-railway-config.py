@@ -2,130 +2,113 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).parents[1]
-API_PATH = ROOT / "infra" / "railway" / "api.json"
-WORKER_PATH = ROOT / "infra" / "railway" / "worker.json"
-VERIFIER_WEB_PATH = ROOT / "infra" / "railway" / "verifier-web.json"
-DEFAULT_PATH = ROOT / "railway.json"
-SCHEMA = "https://railway.com/railway.schema.json"
-BACKEND_BUILD = {
-    "builder": "DOCKERFILE",
-    "dockerfilePath": "Dockerfile",
-}
-VERIFIER_WEB_BUILD = {
-    "builder": "DOCKERFILE",
-    "dockerfilePath": "Dockerfile.verifier-web",
-}
-RESTART = {
-    "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 5,
-}
-API_START = (
-    "sh -c 'exec uvicorn chitaozinho_api.main:create_app --factory "
-    '--host 0.0.0.0 --port "$PORT" --no-access-log\''
-)
-WORKER_START = "python -m chitaozinho_api.worker"
+IAC_PATH = ROOT / ".railway" / "railway.ts"
 
 
-def load(path: Path) -> dict[str, Any]:
-    document = json.loads(path.read_text())
+def load_graph() -> dict[str, Any]:
+    script = """
+import config from './.railway/railway.ts';
+import {createRailwayContext, project} from 'railway/iac';
+const graph = await config(
+  createRailwayContext({environment: 'staging', environmentName: 'staging'}),
+  project,
+);
+process.stdout.write(JSON.stringify(graph));
+"""
+    result = subprocess.run(
+        ["node", "--no-warnings", "--input-type=module", "-e", script],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    document = json.loads(result.stdout)
     if not isinstance(document, dict):
-        raise ValueError(f"{path.name} must contain a JSON object")
+        raise ValueError("Railway IaC must compile to an object")
     return document
 
 
-def validate_configs(
-    api: dict[str, Any],
-    worker: dict[str, Any],
-    verifier_web: dict[str, Any],
-) -> None:
-    validate_common("api", api, BACKEND_BUILD)
-    validate_common("worker", worker, BACKEND_BUILD)
-    validate_common("verifier-web", verifier_web, VERIFIER_WEB_BUILD)
+def validate_graph(graph: dict[str, Any]) -> None:
+    resources = graph.get("resources")
+    if not isinstance(resources, list):
+        raise ValueError("Railway IaC must declare resources")
+    by_name = {resource.get("name"): resource for resource in resources}
+    expected = {
+        "postgres",
+        "chitaozinho-beta",
+        "openbao-data",
+        "api",
+        "worker",
+        "retention-cleanup",
+        "openbao",
+        "verifier-web",
+    }
+    if set(by_name) != expected:
+        raise ValueError("Railway beta topology is incomplete")
 
-    api_deploy = require_mapping(api, "deploy", "api")
-    worker_deploy = require_mapping(worker, "deploy", "worker")
-    verifier_deploy = require_mapping(verifier_web, "deploy", "verifier-web")
-    if api_deploy.get("preDeployCommand") != ["alembic upgrade head"]:
+    api = by_name["api"]
+    worker = by_name["worker"]
+    cleanup = by_name["retention-cleanup"]
+    openbao = by_name["openbao"]
+    verifier = by_name["verifier-web"]
+    if api["deploy"].get("preDeployCommand") != ["alembic upgrade head"]:
         raise ValueError("api must apply the exact forward migration before deploy")
-    api_start = api_deploy.get("startCommand")
-    if api_start != API_START:
-        raise ValueError("api start command violates the public runtime contract")
-    if api_deploy.get("healthcheckPath") != "/readyz":
-        raise ValueError("api deploy health check must use dependency-aware /readyz")
-    timeout = api_deploy.get("healthcheckTimeout")
-    if not isinstance(timeout, int) or not 10 <= timeout <= 60:
-        raise ValueError("api health check timeout must be between 10 and 60 seconds")
+    if api["deploy"].get("healthcheckPath") != "/readyz":
+        raise ValueError("api must use dependency-aware readiness")
+    if worker["deploy"].get("startCommand") != "python -m chitaozinho_api.worker":
+        raise ValueError("worker runtime contract changed")
+    if worker["deploy"].get("preDeployCommand") is not None:
+        raise ValueError("worker must not race the api migration")
+    if cleanup["deploy"].get("cronSchedule") != "15 3 * * *":
+        raise ValueError("retention cleanup schedule changed")
+    if cleanup["deploy"].get("startCommand") != (
+        "python -m chitaozinho_api.retention_cleanup"
+    ):
+        raise ValueError("retention cleanup runtime contract changed")
+    if openbao.get("networking"):
+        raise ValueError("OpenBao must not be publicly exposed")
+    attachments = openbao.get("volumeAttachments") or {}
+    if set(attachments) != {"openbao-data"}:
+        raise ValueError("OpenBao must have exactly one persistent volume")
+    if attachments["openbao-data"].get("mountPath") != "/openbao/data":
+        raise ValueError("OpenBao Raft volume must remain mounted at /openbao/data")
+    for name in ("api", "worker", "retention-cleanup"):
+        if by_name[name].get("volumeAttachments"):
+            raise ValueError("evidence services must not use Railway volumes")
+    if verifier["deploy"].get("healthcheckPath") != "/health":
+        raise ValueError("verifier healthcheck changed")
 
-    if "preDeployCommand" in worker_deploy:
-        raise ValueError("worker must not race the api migration during deploy")
-    if "healthcheckPath" in worker_deploy:
-        raise ValueError("worker must not advertise an HTTP readiness endpoint")
-    worker_start = worker_deploy.get("startCommand")
-    if worker_start != WORKER_START:
-        raise ValueError("worker start command violates the runtime contract")
-    if api_start == worker_start:
-        raise ValueError("api and worker processes must remain separate")
-    if verifier_deploy.get("healthcheckPath") != "/health":
-        raise ValueError("verifier-web must expose its static health check")
-    timeout = verifier_deploy.get("healthcheckTimeout")
-    if not isinstance(timeout, int) or not 10 <= timeout <= 60:
-        raise ValueError(
-            "verifier-web health check timeout must be between 10 and 60 seconds"
-        )
-    if "preDeployCommand" in verifier_deploy or "startCommand" in verifier_deploy:
-        raise ValueError("verifier-web must use its immutable container command")
+    for name in ("api", "worker", "retention-cleanup"):
+        variables = by_name[name].get("variables") or {}
 
+        def literal(key: str, service_variables: dict = variables) -> str | None:
+            return service_variables.get(key, {}).get("value")
 
-def validate_common(
-    name: str,
-    document: dict[str, Any],
-    expected_build: dict[str, str],
-) -> None:
-    if document.get("$schema") != SCHEMA:
-        raise ValueError(f"{name} must declare the Railway schema")
-    if document.get("build") != expected_build:
-        raise ValueError(f"{name} must build its pinned repository Dockerfile")
-    deploy = require_mapping(document, "deploy", name)
-    for key, expected in RESTART.items():
-        if deploy.get(key) != expected:
-            raise ValueError(f"{name} must use the bounded restart policy")
-    reject_forbidden_keys(document, name=name)
-
-
-def require_mapping(
-    document: dict[str, Any],
-    key: str,
-    name: str,
-) -> dict[str, Any]:
-    value = document.get(key)
-    if not isinstance(value, dict):
-        raise ValueError(f"{name}.{key} must be an object")
-    return value
-
-
-def reject_forbidden_keys(value: object, *, name: str) -> None:
-    if isinstance(value, dict):
-        for key, nested in value.items():
-            if key.lower() in {"volume", "volumes", "volumemounts"}:
-                raise ValueError(
-                    f"{name} must not declare Railway volumes for evidence"
-                )
-            reject_forbidden_keys(nested, name=name)
-    elif isinstance(value, list):
-        for nested in value:
-            reject_forbidden_keys(nested, name=name)
+        if literal("CHITAOZINHO_ENV") != "beta":
+            raise ValueError("backend service must run with beta safety policy")
+        if literal("CHITAOZINHO_STORAGE_PROVIDER") != "railway":
+            raise ValueError("backend service must use Railway Bucket")
+        if literal("CHITAOZINHO_RETENTION_DAYS") != "30":
+            raise ValueError("beta retention must remain 30 days")
+        if literal("CHITAOZINHO_EMAIL_PROVIDER") != "resend":
+            raise ValueError("beta email must use the Resend HTTP API")
+        for key in ("CHITAOZINHO_RESEND_API_KEY", "CHITAOZINHO_RESEND_FROM"):
+            if variables.get(key, {}).get("type") != "preserve":
+                raise ValueError("Resend credentials must remain secret")
+        if variables.get("CHITAOZINHO_OPENBAO_ROLE_ID", {}).get("type") != "preserve":
+            raise ValueError("OpenBao AppRole must remain secret")
+        if "CHITAOZINHO_OPENBAO_TOKEN" in variables:
+            raise ValueError("static OpenBao token is forbidden")
 
 
 def main() -> None:
-    verifier_web = load(VERIFIER_WEB_PATH)
-    validate_configs(load(API_PATH), load(WORKER_PATH), verifier_web)
-    if load(DEFAULT_PATH) != verifier_web:
-        raise ValueError("root railway.json must deploy the public verifier safely")
-    print("Railway configuration valid: isolated api, worker and verifier contracts")
+    validate_graph(load_graph())
+    print("Railway IaC valid: beta topology, storage, cron and OpenBao are isolated")
 
 
 if __name__ == "__main__":
