@@ -18,6 +18,8 @@ jobs:
         with:
           fetch-depth: 0
       - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31.10.6
+      - name: Install locked JavaScript dependencies
+        run: nix develop --command pnpm install --frozen-lockfile
       - name: Build release artifacts and SPDX SBOMs
         env:
           CHITAOZINHO_API_BASE_URL: https://api-staging-db23.up.railway.app
