@@ -65,6 +65,7 @@ export type MessageKey =
   | "pending"
   | "pendingConfirmation"
   | "confirmed"
+  | "bitcoinAttestationAvailable"
   | "retentionFailed"
   | "resumeCapture"
   | "retryFinalization"

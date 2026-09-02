@@ -108,7 +108,7 @@ class Settings(BaseSettings):
     worker_retry_base_seconds: float = Field(default=5.0, ge=0.1, le=3600)
     worker_retry_max_seconds: float = Field(default=3600.0, ge=1, le=86400)
     software_name: str = "Chitãozinho Client"
-    software_version: str = "0.1.0"
+    software_version: str = "0.1.1"
     software_commit: str = Field(
         default_factory=lambda: environ.get("RAILWAY_GIT_COMMIT_SHA", "development")
     )
@@ -118,8 +118,15 @@ class Settings(BaseSettings):
     tsa_ca_bundle: Path | None = None
     tsa_untrusted_chain: Path | None = None
     tsa_crl_bundle: Path | None = None
+    ots_enabled: bool = False
+    ots_batch_size: int = Field(default=100, ge=1, le=100)
+    ots_upgrade_retry_seconds: int = Field(default=60 * 60, ge=5 * 60, le=24 * 60 * 60)
+    ots_bitcoin_node_url: str | None = Field(default=None, repr=False)
     ots_calendars: str = (
-        "https://alice.btc.calendar.opentimestamps.org,https://bob.btc.calendar.opentimestamps.org"
+        "https://alice.btc.calendar.opentimestamps.org,"
+        "https://bob.btc.calendar.opentimestamps.org,"
+        "https://finney.calendar.eternitywall.com,"
+        "https://ots.btc.catallaxy.com"
     )
 
     @field_validator("database_url", mode="before")

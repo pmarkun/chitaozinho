@@ -1,6 +1,8 @@
 # Protocol schemas
 
-Normative JSON Schemas for protocol and schema version `0.1.0`.
+Normative JSON Schemas for protocol version `0.1.0`. The latest schema version
+is `0.1.1`; individual artifacts retain their declared version, and historical
+signed artifacts are not rewritten.
 
 Changes that alter canonical bytes, required fields, hashes or signatures
 require a new version and updated cross-language test vectors.

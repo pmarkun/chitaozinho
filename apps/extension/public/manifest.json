@@ -3,7 +3,7 @@
   "name": "__MSG_appName__",
   "description": "__MSG_appDescription__",
   "default_locale": "pt_BR",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "minimum_chrome_version": "116",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzJAnuWR06DMvHtAa9X7tlT3+TnTRwKHEnRSHhZlPGG1vY+lT+ssFyEs0qr0uPL24LExE9nYTbllCR1mFfSNZd1f/zeDv3JUes11dmiR9MjK5Y6VgUfiOe9fTNKQaLmpHIFiINP5/Z4kzPIt9hohJ3TJxcUZgqO9yhahPfj49UpSV03bMqplQR1EEXe1dNanUj++RVbjEGHTmq6M70qTVFPcZZu+kiT1VGxSYFedzICGEooA6elf2jj7HPg/BkzWRi2UUkVbM76pw6k/ypACemcgmPQXc4TT6HwaEFA0bx2+QHXLs6ISEA1xfsG3x/fPooOgPqkLvFv6eUKT426NdiQIDAQAB",
   "action": {

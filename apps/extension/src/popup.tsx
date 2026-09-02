@@ -615,6 +615,7 @@ function formatResult(status?: string): string {
       incomplete: t("incomplete"),
       pending: t("pending"),
       confirmed: t("confirmed"),
+      bitcoin_attestation_available: t("bitcoinAttestationAvailable"),
       not_requested: t("notRequested"),
       not_submitted: t("notSubmitted"),
       submitted: t("submitted"),

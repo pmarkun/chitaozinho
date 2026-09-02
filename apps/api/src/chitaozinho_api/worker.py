@@ -17,6 +17,7 @@ from .jobs import (
 from .models import CaptureSession, Job
 from .observability import configure_operational_logging, emit_worker_log
 from .proof_service import timestamp_capture
+from .proof_storage import ProofStorage, create_proof_storage
 from .security import ServerSigner
 
 
@@ -46,7 +47,9 @@ def run_once(
     factory: sessionmaker[Session],
     settings: Settings,
     signer: ServerSigner,
+    proof_storage: ProofStorage | None = None,
 ) -> bool:
+    proof_storage = proof_storage or create_proof_storage(settings)
     with factory() as database:
         job = claim_job(database, settings)
         if job is None:
@@ -71,6 +74,7 @@ def run_once(
                 settings,
                 signer,
                 capture_session,
+                proof_storage=proof_storage,
             )
             mark_job_completed(
                 database,
@@ -118,8 +122,9 @@ def main() -> None:
         raise RuntimeError("server signing key is not configured")
     engine = create_database_engine(settings)
     factory = sessionmaker(engine, expire_on_commit=False)
+    proof_storage = create_proof_storage(settings)
     while True:
-        worked = run_once(factory, settings, signer)
+        worked = run_once(factory, settings, signer, proof_storage)
         if not worked:
             time.sleep(settings.worker_poll_seconds)
 

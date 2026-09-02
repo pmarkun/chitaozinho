@@ -73,7 +73,13 @@ from .observability import (
 )
 from .packaging import ensure_package
 from .proof_bundle import ensure_proof_bundle
-from .proof_service import create_merkle_batch, timestamp_capture, upgrade_merkle_batch
+from .proof_service import (
+    OtsPendingConfirmation,
+    create_merkle_batch,
+    timestamp_capture,
+    upgrade_merkle_batch,
+)
+from .proof_storage import ProofStorage, create_proof_storage
 from .schemas import (
     ArtifactCompleteRequest,
     ArtifactCompleteResponse,
@@ -104,6 +110,7 @@ def create_app(
     *,
     engine: Engine | None = None,
     storage: DurableStorage | None = None,
+    proof_storage: ProofStorage | None = None,
     magic_link_sender: MagicLinkSender | None = None,
     create_tables: bool = False,
 ) -> FastAPI:
@@ -111,6 +118,7 @@ def create_app(
     settings = settings or Settings()
     engine = engine or create_database_engine(settings)
     storage = storage or create_storage(settings)
+    proof_storage = proof_storage or create_proof_storage(settings)
     signer = ServerSigner.from_settings(settings)
     if settings.auth_mode == "magic_link" and magic_link_sender is None:
         magic_link_sender = (
@@ -123,7 +131,7 @@ def create_app(
         Base.metadata.create_all(engine)
 
     extension_origin_pattern = allowed_extension_origin_pattern(settings)
-    app = FastAPI(title="Chitãozinho API", version="0.1.0")
+    app = FastAPI(title="Chitãozinho API", version="0.1.1")
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=extension_origin_pattern,
@@ -1299,6 +1307,7 @@ def create_app(
                 active_signer,
                 capture_session,
                 commit=False,
+                proof_storage=proof_storage,
             )
             mark_job_completed(
                 database,
@@ -1389,6 +1398,7 @@ def create_app(
                 active_signer,
                 body.session_ids,
                 submit_ots=body.submit_ots,
+                proof_storage=proof_storage,
             )
         except ValueError as error:
             raise HTTPException(
@@ -1420,7 +1430,13 @@ def create_app(
                 settings,
                 active_signer,
                 batch,
+                proof_storage=proof_storage,
             )
+        except OtsPendingConfirmation as error:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                str(error),
+            ) from error
         except ValueError as error:
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
@@ -1459,6 +1475,7 @@ def create_app(
                 storage,
                 active_signer,
                 capture_session,
+                proof_storage,
             )
         except ValueError as error:
             raise HTTPException(

@@ -145,6 +145,16 @@ test("capture states have no automatic WCAG violations", async ({
       },
     ],
     [
+      "bitcoin proof available",
+      {
+        ...baseCapture,
+        status: "complete",
+        captureFinished: true,
+        blockchainStatus: "bitcoin_attestation_available",
+        storageStatus: "stored",
+      },
+    ],
+    [
       "expiration failed",
       {
         ...baseCapture,
@@ -155,17 +165,23 @@ test("capture states have no automatic WCAG violations", async ({
     ],
   ];
   for (const [name, capture] of scenarios) {
-    await auditScenario(browser, name, {
+    const page = await auditScenario(browser, name, {
       authenticated: true,
       capture,
     });
+    if (name === "bitcoin proof available") {
+      await expect(
+        page.getByText(messages.bitcoinAttestationAvailable),
+      ).toBeVisible();
+    }
+    await page.context().close();
   }
 });
 
 async function auditScenario(browser, name, scenario) {
   const page = await scenarioPage(browser, scenario);
   await audit(page, name);
-  await page.context().close();
+  return page;
 }
 
 async function scenarioPage(

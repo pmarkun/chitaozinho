@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import secrets
 import shutil
+import tempfile
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,11 +21,13 @@ from .models import (
     OtsComplement,
     TimestampAttempt,
 )
+from .proof_storage import ProofStorage, create_proof_storage
 from .proofs import (
     MerkleLeaf,
     build_merkle_proofs,
     create_rfc3161_query,
     extract_rfc3161_chain,
+    inspect_ots,
     request_rfc3161_timestamp,
     stamp_ots,
     upgrade_ots,
@@ -35,6 +38,10 @@ from .proofs import (
 from .security import ServerSigner
 
 
+class OtsPendingConfirmation(RuntimeError):
+    pass
+
+
 def timestamp_capture(
     database: Session,
     settings: Settings,
@@ -42,7 +49,9 @@ def timestamp_capture(
     capture_session: CaptureSession,
     *,
     commit: bool = True,
+    proof_storage: ProofStorage | None = None,
 ) -> Attestation:
+    proof_storage = proof_storage or create_proof_storage(settings)
     capture_session = lock_capture_sessions(
         database,
         [capture_session.id],
@@ -57,64 +66,74 @@ def timestamp_capture(
         )
         or 0
     ) + 1
-    root = settings.proofs_path / capture_session.id / "timestamp"
-    query = root / f"attempt-{attempt_number:04d}.tsq"
-    response = root / f"attempt-{attempt_number:04d}.tsr"
-    create_rfc3161_query(capture_session.manifest_hash, query)
-    status = "pending"
-    details: dict[str, str] = {"request_path": relative_proof_path(settings, query)}
-    error_message = None
-    gen_time = None
-    policy = None
-    response_path = None
-    chain_path = None
-    if settings.tsa_url:
-        try:
-            request_rfc3161_timestamp(settings.tsa_url, query.read_bytes(), response)
-            response_path = relative_proof_path(settings, response)
-            details["response_path"] = response_path
-            if settings.tsa_ca_bundle is None:
-                raise ValueError("TSA CA bundle is required to trust a response")
-            chain = root / f"attempt-{attempt_number:04d}-tsa-chain.pem"
-            extract_rfc3161_chain(response, chain)
-            if settings.tsa_untrusted_chain is not None:
-                append_bundle(settings.tsa_untrusted_chain, chain)
-            chain_path = relative_proof_path(settings, chain)
-            details["chain_path"] = chain_path
-            trust = root / f"attempt-{attempt_number:04d}-trust.pem"
-            copy_bundles_new(
-                [
-                    settings.tsa_ca_bundle,
-                    *(
-                        [settings.tsa_crl_bundle]
-                        if settings.tsa_crl_bundle is not None
-                        else []
-                    ),
-                ],
-                trust,
-            )
-            verified = verify_rfc3161_response(
-                query,
-                response,
-                trust,
-                untrusted_chain=chain,
-                crl_check=settings.tsa_crl_bundle is not None,
-            )
-            gen_time = verified["gen_time"]
-            policy = verified["policy"]
-            details["gen_time"] = gen_time
-            details["policy"] = policy
-            details["serial"] = verified["serial"]
-            status = "valid"
-        except Exception as error:  # noqa: BLE001 - provider failures are persisted
-            status = "failed"
-            error_message = f"{type(error).__name__}: {error}"[:2000]
+    prefix = f"sessions/{capture_session.id}/timestamp"
+    query_key = f"{prefix}/attempt-{attempt_number:04d}.tsq"
+    response_key = f"{prefix}/attempt-{attempt_number:04d}.tsr"
+    chain_key = f"{prefix}/attempt-{attempt_number:04d}-tsa-chain.pem"
+    with tempfile.TemporaryDirectory(prefix="chitaozinho-rfc3161-") as directory:
+        root = Path(directory)
+        query = root / "request.tsq"
+        response = root / "response.tsr"
+        create_rfc3161_query(capture_session.manifest_hash, query)
+        status = "pending"
+        details: dict[str, str] = {"request_path": query_key}
+        error_message = None
+        gen_time = None
+        policy = None
+        response_path = None
+        chain_path = None
+        if settings.tsa_url:
+            try:
+                request_rfc3161_timestamp(settings.tsa_url, query.read_bytes(), response)
+                response_path = response_key
+                details["response_path"] = response_path
+                if settings.tsa_ca_bundle is None:
+                    raise ValueError("TSA CA bundle is required to trust a response")
+                chain = root / "tsa-chain.pem"
+                extract_rfc3161_chain(response, chain)
+                if settings.tsa_untrusted_chain is not None:
+                    append_bundle(settings.tsa_untrusted_chain, chain)
+                chain_path = chain_key
+                details["chain_path"] = chain_path
+                trust = root / "trust.pem"
+                copy_bundles_new(
+                    [
+                        settings.tsa_ca_bundle,
+                        *(
+                            [settings.tsa_crl_bundle]
+                            if settings.tsa_crl_bundle is not None
+                            else []
+                        ),
+                    ],
+                    trust,
+                )
+                verified = verify_rfc3161_response(
+                    query,
+                    response,
+                    trust,
+                    untrusted_chain=chain,
+                    crl_check=settings.tsa_crl_bundle is not None,
+                )
+                gen_time = verified["gen_time"]
+                policy = verified["policy"]
+                details["gen_time"] = gen_time
+                details["policy"] = policy
+                details["serial"] = verified["serial"]
+                status = "valid"
+            except Exception as error:  # noqa: BLE001 - provider failures are persisted
+                status = "failed"
+                error_message = f"{type(error).__name__}: {error}"[:2000]
+        proof_storage.put_once(query_key, query.read_bytes())
+        if response.exists():
+            proof_storage.put_once(response_key, response.read_bytes())
+        if chain_path is not None:
+            proof_storage.put_once(chain_key, chain.read_bytes())
     attempt = TimestampAttempt(
         session_id=capture_session.id,
         attempt_number=attempt_number,
         manifest_hash=capture_session.manifest_hash,
         status=status,
-        query_path=relative_proof_path(settings, query),
+        query_path=query_key,
         response_path=response_path,
         chain_path=chain_path,
         gen_time=gen_time,
@@ -152,7 +171,9 @@ def create_merkle_batch(
     session_ids: list[str],
     *,
     submit_ots: bool,
+    proof_storage: ProofStorage | None = None,
 ) -> MerkleBatch:
+    proof_storage = proof_storage or create_proof_storage(settings)
     unique_ids = sorted(set(session_ids))
     if not unique_ids or len(unique_ids) > 100 or len(unique_ids) != len(session_ids):
         raise ValueError("Merkle batch requires 1 to 100 unique sessions")
@@ -167,41 +188,54 @@ def create_merkle_batch(
     ]
     proofs = build_merkle_proofs(leaves)
     batch_id = uuid.uuid4().hex
-    root = settings.proofs_path / "merkle" / batch_id
-    root_file = root / "root.bin"
-    proof_file = root / "root.bin.ots"
-    status = "not_submitted"
-    if submit_ots:
-        stamp_ots(
-            proofs[0].root_hash,
-            root_file,
-            proof_file,
-            [value for value in settings.ots_calendars.split(",") if value],
-        )
-        status = "pending_confirmation"
-    else:
-        root_file.parent.mkdir(parents=True, exist_ok=True)
-        with root_file.open("xb") as output:
-            output.write(bytes.fromhex(proofs[0].root_hash[7:]))
+    root_key = f"merkle/{batch_id}/root.bin"
+    proof_key = f"merkle/{batch_id}/root.bin.ots"
+    with tempfile.TemporaryDirectory(prefix="chitaozinho-ots-stamp-") as directory:
+        temporary_root = Path(directory)
+        root_file = temporary_root / "root.bin"
+        proof_file = temporary_root / "root.bin.ots"
+        status = "not_submitted"
+        if submit_ots:
+            stamp_ots(
+                proofs[0].root_hash,
+                root_file,
+                proof_file,
+                [
+                    value.strip()
+                    for value in settings.ots_calendars.split(",")
+                    if value.strip()
+                ],
+            )
+            status = "pending_confirmation"
+        else:
+            root_file.write_bytes(bytes.fromhex(proofs[0].root_hash[7:]))
+        proof_storage.put_once(root_key, root_file.read_bytes())
+        if proof_file.exists():
+            proof_storage.put_once(proof_key, proof_file.read_bytes())
     batch = MerkleBatch(
         id=batch_id,
         root_hash=proofs[0].root_hash,
         status=status,
-        root_path=relative_proof_path(settings, root_file),
-        ots_proof_path=(
-            relative_proof_path(settings, proof_file) if proof_file.exists() else None
-        ),
+        root_path=root_key,
+        ots_proof_path=proof_key if submit_ots else None,
         created_at=datetime.now(UTC),
     )
     database.add(batch)
     for capture_session, proof in zip(sessions, proofs, strict=True):
-        membership_path = root / f"{capture_session.id}.proof.json"
-        write_merkle_proof(proof, membership_path)
+        membership_key = (
+            f"sessions/{capture_session.id}/merkle/{batch_id}.proof.json"
+        )
+        with tempfile.TemporaryDirectory(
+            prefix="chitaozinho-merkle-membership-"
+        ) as directory:
+            membership_path = Path(directory) / "membership.json"
+            write_merkle_proof(proof, membership_path)
+            proof_storage.put_once(membership_key, membership_path.read_bytes())
         database.add(
             MerkleMembership(
                 batch_id=batch_id,
                 session_id=capture_session.id,
-                proof_path=relative_proof_path(settings, membership_path),
+                proof_path=membership_key,
                 proof=proof.as_dict(),
             )
         )
@@ -211,10 +245,10 @@ def create_merkle_batch(
             signer,
             capture_session,
             blockchain={
-                "merkle_proof_path": relative_proof_path(settings, membership_path),
+                "merkle_proof_path": membership_key,
                 **(
-                    {"ots_proof_path": relative_proof_path(settings, proof_file)}
-                    if proof_file.exists()
+                    {"ots_proof_path": proof_key}
+                    if submit_ots
                     else {}
                 ),
                 "checked_at": rfc3339(datetime.now(UTC)),
@@ -239,7 +273,10 @@ def upgrade_merkle_batch(
     settings: Settings,
     signer: ServerSigner,
     batch: MerkleBatch,
+    *,
+    proof_storage: ProofStorage | None = None,
 ) -> OtsComplement:
+    proof_storage = proof_storage or create_proof_storage(settings)
     batch_statement = select(MerkleBatch).where(MerkleBatch.id == batch.id)
     if database.get_bind().dialect.name == "postgresql":
         batch_statement = batch_statement.with_for_update()
@@ -249,34 +286,46 @@ def upgrade_merkle_batch(
     batch = locked_batch
     if batch.ots_proof_path is None:
         raise ValueError("Merkle batch has no original OpenTimestamps proof")
-    sequence = (
-        database.scalar(
-            select(func.count(OtsComplement.id)).where(
-                OtsComplement.batch_id == batch.id
-            )
-        )
-        or 0
-    ) + 1
-    original = settings.proofs_path / batch.ots_proof_path
-    complement_path = (
-        settings.proofs_path
-        / "merkle"
-        / batch.id
-        / "complements"
-        / f"upgrade-{sequence:04d}.ots"
+    latest_complement = database.scalar(
+        select(OtsComplement)
+        .where(OtsComplement.batch_id == batch.id)
+        .order_by(OtsComplement.sequence.desc())
+        .limit(1)
     )
-    original_hash = sha256_identifier(original.read_bytes())
-    upgrade_ots(original, complement_path)
-    if sha256_identifier(original.read_bytes()) != original_hash:
-        raise RuntimeError("original OpenTimestamps proof was modified")
-    proof_hash = sha256_identifier(complement_path.read_bytes())
-    root_file = settings.proofs_path / batch.root_path
-    proof_status = verify_ots(root_file, complement_path)
+    sequence = (latest_complement.sequence if latest_complement is not None else 0) + 1
+    source_key = (
+        latest_complement.proof_path
+        if latest_complement is not None
+        else batch.ots_proof_path
+    )
+    complement_key = f"merkle/{batch.id}/complements/upgrade-{sequence:04d}.ots"
+    with tempfile.TemporaryDirectory(prefix="chitaozinho-ots-upgrade-") as directory:
+        temporary = Path(directory)
+        source = temporary / "source.ots"
+        complement_path = temporary / "complement.ots"
+        root_file = temporary / "root.bin"
+        source.write_bytes(proof_storage.read(source_key))
+        root_file.write_bytes(proof_storage.read(batch.root_path))
+        if not upgrade_ots(source, complement_path):
+            raise OtsPendingConfirmation("OpenTimestamps proof is still pending")
+        proof_status = inspect_ots(complement_path)
+        if (
+            proof_status == "bitcoin_attestation_available"
+            and settings.ots_bitcoin_node_url is not None
+        ):
+            proof_status = verify_ots(
+                root_file,
+                complement_path,
+                settings.ots_bitcoin_node_url,
+            )
+        complement_bytes = complement_path.read_bytes()
+        proof_hash = sha256_identifier(complement_bytes)
+        proof_storage.put_once(complement_key, complement_bytes)
     complement = OtsComplement(
         id=f"{batch.id}-{sequence:04d}",
         batch_id=batch.id,
         sequence=sequence,
-        proof_path=relative_proof_path(settings, complement_path),
+        proof_path=complement_key,
         proof_hash=proof_hash,
         status=proof_status,
         created_at=datetime.now(UTC),
@@ -340,7 +389,7 @@ def append_attestation(
     sequence = 0 if previous is None else previous.sequence + 1
     attestation_id = f"{capture_session.id}-{sequence + 1:04d}"
     document = {
-        "schema_version": "0.1.0",
+        "schema_version": "0.1.1",
         "attestation_id": attestation_id,
         "previous_attestation_hash": (
             None if previous is None else previous.document_hash
@@ -382,10 +431,6 @@ def lock_capture_sessions(
     if database.get_bind().dialect.name == "postgresql":
         statement = statement.with_for_update()
     return list(database.scalars(statement))
-
-
-def relative_proof_path(settings: Settings, path: Path) -> str:
-    return path.relative_to(settings.proofs_path).as_posix()
 
 
 def copy_bundles_new(sources: list[Path], target: Path) -> None:

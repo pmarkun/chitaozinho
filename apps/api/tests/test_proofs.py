@@ -13,7 +13,9 @@ from chitaozinho_api.proofs import (
     MerkleStep,
     build_merkle_proofs,
     create_rfc3161_query,
+    inspect_ots,
     parse_openssl_time,
+    stamp_ots,
     verify_merkle_proof,
     verify_rfc3161_response,
 )
@@ -68,6 +70,64 @@ def test_merkle_proof_detects_tampering() -> None:
 
 def test_openssl_timestamp_is_normalized_to_rfc3339() -> None:
     assert parse_openssl_time("Jul 30 19:43:49 2026 GMT") == "2026-07-30T19:43:49Z"
+
+
+def test_ots_stamp_requires_two_responses_from_public_calendars(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str]) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        source = Path(command[-1])
+        source.with_name(source.name + ".ots").write_bytes(b"pending-proof")
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(proofs, "run_checked", fake_run)
+    root = tmp_path / "root.bin"
+    proof = tmp_path / "proof.ots"
+    calendars = [
+        "https://alice.btc.calendar.opentimestamps.org",
+        "https://bob.btc.calendar.opentimestamps.org",
+        "https://finney.calendar.eternitywall.com",
+        "https://ots.btc.catallaxy.com",
+    ]
+    stamp_ots("sha256:" + ("42" * 32), root, proof, calendars)
+
+    assert proof.read_bytes() == b"pending-proof"
+    assert calls[0][:6] == ["ots", "--no-cache", "stamp", "-m", "2", "--calendar"]
+    assert sum(value == "--calendar" for value in calls[0]) == 4
+
+    with pytest.raises(ValueError, match="at least two"):
+        stamp_ots("sha256:" + ("43" * 32), tmp_path / "other", proof, calendars[:1])
+
+
+@pytest.mark.parametrize(
+    ("inspection", "expected"),
+    [
+        ("verify PendingAttestation('https://calendar')", "pending_confirmation"),
+        ("verify BitcoinBlockHeaderAttestation(900000)", "bitcoin_attestation_available"),
+        ("unknown", "verification_failed"),
+    ],
+)
+def test_ots_inspection_distinguishes_proof_from_node_verification(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    inspection: str,
+    expected: str,
+) -> None:
+    monkeypatch.setattr(
+        proofs,
+        "run_checked",
+        lambda command: subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=inspection,
+            stderr="",
+        ),
+    )
+    assert inspect_ots(tmp_path / "proof.ots") == expected
 
 
 def test_rfc3161_chain_is_verified_at_signed_generation_time(

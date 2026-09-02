@@ -48,6 +48,25 @@ AppRole SecretIDs must never enter Git, build artifacts or Railway logs.
 6. Redeploy API and worker. `/readyz` must remain unavailable while OpenBao is
    sealed and become healthy after unseal without any local-key fallback.
 
+## OpenTimestamps público
+
+O serviço privado `ots-processor` executa `python -m
+chitaozinho_api.ots_processor` a cada 15 minutos e termina após o lote. Ele usa
+o PostgreSQL para coordenação e o Bucket para compartilhar provas com API e
+worker; não monta volume Railway.
+
+O beta usa quatro calendários públicos e gratuitos, sem segredo:
+
+- `alice.btc.calendar.opentimestamps.org`;
+- `bob.btc.calendar.opentimestamps.org`;
+- `finney.calendar.eternitywall.com`;
+- `ots.btc.catallaxy.com`.
+
+Sem `CHITAOZINHO_OTS_BITCOIN_NODE_URL`, o estado máximo automático é
+`bitcoin_attestation_available`. Configurar um Bitcoin Core podado permite a
+verificação servidor-side e a promoção para `confirmed`; isso não é necessário
+para criar, atualizar, baixar ou verificar a prova em outro nó.
+
 ## Operations and rollback
 
 - Daily cron runs at 03:15 UTC. A fully deleted session becomes `expired` and

@@ -259,7 +259,7 @@ def resend_magic_link_sender(settings: Settings) -> MagicLinkSender:
                 "Accept": "application/json",
                 "Authorization": f"Bearer {settings.resend_api_key}",
                 "Content-Type": "application/json",
-                "User-Agent": "chitaozinho-api/0.1.0",
+                "User-Agent": "chitaozinho-api/0.1.1",
             },
         )
         try:

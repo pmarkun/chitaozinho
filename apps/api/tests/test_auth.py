@@ -168,7 +168,7 @@ def test_resend_sender_uses_bounded_http_api_without_sdk() -> None:
     assert opener.request is not None
     assert opener.request.full_url == "https://api.resend.com/emails"
     assert opener.request.get_header("Authorization").startswith("Bearer re_")
-    assert opener.request.get_header("User-agent") == "chitaozinho-api/0.1.0"
+    assert opener.request.get_header("User-agent") == "chitaozinho-api/0.1.1"
     payload = json.loads(opener.request.data)
     assert payload["to"] == ["person@example.com"]
     assert payload["from"] == "Chitãozinho <beta@example.test>"
