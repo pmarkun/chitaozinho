@@ -107,11 +107,34 @@ def validate_graph(graph: dict[str, Any]) -> None:
             raise ValueError("OpenTimestamps must remain enabled in beta")
         if literal("CHITAOZINHO_EMAIL_PROVIDER") != "resend":
             raise ValueError("beta email must use the Resend HTTP API")
-        for key in ("CHITAOZINHO_RESEND_API_KEY", "CHITAOZINHO_RESEND_FROM"):
-            if variables.get(key, {}).get("type") != "preserve":
-                raise ValueError("Resend credentials must remain secret")
-        if variables.get("CHITAOZINHO_OPENBAO_ROLE_ID", {}).get("type") != "preserve":
-            raise ValueError("OpenBao AppRole must remain secret")
+
+        def secret_is_wired(
+            key: str,
+            service_name: str = name,
+            service_variables: dict = variables,
+        ) -> bool:
+            variable = service_variables.get(key, {})
+            if service_name == "ots-processor":
+                return variable == {
+                    "type": "reference",
+                    "resource": "service.worker",
+                    "output": key,
+                }
+            return variable.get("type") == "preserve"
+
+        for key in (
+            "CHITAOZINHO_AUTH_TOKEN_PEPPER",
+            "CHITAOZINHO_METRICS_TOKEN",
+            "CHITAOZINHO_OPENBAO_ROLE_ID",
+            "CHITAOZINHO_OPENBAO_SECRET_ID",
+            "CHITAOZINHO_RESEND_API_KEY",
+            "CHITAOZINHO_RESEND_FROM",
+            "CHITAOZINHO_SERVER_CERTIFICATE_JSON",
+            "CHITAOZINHO_SERVER_REVOCATION_LIST_JSON",
+            "CHITAOZINHO_SERVER_ROOT_PUBLIC_JSON",
+        ):
+            if not secret_is_wired(key):
+                raise ValueError(f"{name}.{key} must remain a secret or internal reference")
         if "CHITAOZINHO_OPENBAO_TOKEN" in variables:
             raise ValueError("static OpenBao token is forbidden")
 

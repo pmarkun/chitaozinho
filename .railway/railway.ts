@@ -106,6 +106,28 @@ export default defineRailway(() => {
     env: backendEnv,
   });
 
+  const otsEnv = {
+    ...backendEnv,
+    CHITAOZINHO_AUTH_TOKEN_PEPPER: ref(worker, "CHITAOZINHO_AUTH_TOKEN_PEPPER"),
+    CHITAOZINHO_METRICS_TOKEN: ref(worker, "CHITAOZINHO_METRICS_TOKEN"),
+    CHITAOZINHO_OPENBAO_ROLE_ID: ref(worker, "CHITAOZINHO_OPENBAO_ROLE_ID"),
+    CHITAOZINHO_OPENBAO_SECRET_ID: ref(worker, "CHITAOZINHO_OPENBAO_SECRET_ID"),
+    CHITAOZINHO_RESEND_API_KEY: ref(worker, "CHITAOZINHO_RESEND_API_KEY"),
+    CHITAOZINHO_RESEND_FROM: ref(worker, "CHITAOZINHO_RESEND_FROM"),
+    CHITAOZINHO_SERVER_CERTIFICATE_JSON: ref(
+      worker,
+      "CHITAOZINHO_SERVER_CERTIFICATE_JSON",
+    ),
+    CHITAOZINHO_SERVER_REVOCATION_LIST_JSON: ref(
+      worker,
+      "CHITAOZINHO_SERVER_REVOCATION_LIST_JSON",
+    ),
+    CHITAOZINHO_SERVER_ROOT_PUBLIC_JSON: ref(
+      worker,
+      "CHITAOZINHO_SERVER_ROOT_PUBLIC_JSON",
+    ),
+  };
+
   const otsProcessor = fn("ots-processor", {
     source,
     build: { builder: "DOCKERFILE", dockerfilePath: "Dockerfile" },
@@ -115,7 +137,7 @@ export default defineRailway(() => {
       restartPolicyType: "NEVER",
       limitOverride: { containers: { memoryBytes: 256 * mib } },
     },
-    env: backendEnv,
+    env: otsEnv,
   });
 
   const openbao = service("openbao", {
