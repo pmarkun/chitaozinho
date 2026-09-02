@@ -12,7 +12,7 @@ module.exports = {
   },
   webServer: {
     command:
-      "CHITAOZINHO_API_BASE_URL=https://api-staging.up.railway.app " +
+      "CHITAOZINHO_API_BASE_URL=https://api-staging-db23.up.railway.app " +
       "CHITAOZINHO_VERIFIER_URL=https://verifier-web-staging.up.railway.app/validar " +
       "CHITAOZINHO_ENVIRONMENT=beta pnpm build && " +
       "python -m http.server 4173 --bind 127.0.0.1 --directory dist",
