@@ -256,3 +256,8 @@ refatoração aumentaria o risco sem melhorar o onboarding.
       `sha256:820f0160f9fa745af78d3f4b1d0509f4adbd3034cd50516307d1f93da3afe6a7`.
 - [x] Documentação reduzida de 19 para 8 arquivos em `docs/`.
 - [x] Guard de higiene incorporado ao gate principal e executado com sucesso.
+- [x] Bootstrap em clone limpo revelou e corrigiu a divergência entre pnpm 11
+      do ambiente Nix e pnpm 10 declarado pelo projeto; ambos agora usam a
+      versão 10.34.5 travada pelo `flake.lock`.
+- [x] Um segundo clone sem hardlinks instalou Python e JavaScript apenas pelos
+      lockfiles e concluiu `./scripts/check` com sucesso.
