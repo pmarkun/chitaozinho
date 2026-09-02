@@ -26,7 +26,7 @@ Marque um item somente quando houver evidência verificável: teste automatizado
 
 ### Bloqueiam a POC probatória
 
-- [x] **DEC-013 — TSA:** a POC pode usar uma TSA RFC 3161 confiável; o gate para comparar opções brasileiras antes de produção está em [`docs/tsa-evaluation.md`](docs/tsa-evaluation.md).
+- [x] **DEC-013 — TSA:** a POC pode usar uma TSA RFC 3161 confiável; o gate para comparar opções brasileiras antes de produção está em [`docs/operations.md`](docs/operations.md#tsa-rfc-3161).
 - [x] **DEC-014 — Trust store:** raízes TSA explícitas e versionadas; atualizações do trust store devem ser assinadas.
 - [x] **DEC-015 — Storage:** Garage local e Ceph RGW Squid `19.2.5`
   self-hosted com Object Lock, imagem fixada por digest e OpenBao/Vault como

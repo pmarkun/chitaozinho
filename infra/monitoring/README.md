@@ -2,7 +2,7 @@
 
 Railway verifica `/readyz`, que testa PostgreSQL e storage antes de liberar
 tráfego. Os procedimentos de diagnóstico, recuperação e rollback estão em
-[`docs/runbooks.md`](../../docs/runbooks.md).
+[`docs/operations.md`](../../docs/operations.md).
 
 `/metrics` expõe contadores e duração agregada de requisições no formato
 Prometheus. Em staging e produção ele exige

@@ -17,10 +17,14 @@ bao policy write chitaozinho-signing-runtime \
   infra/openbao/signing-runtime-policy.hcl
 ```
 
-Use autenticação de máquina com token curto e renovável associado somente a
-essa policy. Configure o endpoint HTTPS, token, nome e versão exata da chave nas
-variáveis `CHITAOZINHO_OPENBAO_*`. O token é secreto, mas a chave privada nunca
-sai do OpenBao.
+Use autenticação de máquina por AppRole, com RoleID e SecretID separados para
+API e worker. A aplicação faz login, guarda o token de lease apenas em memória,
+renova quando permitido e falha fechada se não conseguir autenticar. Token
+estático é aceito somente no desenvolvimento e nos testes.
+
+Configure endpoint HTTPS, CA interna, RoleID, SecretID, nome e versão exata da
+chave nas variáveis `CHITAOZINHO_OPENBAO_*`. Credenciais são secretas, mas a
+chave privada nunca sai do OpenBao.
 
 Antes de ativar uma versão, leia sua chave pública, emita o certificado com a
 raiz offline e configure a versão explicitamente. Para rotacionar: crie uma nova

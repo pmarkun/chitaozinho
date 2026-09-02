@@ -26,6 +26,7 @@ CHITAOZINHO_RUN_SERVICE_INTEGRATION=1 \
 ```
 
 Local development uses the built-in development identity. Public environments
-require the magic-link, cookie, SMTP and owner-isolation flow documented in
-`docs/authentication.md`; startup fails closed when that configuration is
+require the magic-link, secure-cookie and owner-isolation flow documented in
+[`docs/authentication.md`](../../docs/authentication.md). The Railway beta uses
+the Resend HTTP API; startup fails closed when its public configuration is
 incomplete.

@@ -1,13 +1,25 @@
 # Changelog
 
-All notable changes to Chitãozinho are documented here.
-
-The project follows Semantic Versioning once the first public release exists.
+Mudanças relevantes do Chitãozinho são registradas aqui. As versões seguem
+[Semantic Versioning](https://semver.org/) e os artefatos publicados estão nas
+[releases do GitHub](https://github.com/pmarkun/chitaozinho/releases).
 
 ## Unreleased
 
-- Initial repository, protocol schemas and cross-language cryptographic vectors.
-- Reproducible non-root OCI image and declarative Railway service templates.
-- Offline-root operational key certificates and signed cumulative revocations.
-- Verified S3 Object Lock retention for packages and proof bundles.
-- One-time magic-link authentication with owner-scoped evidence sessions.
+- Corrige o descarte de upgrades OpenTimestamps parciais antes de uma nova
+  tentativa.
+- Simplifica a estrutura e a documentação do repositório para colaboradores.
+
+## 0.1.1 — 2026-09-02
+
+- Adiciona ancoragem de raízes Merkle em calendários públicos OpenTimestamps.
+- Tenta novamente provas ainda pendentes de confirmação no Bitcoin.
+- Conecta declarativamente os secrets do cron OpenTimestamps no Railway.
+
+## 0.1.0 — 2026-09-02
+
+- Publica o beta no Railway com API, worker, expiração, PostgreSQL, Bucket,
+  OpenBao e verificador web.
+- Adiciona autenticação por magic link via Resend e isolamento por usuário.
+- Entrega extensão Chromium, pacote verificável e verificadores web e CLI.
+- Publica artefatos reproduzíveis, SBOMs e assinaturas Sigstore.

@@ -31,7 +31,7 @@
               osv-scanner
               pkg-config
               playwright-test
-              pnpm
+              pnpm_10
               postgresql_17
               python313
               ruff
