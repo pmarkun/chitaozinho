@@ -389,7 +389,7 @@ def append_attestation(
     sequence = 0 if previous is None else previous.sequence + 1
     attestation_id = f"{capture_session.id}-{sequence + 1:04d}"
     document = {
-        "schema_version": "0.1.0",
+        "schema_version": "0.1.1",
         "attestation_id": attestation_id,
         "previous_attestation_hash": (
             None if previous is None else previous.document_hash
