@@ -476,6 +476,16 @@ def test_software_commit_defaults_to_railway_git_sha(
     assert settings.software_commit == "a" * 40
 
 
+@pytest.mark.parametrize("scheme", ["postgres", "postgresql"])
+def test_railway_postgres_url_uses_psycopg_driver(scheme: str) -> None:
+    settings = Settings(
+        _env_file=None,
+        database_url=f"{scheme}://service:secret@postgres.railway.internal:5432/railway",
+    )
+
+    assert settings.database_url.startswith("postgresql+psycopg://")
+
+
 def test_api_enforces_request_rate_limit(tmp_path: Path) -> None:
     settings = Settings(
         database_url=f"sqlite:///{tmp_path / 'rate.db'}",

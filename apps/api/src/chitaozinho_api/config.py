@@ -6,7 +6,7 @@ from re import fullmatch
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
@@ -121,6 +121,16 @@ class Settings(BaseSettings):
     ots_calendars: str = (
         "https://alice.btc.calendar.opentimestamps.org,https://bob.btc.calendar.opentimestamps.org"
     )
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def use_psycopg_driver(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        for prefix in ("postgres://", "postgresql://"):
+            if value.startswith(prefix):
+                return "postgresql+psycopg://" + value[len(prefix) :]
+        return value
 
     @model_validator(mode="after")
     def production_safety(self) -> Settings:
