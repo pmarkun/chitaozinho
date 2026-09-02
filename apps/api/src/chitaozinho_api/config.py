@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from os import environ
 from pathlib import Path
 from re import fullmatch
 from typing import Literal
@@ -108,7 +109,9 @@ class Settings(BaseSettings):
     worker_retry_max_seconds: float = Field(default=3600.0, ge=1, le=86400)
     software_name: str = "Chitãozinho Client"
     software_version: str = "0.1.0"
-    software_commit: str = "development"
+    software_commit: str = Field(
+        default_factory=lambda: environ.get("RAILWAY_GIT_COMMIT_SHA", "development")
+    )
     software_build_hash: str = "sha256:" + ("0" * 64)
     software_build_hash_path: Path | None = None
     tsa_url: str | None = None

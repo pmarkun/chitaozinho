@@ -465,6 +465,17 @@ def test_empty_optional_environment_value_is_not_treated_as_configuration(
     assert settings.s3_kms_key_id is None
 
 
+def test_software_commit_defaults_to_railway_git_sha(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("CHITAOZINHO_SOFTWARE_COMMIT", raising=False)
+    monkeypatch.setenv("RAILWAY_GIT_COMMIT_SHA", "a" * 40)
+
+    settings = Settings(_env_file=None)
+
+    assert settings.software_commit == "a" * 40
+
+
 def test_api_enforces_request_rate_limit(tmp_path: Path) -> None:
     settings = Settings(
         database_url=f"sqlite:///{tmp_path / 'rate.db'}",
