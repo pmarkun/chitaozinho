@@ -140,6 +140,7 @@ def test_ots_upgrade_treats_pending_calendar_confirmation_as_retryable(
     original.write_bytes(b"pending-proof")
 
     def pending(command: list[str]) -> subprocess.CompletedProcess[str]:
+        complement.write_bytes(b"partial-calendar-upgrade")
         raise subprocess.CalledProcessError(
             1,
             command,

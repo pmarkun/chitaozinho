@@ -247,6 +247,8 @@ def upgrade_ots(original: Path, complement: Path) -> bool:
             output = f"{error.stdout or ''}\n{error.stderr or ''}".lower()
             if "pending confirmation" not in output and "timestamp not complete" not in output:
                 raise
+            shutil.copyfile(original, complement)
+            return False
         return complement.read_bytes() != before
     finally:
         complement.with_name(complement.name + ".bak").unlink(missing_ok=True)
