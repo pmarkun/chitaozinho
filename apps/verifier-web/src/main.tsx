@@ -7,16 +7,19 @@ import {
   verifyEvidencePackage,
 } from "./validator";
 import "./styles.css";
+import { Privacy } from "./privacy";
 
-type Page = "home" | "verify" | "methodology";
+type Page = "home" | "verify" | "methodology" | "privacy";
 
 const routes: Record<Page, string> = {
   home: "/",
   verify: "/validar",
   methodology: "/metodologia",
+  privacy: "/privacidade",
 };
 
 function pageFromPath(): Page {
+  if (location.pathname.startsWith("/privacidade")) return "privacy";
   if (location.pathname.startsWith("/validar")) return "verify";
   if (location.pathname.startsWith("/metodologia")) return "methodology";
   return "home";
@@ -38,7 +41,7 @@ function App() {
   }
 
   useEffect(() => {
-    document.title = `${page === "verify" ? "Validar evidência" : page === "methodology" ? "Como funciona" : "Capture e verifique"} — Evidências`;
+    document.title = `${page === "privacy" ? "Política de privacidade" : page === "verify" ? "Validar evidência" : page === "methodology" ? "Como funciona" : "Capture e verifique"} — Evidências`;
     document.getElementById("main-content")?.focus({ preventScroll: true });
   }, [page]);
 
@@ -72,10 +75,12 @@ function App() {
       {page === "home" && <Home navigate={navigate} />}
       {page === "verify" && <Verifier />}
       {page === "methodology" && <Methodology navigate={navigate} />}
+      {page === "privacy" && <Privacy />}
       <footer>
         <div>
           <strong>Evidências</strong>
           <p>Registro e verificação de evidências digitais.</p>
+          <a href="/privacidade">Política de privacidade</a>
         </div>
         <a
           className="conectas-credit"
