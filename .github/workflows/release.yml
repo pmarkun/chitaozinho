@@ -48,5 +48,5 @@ jobs:
             --verify-tag \
             --generate-notes \
             --prerelease \
-            --title "Chitãozinho ${GITHUB_REF_NAME}" \
+            --title "Evidências ${GITHUB_REF_NAME}" \
             dist/release/*

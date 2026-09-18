@@ -37,6 +37,11 @@ function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  useEffect(() => {
+    document.title = `${page === "verify" ? "Validar evidência" : page === "methodology" ? "Como funciona" : "Capture e verifique"} — Evidências`;
+    document.getElementById("main-content")?.focus({ preventScroll: true });
+  }, [page]);
+
   return (
     <>
       <a className="skip-link" href="#main-content">
@@ -44,10 +49,7 @@ function App() {
       </a>
       <header className="site-header">
         <button className="brand" onClick={() => navigate("home")}>
-          <span aria-hidden="true">C</span>
-          <span>
-            Chitãozinho <small>Evidência digital verificável</small>
-          </span>
+          Evidências
         </button>
         <nav aria-label="Principal">
           <NavButton active={page === "home"} onClick={() => navigate("home")}>
@@ -63,7 +65,7 @@ function App() {
             active={page === "methodology"}
             onClick={() => navigate("methodology")}
           >
-            Metodologia
+            Como funciona
           </NavButton>
         </nav>
       </header>
@@ -71,8 +73,23 @@ function App() {
       {page === "verify" && <Verifier />}
       {page === "methodology" && <Methodology navigate={navigate} />}
       <footer>
-        <strong>Chitãozinho</strong>
-        <span>Pacotes íntegros, rastreáveis e verificáveis.</span>
+        <div>
+          <strong>Evidências</strong>
+          <p>Registro e verificação de evidências digitais.</p>
+        </div>
+        <a
+          className="conectas-credit"
+          href="https://conectas.org/"
+          aria-label="Conectas Direitos Humanos"
+        >
+          <span>Realização</span>
+          <img
+            src="/brand/conectas.svg"
+            alt="Conectas Direitos Humanos"
+            width="190"
+            height="83"
+          />
+        </a>
       </footer>
     </>
   );
@@ -98,191 +115,125 @@ function NavButton({
   );
 }
 
-function Home({ navigate }: { navigate: (page: Page) => void }) {
-  const installUrl = import.meta.env.VITE_EXTENSION_INSTALL_URL as
-    string | undefined;
+function ExtensionDownload() {
   return (
-    <main id="main-content" className="home">
-      <section className="home-hero">
-        <div>
-          <p className="eyebrow">Evidência digital com cadeia de integridade</p>
-          <h1>Registre a web. Preserve o contexto. Comprove a integridade.</h1>
-          <p className="hero-copy">
-            Transforme conteúdo exibido no navegador em um pacote de evidência
-            digital íntegro, rastreável e verificável.
-          </p>
-          <div className="hero-actions">
-            {installUrl && (
-              <a className="primary button" href={installUrl}>
-                Instalar extensão
-              </a>
-            )}
-            <button className="primary" onClick={() => navigate("verify")}>
-              Validar uma evidência
-            </button>
-            <button
-              className="text-button"
-              onClick={() => navigate("methodology")}
-            >
-              Conhecer a metodologia →
-            </button>
-          </div>
-        </div>
-        <EvidenceCard />
-      </section>
-
-      <section className="comparison" aria-labelledby="comparison-title">
-        <p className="eyebrow">Além do print</p>
-        <h2 id="comparison-title">
-          Um registro que preserva a história completa
-        </h2>
-        <div className="comparison-grid">
-          <article>
-            <span>Print isolado</span>
-            <p>
-              Registra uma imagem sem demonstrar sua sequência, contexto ou
-              alterações posteriores.
-            </p>
-          </article>
-          <article className="highlight">
-            <span>Pacote Chitãozinho</span>
-            <p>
-              Reúne vídeo, imagens, estrutura da página, metadados, hashes,
-              assinaturas, recibos e provas de tempo.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section className="steps" aria-labelledby="steps-title">
-        <p className="eyebrow">Como funciona</p>
-        <h2 id="steps-title">Da coleta à verificação em três etapas</h2>
-        <div className="three-columns">
-          <article>
-            <b>01</b>
-            <h3>Registre</h3>
-            <p>
-              Navegue pelo conteúdo mostrando origem, datas, perfis e contexto
-              relevante.
-            </p>
-          </article>
-          <article>
-            <b>02</b>
-            <h3>Preserve</h3>
-            <p>
-              Receba um ZIP assinado que vincula arquivos, sequência da captura
-              e recibos do servidor.
-            </p>
-          </article>
-          <article>
-            <b>03</b>
-            <h3>Valide</h3>
-            <p>
-              Confirme a integridade online ou offline, sem enviar os arquivos
-              para o Chitãozinho.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section className="guarantees" aria-labelledby="guarantees-title">
-        <div>
-          <p className="eyebrow">Forças do projeto</p>
-          <h2 id="guarantees-title">Cada camada reforça a evidência</h2>
-        </div>
-        <ul>
+    <section className="extension-download" aria-labelledby="extension-heading">
+      <h2 id="extension-heading">Quer capturar uma evidência?</h2>
+      <p>
+        Baixe a extensão beta para Chrome 116 ou superior no computador. Para
+        validar um pacote nesta página, não é preciso instalar nada.
+      </p>
+      <a
+        className="primary button"
+        href="/downloads/chitaozinho-extension-0.1.1.zip"
+        download
+      >
+        Baixar extensão beta · ZIP
+      </a>
+      <details>
+        <summary>Como instalar no Chrome</summary>
+        <ol>
+          <li>Baixe o ZIP e descompacte em uma pasta permanente.</li>
           <li>
-            <strong>Integridade verificável</strong>
-            <span>
-              Qualquer alteração nos bytes é localizada por hashes e pelo índice
-              assinado.
-            </span>
+            Digite <code>chrome://extensions</code> na barra de endereços.
           </li>
           <li>
-            <strong>Sequência rastreável</strong>
-            <span>
-              Remoção, duplicação ou reordenação rompe a cadeia criptográfica.
-            </span>
+            Ative o <strong>Modo do desenvolvedor</strong>.
           </li>
           <li>
-            <strong>Persistência comprovada</strong>
-            <span>
-              Recibos são assinados somente depois do armazenamento de cada
-              parte.
-            </span>
+            Clique em <strong>Carregar sem compactação</strong> e selecione a
+            pasta que contém o arquivo <code>manifest.json</code>.
           </li>
           <li>
-            <strong>Marcos temporais externos</strong>
-            <span>
-              RFC 3161 e OpenTimestamps vinculam o hash a fontes independentes
-              de tempo.
-            </span>
+            Abra a extensão pelo menu do Chrome. Nesta versão 0.1.1, ela ainda
+            aparece como Chitãozinho, o codinome do projeto Evidências.
           </li>
-          <li>
-            <strong>Preservação imutável</strong>
-            <span>
-              Object Lock protege os pacotes durante o prazo de retenção
-              configurado.
-            </span>
-          </li>
-          <li>
-            <strong>Auditoria independente</strong>
-            <span>
-              Metodologia versionada e verificadores abertos permitem reproduzir
-              a análise.
-            </span>
-          </li>
-        </ul>
-      </section>
-
-      <section className="closing-cta">
-        <p className="eyebrow">Verificação local</p>
-        <h2>Já recebeu um pacote Chitãozinho?</h2>
+        </ol>
         <p>
-          Confira sua integridade agora. Os arquivos permanecem no seu
-          dispositivo.
+          A instalação é manual, não automática. Mantenha a pasta no computador.
+          Esta opção não instala a extensão no celular.
         </p>
-        <button className="primary" onClick={() => navigate("verify")}>
-          Validar evidência
-        </button>
-      </section>
-    </main>
+      </details>
+      <p className="extension-note">
+        Versão 0.1.1 · Beta para dados não críticos. Armazenamento por 30 dias,
+        sem garantia de imutabilidade ou Object Lock.
+      </p>
+    </section>
   );
 }
 
-function EvidenceCard() {
+function Home({ navigate }: { navigate: (page: Page) => void }) {
   return (
-    <div
-      className="evidence-card"
-      aria-label="Exemplo de pacote de evidência íntegro"
-    >
-      <div className="evidence-card-head">
-        <span className="seal">✓</span>
-        <span>
-          <small>Pacote de evidência</small>
-          <strong>Integridade confirmada</strong>
-        </span>
-      </div>
-      <dl>
+    <main id="main-content" tabIndex={-1} className="home">
+      <section className="home-hero">
         <div>
-          <dt>Arquivos</dt>
-          <dd>Verificados</dd>
+          <p className="eyebrow">Registro digital · Beta</p>
+          <h1>
+            Registre evidências digitais. Compartilhe registros verificáveis.
+          </h1>
+          <p className="hero-copy">
+            Capture conteúdos da internet com seu contexto e reúna arquivos,
+            informações da coleta e assinaturas digitais em um único pacote.
+            Compartilhe esse registro para que outras pessoas possam conferir
+            sua integridade.
+          </p>
+          <div className="hero-actions">
+            <a className="primary button" href="#extension-heading">
+              Baixar extensão
+            </a>
+            <button className="secondary" onClick={() => navigate("verify")}>
+              Verificar evidência
+            </button>
+          </div>
+          <p className="field-help">
+            Chrome no computador · Instalação manual nesta fase
+          </p>
         </div>
+        <ol className="capture-steps" aria-label="Da captura à verificação">
+          <li>
+            <span aria-hidden="true">01</span>
+            <div>
+              <h2>Registre com contexto</h2>
+              <p>Capture o conteúdo, sua origem e a sequência da navegação.</p>
+            </div>
+          </li>
+          <li>
+            <span aria-hidden="true">02</span>
+            <div>
+              <h2>Organize e compartilhe</h2>
+              <p>
+                Baixe um pacote com os arquivos e as informações que documentam
+                a coleta, pronto para compartilhar.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span aria-hidden="true">03</span>
+            <div>
+              <h2>Confira a integridade</h2>
+              <p>
+                Quem recebe pode verificar se os arquivos correspondem ao
+                registro assinado, sem precisar acessar sua conta.
+              </p>
+            </div>
+          </li>
+        </ol>
+      </section>
+      <section className="beta-notice" aria-labelledby="beta-heading">
+        <h2 id="beta-heading">Antes de começar</h2>
         <div>
-          <dt>Sequência</dt>
-          <dd>Íntegra</dd>
+          <p>
+            Beta para dados não críticos. Arquivos hospedados por 30 dias, sem
+            garantia de imutabilidade ou Object Lock.
+          </p>
+          <p>
+            Preserve o ZIP original em um local seguro e compartilhe-o apenas
+            com as pessoas que precisam ter acesso ao registro.
+          </p>
         </div>
-        <div>
-          <dt>Assinaturas</dt>
-          <dd>Válidas</dd>
-        </div>
-        <div>
-          <dt>Prova temporal</dt>
-          <dd>Confirmada</dd>
-        </div>
-      </dl>
-      <code>sha256:4c7a…91ef</code>
-    </div>
+      </section>
+      <ExtensionDownload />
+    </main>
   );
 }
 
@@ -326,10 +277,10 @@ function Verifier() {
   }
 
   return (
-    <main id="main-content" className="verify-page">
+    <main id="main-content" tabIndex={-1} className="verify-page">
       <section className="page-intro">
         <p className="eyebrow">Verificação independente</p>
-        <h1>Confirme a integridade de uma evidência</h1>
+        <h1>Valide um pacote de evidências</h1>
         <p>
           Todo o processamento acontece neste navegador. Nenhum byte dos
           arquivos selecionados é transmitido.
@@ -339,60 +290,83 @@ function Verifier() {
         <div className="panel-heading">
           <div>
             <span>Passo 1</span>
-            <h2 id="files-heading">Selecione o pacote principal</h2>
+            <h2 id="files-heading">Escolha o ZIP original</h2>
           </div>
           <span className="local-badge">Processamento local</span>
         </div>
-        <FileField
-          id="package"
-          label="ZIP da evidência"
-          required
-          accept=".zip,application/zip"
-          file={packageFile}
-          onChange={setPackageFile}
-          prominent
-        />
-        <details className="optional-section">
-          <summary>Adicionar comprovantes opcionais</summary>
-          <p>
-            O checksum e o complemento podem confirmar camadas adicionais quando
-            acompanham o pacote.
-          </p>
-          <div className="file-grid">
-            <FileField
-              id="checksum"
-              label="Checksum .sha256"
-              accept=".sha256,text/plain"
-              file={checksumFile}
-              onChange={setChecksumFile}
-            />
-            <FileField
-              id="proofs"
-              label="ZIP complementar de provas"
-              accept=".zip,application/zip"
-              file={proofFile}
-              onChange={setProofFile}
-            />
-          </div>
-        </details>
-        <details className="optional-section">
-          <summary>Verificação avançada de confiança</summary>
-          <label className="key-field" htmlFor="trusted-key">
-            Chave pública operacional <span>Ed25519 em hexadecimal</span>
-            <input
-              id="trusted-key"
-              value={trustedKey}
-              onChange={(event) => setTrustedKey(event.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="64 caracteres hexadecimais"
-            />
-          </label>
-          <p className="field-help">
-            Uma chave obtida separadamente permite confirmar a identidade
-            operacional que assinou o pacote.
-          </p>
-        </details>
+        <fieldset disabled={running} className="verification-inputs">
+          <legend className="sr-only">Arquivos e opções de verificação</legend>
+          <FileField
+            id="package"
+            label="ZIP da evidência"
+            required
+            accept=".zip,application/zip"
+            file={packageFile}
+            onChange={(file) => {
+              setPackageFile(file);
+              setChecksumFile(undefined);
+              setProofFile(undefined);
+              setReport(undefined);
+              setError("");
+            }}
+            prominent
+          />
+          <details className="optional-section">
+            <summary>Adicionar comprovantes opcionais</summary>
+            <p>
+              O checksum e o complemento podem confirmar camadas adicionais
+              quando acompanham o pacote.
+            </p>
+            <div className="file-grid">
+              <FileField
+                key={`checksum-${packageFile?.name}-${packageFile?.lastModified}`}
+                id="checksum"
+                label="Checksum .sha256"
+                accept=".sha256,text/plain"
+                file={checksumFile}
+                onChange={(file) => {
+                  setChecksumFile(file);
+                  setReport(undefined);
+                  setError("");
+                }}
+              />
+              <FileField
+                key={`proofs-${packageFile?.name}-${packageFile?.lastModified}`}
+                id="proofs"
+                label="ZIP complementar de provas"
+                accept=".zip,application/zip"
+                file={proofFile}
+                onChange={(file) => {
+                  setProofFile(file);
+                  setReport(undefined);
+                  setError("");
+                }}
+              />
+            </div>
+          </details>
+          <details className="optional-section">
+            <summary>Verificação avançada de confiança</summary>
+            <label className="key-field" htmlFor="trusted-key">
+              Chave pública operacional <span>Ed25519 em hexadecimal</span>
+              <input
+                id="trusted-key"
+                value={trustedKey}
+                onChange={(event) => {
+                  setTrustedKey(event.target.value);
+                  setReport(undefined);
+                  setError("");
+                }}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="64 caracteres hexadecimais"
+              />
+            </label>
+            <p className="field-help">
+              Uma chave obtida separadamente permite confirmar a identidade
+              operacional que assinou o pacote.
+            </p>
+          </details>
+        </fieldset>
         <button
           className="primary verify-button"
           disabled={running || !packageFile}
@@ -409,7 +383,11 @@ function Verifier() {
           )}
         </div>
       </section>
-      {report && <Report report={report} />}
+      <div aria-live="polite">{report && <Report report={report} />}</div>
+      <p className="field-help">
+        A verificação não confirma a veracidade do conteúdo nem substitui a
+        análise do contexto.
+      </p>
     </main>
   );
 }
@@ -546,14 +524,15 @@ function Report({ report }: { report: VerificationReport }) {
 
 function Methodology({ navigate }: { navigate: (page: Page) => void }) {
   return (
-    <main id="main-content" className="methodology">
+    <main id="main-content" tabIndex={-1} className="methodology">
       <section className="page-intro">
         <p className="eyebrow">Metodologia v0.2</p>
-        <h1>Como o Chitãozinho fortalece uma evidência digital</h1>
+        <h1>Como o Evidências fortalece uma evidência digital</h1>
         <p>
           A metodologia combina observação do navegador, encadeamento
           criptográfico, recibos assinados, fontes externas de tempo e
-          preservação imutável.
+          verificação independente. No beta, o armazenamento é temporário por 30
+          dias e não tem imutabilidade.
         </p>
       </section>
       <section className="attests panel">
@@ -568,8 +547,8 @@ function Methodology({ navigate }: { navigate: (page: Page) => void }) {
             Alterações, remoções, duplicações e reordenações são detectáveis.
           </li>
           <li>
-            Os recibos vinculam cada parte à persistência confirmada pelo
-            servidor.
+            Os recibos identificam o que o servidor confirmou: o registro dos
+            hashes ou, no modo de guarda remota, a persistência dos arquivos.
           </li>
           <li>
             As provas temporais vinculam o hash a fontes externas quando
@@ -601,11 +580,12 @@ function Methodology({ navigate }: { navigate: (page: Page) => void }) {
         </article>
         <article>
           <span>03</span>
-          <h2>Recibos de persistência</h2>
+          <h2>Recibos assinados</h2>
           <p>
-            O servidor recalcula os hashes e assina recibos sequenciais somente
-            depois de persistir os bytes. Reenvios divergentes são recusados e
-            registrados.
+            No modo só-hash, o servidor assina o registro dos hashes declarados
+            pela extensão, sem receber os arquivos. No modo opcional de guarda
+            remota, ele também confere os bytes e confirma a persistência.
+            Reenvios divergentes são recusados.
           </p>
         </article>
         <article>
@@ -621,17 +601,18 @@ function Methodology({ navigate }: { navigate: (page: Page) => void }) {
           <span>05</span>
           <h2>Provas de tempo</h2>
           <p>
-            RFC 3161 e OpenTimestamps demonstram que o hash do manifesto já
-            existia até os marcos validados por autoridades e pela blockchain do
-            Bitcoin.
+            O beta usa OpenTimestamps, com confirmação posterior no Bitcoin. Uma
+            prova pendente ainda não é uma confirmação. RFC 3161 é uma camada
+            prevista na arquitetura, não uma garantia deste beta.
           </p>
         </article>
         <article>
           <span>06</span>
           <h2>Preservação imutável</h2>
           <p>
-            Em ambientes probatórios, Ceph Object Lock com retenção protege
-            originais e provas contra alteração ou exclusão antecipada.
+            Fora deste beta: Ceph com Object Lock pode impedir alteração ou
+            exclusão durante a retenção. O armazenamento atual não oferece essa
+            proteção.
           </p>
         </article>
         <article>
@@ -639,8 +620,9 @@ function Methodology({ navigate }: { navigate: (page: Page) => void }) {
           <h2>Verificação independente</h2>
           <p>
             O verificador recalcula hashes e valida índice, cadeia, assinaturas,
-            recibos, completude e provas temporais online ou offline,
-            processando tudo localmente.
+            recibos e completude localmente. Esta interface confere os vínculos
+            assinados das provas temporais; a verificação criptográfica completa
+            dessas provas é feita pelo verificador de linha de comando.
           </p>
         </article>
         <article>
@@ -663,7 +645,7 @@ function Methodology({ navigate }: { navigate: (page: Page) => void }) {
         </p>
         <h2>Escopo da atestação</h2>
         <p>
-          O Chitãozinho atesta integridade técnica, continuidade da coleta,
+          O Evidências atesta integridade técnica, continuidade da coleta,
           vínculo entre artefatos e sequência e, quando a prova correspondente
           estiver presente, existência temporal dos bytes registrados. A
           apreciação jurídica considera esse conjunto técnico junto ao contexto
@@ -704,7 +686,7 @@ function htmlReport(report: VerificationReport): string {
         `<li><strong>${escapeHtml(check.label)}</strong>: ${escapeHtml(check.detail)}</li>`,
     )
     .join("");
-  return `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Verificação Chitãozinho</title><h1>Relatório de verificação</h1><p><strong>${report.result === "integral" ? "Integridade confirmada" : "Integridade confirmada com ausências declaradas"}</strong></p><dl><dt>Resultado</dt><dd>${escapeHtml(report.result)}</dd><dt>Sessão</dt><dd>${escapeHtml(report.sessionId)}</dd><dt>SHA-256</dt><dd>${escapeHtml(report.packageHash)}</dd><dt>Prova temporal</dt><dd>${escapeHtml(report.temporalProof)}</dd><dt>Confiança</dt><dd>${escapeHtml(report.trustMode)}</dd></dl><h2>Verificações</h2><ul>${checks}</ul><h2>Escopo da atestação</h2><p>Este relatório atesta a integridade técnica, a continuidade da coleta e o vínculo entre os artefatos e a sequência registrados no pacote. A apreciação jurídica considera esse conjunto técnico junto ao contexto do caso.</p></html>`;
+  return `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Verificação Evidências</title><h1>Relatório de verificação</h1><p><strong>${report.result === "integral" ? "Integridade confirmada" : "Integridade confirmada com ausências declaradas"}</strong></p><dl><dt>Resultado</dt><dd>${escapeHtml(report.result)}</dd><dt>Sessão</dt><dd>${escapeHtml(report.sessionId)}</dd><dt>SHA-256</dt><dd>${escapeHtml(report.packageHash)}</dd><dt>Prova temporal</dt><dd>${escapeHtml(report.temporalProof)}</dd><dt>Confiança</dt><dd>${escapeHtml(report.trustMode)}</dd></dl><h2>Verificações</h2><ul>${checks}</ul><h2>Escopo da atestação</h2><p>Este relatório atesta a integridade técnica, a continuidade da coleta e o vínculo entre os artefatos e a sequência registrados no pacote. A apreciação jurídica considera esse conjunto técnico junto ao contexto do caso.</p></html>`;
 }
 function escapeHtml(value: string): string {
   return value

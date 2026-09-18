@@ -1,2 +1,4 @@
+# Preserve release artifacts exactly as published and signed.
+public/downloads/
 dist
 test-results

@@ -71,7 +71,7 @@ from .observability import (
     emit_request_log,
     render_job_metrics,
 )
-from .packaging import ensure_package
+from .packaging import ensure_package, local_package_template
 from .proof_bundle import ensure_proof_bundle
 from .proof_service import (
     OtsPendingConfirmation,
@@ -131,7 +131,7 @@ def create_app(
         Base.metadata.create_all(engine)
 
     extension_origin_pattern = allowed_extension_origin_pattern(settings)
-    app = FastAPI(title="Chitãozinho API", version="0.1.1")
+    app = FastAPI(title="Evidências API", version="0.1.2")
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=extension_origin_pattern,
@@ -189,9 +189,7 @@ def create_app(
                 return await call_next(request)
             token = request.cookies.get(COOKIE_NAME)
             authorization = request.headers.get("Authorization")
-            bearer_auth = (
-                authorization is not None and authorization.startswith("Bearer ")
-            )
+            bearer_auth = authorization is not None and authorization.startswith("Bearer ")
             if bearer_auth:
                 token = authorization.removeprefix("Bearer ").strip()
             with factory() as database:
@@ -227,10 +225,7 @@ def create_app(
                         CaptureSession,
                         session_match.group(1),
                     )
-                if (
-                    owned_session is not None
-                    and owned_session.owner_user_id != user_id
-                ):
+                if owned_session is not None and owned_session.owner_user_id != user_id:
                     return JSONResponse(
                         {"detail": "session not found"},
                         status_code=status.HTTP_404_NOT_FOUND,
@@ -247,10 +242,7 @@ def create_app(
                         if owned_job is not None and owned_job.subject_id is not None
                         else None
                     )
-                if (
-                    job_session is not None
-                    and job_session.owner_user_id != user_id
-                ):
+                if job_session is not None and job_session.owner_user_id != user_id:
                     return JSONResponse(
                         {"detail": "job not found"},
                         status_code=status.HTTP_404_NOT_FOUND,
@@ -331,7 +323,8 @@ def create_app(
         try:
             with engine.connect() as connection:
                 connection.execute(text("SELECT 1"))
-            storage.check_ready()
+            if settings.evidence_mode == "remote":
+                storage.check_ready()
             if signer is not None:
                 signer.check_ready()
         except Exception:
@@ -367,11 +360,7 @@ def create_app(
         authorization = request.headers.get("Authorization")
         if authorization is not None and authorization.startswith("Bearer "):
             token = authorization.removeprefix("Bearer ").strip()
-        return {
-            "authenticated": (
-                authenticate_access_token(database, settings, token) is not None
-            )
-        }
+        return {"authenticated": (authenticate_access_token(database, settings, token) is not None)}
 
     @app.post(
         "/v1/auth/magic-links",
@@ -477,6 +466,8 @@ def create_app(
             id=uuid.uuid4().hex,
             owner_user_id=request.state.user_id,
             server_challenge=base64url_encode(secrets.token_bytes(32)),
+            evidence_mode=settings.evidence_mode,
+            storage_status="hash_only" if settings.evidence_mode == "hash_only" else "staging",
             status="created",
             next_sequence=0,
             created_at=now,
@@ -494,8 +485,13 @@ def create_app(
             session_id=capture_session.id,
             server_challenge=capture_session.server_challenge,
             server_time=now,
-            upload_policy={"max_part_size": settings.max_part_size},
-            retention_policy=advertised_retention_policy(
+            upload_policy={
+                "max_part_size": settings.max_part_size,
+                "evidence_mode": settings.evidence_mode,
+            },
+            retention_policy={"mode": "client_only", "days": None, "immutable": False}
+            if settings.evidence_mode == "hash_only"
+            else advertised_retention_policy(
                 settings.env,
                 settings.retention_days,
             ),
@@ -571,11 +567,7 @@ def create_app(
                     database,
                     session_id,
                     "event_idempotency_conflict",
-                    {
-                        "idempotency_key_hash": sha256_identifier(
-                            idempotency_key.encode()
-                        )
-                    },
+                    {"idempotency_key_hash": sha256_identifier(idempotency_key.encode())},
                 )
                 raise HTTPException(
                     status.HTTP_409_CONFLICT,
@@ -617,6 +609,11 @@ def create_app(
         return entry_response(entry, "recorded")
 
     @app.put(
+        "/v1/sessions/{session_id}/artifacts/{artifact_id}/parts/{part_number}/hash",
+        response_model=PartResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    @app.put(
         "/v1/sessions/{session_id}/artifacts/{artifact_id}/parts/{part_number}",
         response_model=PartResponse,
         status_code=status.HTTP_201_CREATED,
@@ -644,11 +641,16 @@ def create_app(
             settings,
             for_update=True,
         )
+        hash_only = capture_session.evidence_mode == "hash_only"
+        if hash_only != request.url.path.endswith("/hash"):
+            raise HTTPException(409, "evidence custody mode mismatch; update the extension")
+        if hash_only and request.headers.get("content-type") != "application/json":
+            raise HTTPException(415, "hash registration requires JSON")
         chunks: list[bytes] = []
         total_size = 0
         async for chunk in request.stream():
             total_size += len(chunk)
-            if total_size > settings.max_part_size:
+            if total_size > (256 if hash_only else settings.max_part_size):
                 raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "part exceeds size limit")
             chunks.append(chunk)
         data = b"".join(chunks)
@@ -658,6 +660,22 @@ def create_app(
                 "declared part size does not match received bytes",
             )
         expected_part_hash = sha256_identifier(data)
+        if hash_only:
+            try:
+                declaration = json.loads(data)
+                if not isinstance(declaration, dict) or set(declaration) != {"size", "part_hash"}:
+                    raise ValueError()
+                total_size = declaration["size"]
+                expected_part_hash = declaration["part_hash"]
+                if (
+                    type(total_size) is not int
+                    or not 0 <= total_size <= settings.max_part_size
+                    or not isinstance(expected_part_hash, str)
+                    or re.fullmatch(r"sha256:[0-9a-f]{64}", expected_part_hash) is None
+                ):
+                    raise ValueError()
+            except (ValueError, TypeError):
+                raise HTTPException(422, "invalid hash declaration") from None
         existing = database.scalar(
             select(ArtifactPart).where(
                 ArtifactPart.session_id == session_id,
@@ -692,6 +710,7 @@ def create_app(
                 existing.artifact_id != artifact_id
                 or existing.part_number != part_number
                 or existing.part_hash != expected_part_hash
+                or existing.size != total_size
                 or original_entry is None
                 or replay_payload != original_entry.payload
                 or x_entry_hash != original_entry.entry_hash
@@ -703,9 +722,7 @@ def create_app(
                     session_id,
                     "part_idempotency_conflict",
                     {
-                        "idempotency_key_hash": sha256_identifier(
-                            idempotency_key.encode()
-                        ),
+                        "idempotency_key_hash": sha256_identifier(idempotency_key.encode()),
                         "artifact_id": artifact_id,
                         "part_number": part_number,
                     },
@@ -758,7 +775,8 @@ def create_app(
         )
         validate_entry(database, capture_session, body)
         if (
-            entry_payload.get("artifact_id") != artifact_id
+            entry_payload.get("entry_type") != "artifact_part"
+            or entry_payload.get("artifact_id") != artifact_id
             or entry_payload.get("part_number") != part_number
             or entry_payload.get("part_hash") != expected_part_hash
         ):
@@ -768,7 +786,9 @@ def create_app(
             )
 
         try:
-            storage_key = storage.put_part(session_id, artifact_id, part_number, data)
+            storage_key = (
+                "" if hash_only else storage.put_part(session_id, artifact_id, part_number, data)
+            )
         except FileExistsError as error:
             record_incident(
                 database,
@@ -795,13 +815,13 @@ def create_app(
             artifact_id=artifact_id,
             part_number=part_number,
             part_hash=expected_part_hash,
-            size=len(data),
+            size=total_size,
             storage_key=storage_key,
-            persistence_state=storage.persistence_state,
+            persistence_state="hash_registered" if hash_only else storage.persistence_state,
             idempotency_key=idempotency_key,
         )
         receipt_payload = {
-            "protocol_version": "0.1.0",
+            "protocol_version": "0.2.0" if hash_only else "0.1.0",
             "session_id": session_id,
             "sequence": capture_session.next_sequence,
             "entry_hash": x_entry_hash,
@@ -810,7 +830,7 @@ def create_app(
             "part_hash": expected_part_hash,
             "previous_receipt_hash": capture_session.last_receipt_hash,
             "server_time": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-            "persistence_state": storage.persistence_state,
+            "persistence_state": "hash_registered" if hash_only else storage.persistence_state,
         }
         receipt_hash = sha256_identifier(canonical_bytes(receipt_payload))
         receipt = Receipt(
@@ -827,7 +847,7 @@ def create_app(
         capture_session.updated_at = datetime.now(UTC)
         append_audit_event(
             database,
-            "artifact_part_persisted",
+            "artifact_hash_registered" if hash_only else "artifact_part_persisted",
             subject_id=session_id,
             details={
                 "artifact_id": artifact_id,
@@ -882,6 +902,8 @@ def create_app(
             response.status_code = status.HTTP_200_OK
             return artifact_response(existing)
 
+        if capture_session.evidence_mode == "hash_only":
+            validate_hash_artifact(body, artifact_id)
         validate_entry(database, capture_session, body.entry)
         entry_payload = body.entry.entry
         if (
@@ -913,10 +935,17 @@ def create_app(
         digest = sha256()
         actual_size = 0
         for part in parts:
-            part_bytes = storage.read(part.storage_key)
-            digest.update(part_bytes)
-            actual_size += len(part_bytes)
-        actual_hash = f"sha256:{digest.hexdigest()}"
+            if capture_session.evidence_mode == "hash_only":
+                actual_size += part.size
+            else:
+                part_bytes = storage.read(part.storage_key)
+                digest.update(part_bytes)
+                actual_size += len(part_bytes)
+        actual_hash = (
+            body.artifact_hash
+            if capture_session.evidence_mode == "hash_only"
+            else f"sha256:{digest.hexdigest()}"
+        )
         if actual_size != body.size or actual_hash != body.artifact_hash:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -997,13 +1026,14 @@ def create_app(
                 status.HTTP_409_CONFLICT,
                 "artifact already has an immutable result",
             )
+        if capture_session.evidence_mode == "hash_only":
+            validate_hash_artifact(body, artifact_id)
         validate_entry(database, capture_session, body.entry)
         entry_payload = body.entry.entry
         if (
             entry_payload.get("entry_type") != "artifact_unavailable"
             or entry_payload.get("artifact_id") != artifact_id
-            or entry_payload.get("event_data")
-            != {"status": body.status, "reason": body.reason}
+            or entry_payload.get("event_data") != {"status": body.status, "reason": body.reason}
         ):
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -1125,11 +1155,11 @@ def create_app(
         capture_session.capture_close_signature_hex = body.signature_hex
         capture_session.manifest = manifest
         capture_session.manifest_hash = manifest_hash
-        capture_session.manifest_signature_hex = active_signer.sign(
-            DOMAINS["manifest"], manifest
-        )
+        capture_session.manifest_signature_hex = active_signer.sign(DOMAINS["manifest"], manifest)
         capture_session.server_key_id = active_signer.key_id
         capture_session.status = capture_status
+        if capture_session.evidence_mode == "hash_only":
+            capture_session.package_status = "client_managed"
         capture_session.ended_at = now
         capture_session.updated_at = now
         append_audit_event(
@@ -1144,6 +1174,13 @@ def create_app(
         database.commit()
         return finalize_response(capture_session)
 
+    @app.get("/v1/sessions/{session_id}/local-package")
+    def local_package(session_id: str, database: Session = Depends(get_session)) -> dict:
+        capture = require_capture_session(database, session_id)
+        if capture.evidence_mode != "hash_only" or capture.manifest is None:
+            raise HTTPException(409, "finalized hash-only session required")
+        return local_package_template(database, require_signer(signer), capture)
+
     @app.post(
         "/v1/sessions/{session_id}/download-urls",
         response_model=DownloadUrlsResponse,
@@ -1153,7 +1190,7 @@ def create_app(
         database: Session = Depends(get_session),
     ) -> DownloadUrlsResponse:
         capture_session = require_capture_session(database, session_id)
-        require_storage_active(capture_session)
+        require_storage_active(capture_session, settings)
         if capture_session.manifest is None:
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
@@ -1164,9 +1201,7 @@ def create_app(
         query = f"download_token={token}"
         return DownloadUrlsResponse(
             package_url=f"{base}/v1/sessions/{session_id}/package?{query}",
-            checksum_url=(
-                f"{base}/v1/sessions/{session_id}/package.sha256?{query}"
-            ),
+            checksum_url=(f"{base}/v1/sessions/{session_id}/package.sha256?{query}"),
             expires_at=expires_at,
         )
 
@@ -1177,7 +1212,7 @@ def create_app(
     ) -> FileResponse:
         active_signer = require_signer(signer)
         capture_session = require_capture_session(database, session_id, for_update=True)
-        require_storage_active(capture_session)
+        require_storage_active(capture_session, settings)
         if capture_session.manifest is None:
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
@@ -1224,7 +1259,7 @@ def create_app(
     ) -> FileResponse:
         active_signer = require_signer(signer)
         capture_session = require_capture_session(database, session_id, for_update=True)
-        require_storage_active(capture_session)
+        require_storage_active(capture_session, settings)
         if capture_session.manifest is None:
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
@@ -1284,9 +1319,7 @@ def create_app(
         job, _created = get_or_create_job(
             database,
             kind="rfc3161_timestamp",
-            idempotency_key=(
-                idempotency_key or f"timestamp:{session_id}:{uuid.uuid4().hex}"
-            ),
+            idempotency_key=(idempotency_key or f"timestamp:{session_id}:{uuid.uuid4().hex}"),
             subject_id=session_id,
             payload={"manifest_hash": capture_session.manifest_hash},
         )
@@ -1467,7 +1500,8 @@ def create_app(
     ) -> FileResponse:
         active_signer = require_signer(signer)
         capture_session = require_capture_session(database, session_id, for_update=True)
-        require_storage_active(capture_session)
+        if capture_session.evidence_mode != "hash_only":
+            require_storage_active(capture_session, settings)
         try:
             bundle_path, bundle_hash, storage_status = ensure_proof_bundle(
                 database,
@@ -1535,7 +1569,9 @@ def require_signer(signer: ServerSigner | None) -> ServerSigner:
     return signer
 
 
-def require_storage_active(capture_session: CaptureSession) -> None:
+def require_storage_active(capture_session: CaptureSession, settings: Settings) -> None:
+    if capture_session.evidence_mode == "hash_only" or settings.evidence_mode == "hash_only":
+        raise HTTPException(409, "evidence downloads are disabled; use the local package")
     if (
         capture_session.storage_expired_at is not None
         or capture_session.storage_status == "expired"
@@ -1581,10 +1617,7 @@ def metrics_access_allowed(
     if settings.env in {"development", "test"}:
         return True
     expected = f"Bearer {settings.metrics_token}"
-    return (
-        authorization is not None
-        and secrets.compare_digest(authorization, expected)
-    )
+    return authorization is not None and secrets.compare_digest(authorization, expected)
 
 
 def record_incident(
@@ -1637,6 +1670,8 @@ def require_ready_session(
         session_id,
         for_update=for_update,
     )
+    if capture_session.evidence_mode != settings.evidence_mode:
+        raise HTTPException(409, "session custody mode differs from this deployment")
     if capture_session.client_public_key is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "session key is not registered")
     if capture_session.status in {"complete", "incomplete", "invalid_chain"}:
@@ -1687,6 +1722,25 @@ def validate_entry(
     body: EntryRequest,
 ) -> None:
     entry = body.entry
+    if capture_session.evidence_mode == "hash_only" and "event_data" in entry:
+        data = entry["event_data"]
+        if entry.get("entry_type") == "artifact_unavailable":
+            valid_data = data == {"status": "unavailable", "reason": "capture_unavailable"}
+        else:
+            valid_data = (
+                isinstance(data, dict)
+                and (
+                    set(data) == {"commitment"}
+                    or (
+                        entry.get("entry_type") == "capture_started"
+                        and set(data) == {"commitment", "software"}
+                    )
+                )
+                and isinstance(data.get("commitment"), str)
+                and re.fullmatch(r"sha256:[0-9a-f]{64}", data["commitment"]) is not None
+            )
+        if not valid_data:
+            raise HTTPException(422, "only event commitments are accepted in hash-only mode")
     required_fields = {
         "protocol_version",
         "entry_type",
@@ -1808,8 +1862,7 @@ def validate_entry(
             select(ChainEntry)
             .where(
                 ChainEntry.session_id == capture_session.id,
-                ChainEntry.payload["client_clock_id"].as_string()
-                == entry["client_clock_id"],
+                ChainEntry.payload["client_clock_id"].as_string() == entry["client_clock_id"],
             )
             .order_by(ChainEntry.sequence.desc())
         )
@@ -1842,10 +1895,29 @@ def validate_identifier(value: str, label: str) -> None:
         not value
         or len(value) > 128
         or value in {".", ".."}
-        or any(character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
-               for character in value)
+        or any(
+            character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
+            for character in value
+        )
     ):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"invalid {label}")
+
+
+def validate_hash_artifact(
+    body: ArtifactCompleteRequest | ArtifactUnavailableRequest, artifact_id: str
+) -> None:
+    if (
+        re.fullmatch(r"(dom|metadata|context|recording|screenshot-(initial|[0-9]+))", artifact_id)
+        is None
+        or body.path
+        not in {f"capture/{artifact_id}.{suffix}" for suffix in ("html", "json", "webm", "png")}
+        or body.media_type not in {"text/html", "application/json", "video/webm", "image/png"}
+        or body.method
+        not in {"DOM serialization", "browser metadata", "MediaRecorder", "captureVisibleTab"}
+        or body.provenance != "client_reported"
+        or (isinstance(body, ArtifactUnavailableRequest) and body.reason != "capture_unavailable")
+    ):
+        raise HTTPException(422, "unsupported hash-only artifact metadata")
 
 
 def validate_artifact_path(value: str) -> str:
@@ -1912,6 +1984,14 @@ def validate_capture_close(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "capture close fields do not match protocol schema",
         )
+    if capture_session.evidence_mode == "hash_only" and (
+        not isinstance(close["known_gaps"], list)
+        or any(
+            not isinstance(gap, str) or re.fullmatch(r"sha256:[0-9a-f]{64}", gap) is None
+            for gap in close["known_gaps"]
+        )
+    ):
+        raise HTTPException(422, "gap descriptions must be commitments")
     if not entries or entries[-1].entry_type != "capture_finished":
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -1932,8 +2012,7 @@ def validate_capture_close(
             )
         if artifact.status == "captured" and (
             len(artifact_parts) != artifact.part_count
-            or [part.part_number for part in artifact_parts]
-            != list(range(artifact.part_count))
+            or [part.part_number for part in artifact_parts] != list(range(artifact.part_count))
         ):
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
@@ -1947,8 +2026,7 @@ def validate_capture_close(
         or close["last_entry_hash"] != last_hash
         or close["entry_count"] != len(entries)
         or close["client_key_id"] != capture_session.client_key_id
-        or close["client_public_key"]
-        != base64url_encode(capture_session.client_public_key or b"")
+        or close["client_public_key"] != base64url_encode(capture_session.client_public_key or b"")
         or not isinstance(close["known_gaps"], list)
         or any(not isinstance(gap, str) for gap in close["known_gaps"])
     ):
@@ -2048,6 +2126,14 @@ def build_manifest(
             "client_signature_path": "signatures/capture-close.client.sig",
         },
         "limitations": [
+            *(
+                [
+                    "Hash-only custody: server signs client-declared hashes; "
+                    "does not receive or retain evidence bytes."
+                ]
+                if capture_session.evidence_mode == "hash_only"
+                else []
+            ),
             "The package attests technical integrity and continuity of the recorded capture.",
             "Legal evaluation considers these technical findings together with the case context.",
         ],

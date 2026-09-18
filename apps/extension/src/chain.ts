@@ -13,6 +13,21 @@ export function nextEntry(
   entryType: string,
   fields: Partial<ChainEntry> = {},
 ): ChainEntry {
+  if (
+    session.evidenceMode === "hash_only" &&
+    fields.event_data &&
+    entryType !== "artifact_unavailable"
+  ) {
+    fields = {
+      ...fields,
+      event_data: {
+        commitment: sha256Identifier(canonicalBytes(fields.event_data)),
+        ...(entryType === "capture_started" && fields.event_data.software
+          ? { software: fields.event_data.software }
+          : {}),
+      },
+    };
+  }
   return {
     protocol_version: "0.1.0",
     entry_type: entryType,

@@ -1,4 +1,6 @@
 export type MessageKey =
+  | "hashOnly"
+  | "hashOnlyNotice"
   | "accessLinkSent"
   | "active"
   | "apiEnvironment"

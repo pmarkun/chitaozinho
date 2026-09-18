@@ -370,10 +370,22 @@ class S3DurableStorage:
             raise
 
 
-DurableStorage = LocalDurableStorage | S3DurableStorage
+class DisabledEvidenceStorage:
+    """Fail closed if any evidence I/O is attempted in hash-only mode."""
+
+    def check_ready(self) -> None:
+        pass
+
+    def __getattr__(self, name: str):
+        raise RuntimeError("evidence storage is disabled in hash-only mode")
+
+
+DurableStorage = LocalDurableStorage | S3DurableStorage | DisabledEvidenceStorage
 
 
 def create_storage(settings: Settings) -> DurableStorage:
+    if settings.evidence_mode == "hash_only":
+        return DisabledEvidenceStorage()
     if settings.storage_backend == "local":
         return LocalDurableStorage(
             settings.storage_path,

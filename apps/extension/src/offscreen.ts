@@ -1,5 +1,6 @@
 import type { ExtensionMessage } from "./types";
 import { encodeMessageBytes } from "./message-bytes";
+import { localPackageUrls } from "./local-package";
 
 let recorder: MediaRecorder | undefined;
 let stream: MediaStream | undefined;
@@ -13,6 +14,13 @@ chrome.runtime.onMessage.addListener(
     _sender,
     sendResponse: (value?: unknown) => void,
   ) => {
+    if (message.type === "BUILD_LOCAL_PACKAGE" && message.sessionId) {
+      void localPackageUrls(message.sessionId, message.template).then(
+        (result) => sendResponse({ ok: true, result }),
+        (error: unknown) => sendResponse({ ok: false, error: String(error) }),
+      );
+      return true;
+    }
     if (
       message.type === "RECORDER_START" &&
       message.streamId &&

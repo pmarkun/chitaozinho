@@ -7,6 +7,8 @@ export type CaptureStatus =
   | "error";
 
 export interface SessionRecord {
+  evidenceMode?: "remote" | "hash_only";
+  localEvents?: { type: string; data: Record<string, unknown>; time: string }[];
   id: string;
   challenge: string;
   keyId: string;
@@ -101,6 +103,7 @@ export interface ExtensionMessage {
     | "RECORDER_STOP"
     | "RECORDER_CHUNK"
     | "RECORDER_STOPPED"
+    | "BUILD_LOCAL_PACKAGE"
     | "SCROLL";
   consent?: boolean;
   streamId?: string;
@@ -109,4 +112,17 @@ export interface ExtensionMessage {
   mimeType?: string;
   note?: string;
   eventData?: Record<string, unknown>;
+  template?: LocalPackageTemplate;
+}
+
+export interface LocalPackageTemplate {
+  evidence_mode: "hash_only";
+  session_id: string;
+  members: Record<string, string>;
+  artifacts: {
+    artifact_id: string;
+    path: string;
+    size: number;
+    sha256: string;
+  }[];
 }

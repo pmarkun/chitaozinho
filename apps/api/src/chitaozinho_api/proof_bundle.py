@@ -45,22 +45,21 @@ def ensure_proof_bundle(
     if not attestations:
         raise ValueError("session has no external attestations")
     latest_hash = attestations[-1].document_hash.removeprefix("sha256:")
-    target = (
-        settings.proofs_path
-        / "bundles"
-        / capture_session.id
-        / f"{latest_hash}.zip"
-    )
+    target = settings.proofs_path / "bundles" / capture_session.id / f"{latest_hash}.zip"
     if target.exists():
         bundle_hash = sha256_identifier(target.read_bytes())
-        storage_status = protect_final_artifact(
-            database,
-            settings,
-            storage,
-            capture_session,
-            name=f"proof-bundle-{latest_hash}.zip",
-            path=target,
-            digest=bundle_hash,
+        storage_status = (
+            "hash_only"
+            if capture_session.evidence_mode == "hash_only"
+            else protect_final_artifact(
+                database,
+                settings,
+                storage,
+                capture_session,
+                name=f"proof-bundle-{latest_hash}.zip",
+                path=target,
+                digest=bundle_hash,
+            )
         )
         return target, bundle_hash, storage_status
     members = proof_bundle_members(proof_storage, attestations)
@@ -115,14 +114,18 @@ def ensure_proof_bundle(
             },
         )
         database.commit()
-        storage_status = protect_final_artifact(
-            database,
-            settings,
-            storage,
-            capture_session,
-            name=f"proof-bundle-{latest_hash}.zip",
-            path=target,
-            digest=bundle_hash,
+        storage_status = (
+            "hash_only"
+            if capture_session.evidence_mode == "hash_only"
+            else protect_final_artifact(
+                database,
+                settings,
+                storage,
+                capture_session,
+                name=f"proof-bundle-{latest_hash}.zip",
+                path=target,
+                digest=bundle_hash,
+            )
         )
         return target, bundle_hash, storage_status
     finally:
@@ -141,11 +144,7 @@ def proof_bundle_members(
         }
         for attestation in attestations
     ]
-    members = {
-        ATTESTATIONS_PATH: b"".join(
-            canonical_bytes(record) + b"\n" for record in records
-        )
-    }
+    members = {ATTESTATIONS_PATH: b"".join(canonical_bytes(record) + b"\n" for record in records)}
     for attestation in attestations:
         for path in referenced_proof_paths(attestation.document):
             if path in members:
@@ -168,11 +167,7 @@ def referenced_proof_paths(document: dict) -> set[str]:
 
 def checked_proof_path(root: Path, relative: str) -> Path:
     path = PurePosixPath(relative)
-    if (
-        path.is_absolute()
-        or not path.parts
-        or any(part in {"", ".", ".."} for part in path.parts)
-    ):
+    if path.is_absolute() or not path.parts or any(part in {"", ".", ".."} for part in path.parts):
         raise ValueError(f"unsafe proof path: {relative}")
     target = root.joinpath(*path.parts)
     if not target.is_file():

@@ -1,13 +1,19 @@
-# Chitãozinho
+# Evidências
 
-O Chitãozinho é uma plataforma aberta para capturar, preservar e verificar
+Evidências (codinome interno: Chitãozinho) é uma plataforma aberta para capturar, preservar e verificar
 evidências digitais. A extensão Chromium registra a navegação; a API recebe os
 artefatos e emite recibos; os verificadores conferem o pacote sem depender do
 backend que o produziu.
 
-O ambiente público atual é um **beta para dados não críticos**. Os objetos são
+O ambiente público atual é um **beta para dados não críticos**. Os objetos legados são
 armazenados por 30 dias no Railway Bucket, sem Object Lock ou garantia de
 imutabilidade. O estado correto nesse ambiente é `stored`, nunca `locked`.
+
+O novo modo `CHITAOZINHO_EVIDENCE_MODE=hash_only` mantém arquivos e ZIP no
+dispositivo. A API registra hashes e metadados técnicos, sem receber o conteúdo.
+O modo `remote` preserva a integração opcional de armazenamento. A configuração
+declarativa do próximo deploy usa `hash_only`; isso só entra em vigor ao publicar
+API e extensão compatíveis. Veja a transição em [deploy](docs/deployment-railway.md).
 
 - [Especificação normativa](SPEC.md)
 - [Decisões e critérios de aceite](ACEITE.md)

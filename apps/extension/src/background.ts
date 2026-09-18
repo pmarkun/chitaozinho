@@ -1,5 +1,6 @@
 import {
   DOMAINS,
+  canonicalBytes,
   base64UrlEncode,
   bytesToHex,
   sha256Identifier,
@@ -9,6 +10,7 @@ import {
 import {
   completeArtifact,
   createSession,
+  getLocalPackageTemplate,
   declareArtifactUnavailable,
   finalizeSession,
   preparePackage,
@@ -23,6 +25,7 @@ import {
   currentSession,
   deleteLocalSession,
   getSession,
+  getLocalPackage,
   latestSession,
   saveQueuedPart,
   saveSession,
@@ -41,7 +44,11 @@ chrome.runtime.onMessage.addListener(
     _sender,
     sendResponse: (value?: unknown) => void,
   ) => {
-    if (message.type === "RECORDER_START" || message.type === "RECORDER_STOP") {
+    if (
+      message.type === "RECORDER_START" ||
+      message.type === "RECORDER_STOP" ||
+      message.type === "BUILD_LOCAL_PACKAGE"
+    ) {
       return false;
     }
     if (message.type === "STOP_CAPTURE") {
@@ -115,15 +122,15 @@ async function handleMessage(message: ExtensionMessage): Promise<unknown> {
       if (!stored || stored.status !== "complete") {
         throw new Error("completed capture not found");
       }
-      const packageInfo = await preparePackage(stored.id);
+      const packageInfo = await prepareEvidencePackage(stored);
       await chrome.downloads.download({
         url: packageInfo.packageUrl,
-        filename: `chitaozinho-${stored.id}.zip`,
+        filename: `${stored.evidenceMode === "hash_only" ? "evidencias" : "chitaozinho"}-${stored.id}.zip`,
         saveAs: true,
       });
       await chrome.downloads.download({
         url: packageInfo.checksumUrl,
-        filename: `chitaozinho-${stored.id}.zip.sha256`,
+        filename: `${stored.evidenceMode === "hash_only" ? "evidencias" : "chitaozinho"}-${stored.id}.zip.sha256`,
         saveAs: false,
       });
       return publicState(stored);
@@ -225,6 +232,13 @@ async function startCapture(): Promise<SessionRecord> {
   if (!tab.id || tab.windowId === undefined)
     throw new Error("active tab is unavailable");
   const created = await createSession();
+  const evidenceMode = (created.upload_policy as { evidence_mode?: string })
+    ?.evidence_mode;
+  if (evidenceMode !== "hash_only" && evidenceMode !== "remote") {
+    throw new Error(
+      "Server did not declare an evidence custody mode. Update the API before capturing.",
+    );
+  }
   const sessionId = String(created.session_id);
   const keyPair = (await crypto.subtle.generateKey("Ed25519", true, [
     "sign",
@@ -248,6 +262,7 @@ async function startCapture(): Promise<SessionRecord> {
   await registerKey(sessionId, keyId, publicKey);
   let session: SessionRecord = {
     id: sessionId,
+    evidenceMode,
     challenge: String(created.server_challenge),
     keyId,
     publicKey,
@@ -649,6 +664,22 @@ async function stopCapture(
   }
   session = requireActive(await getSession(session.id));
   if (!session.captureFinished) {
+    if (
+      session.evidenceMode === "hash_only" &&
+      !session.artifacts.some((a) => a.artifact_id === "context")
+    ) {
+      await uploadWholeArtifact(
+        session.id,
+        "context",
+        new TextEncoder().encode(JSON.stringify(session.localEvents ?? []))
+          .buffer,
+        "capture/context.json",
+        "application/json",
+        "browser metadata",
+        [],
+      );
+      session = requireActive(await getSession(session.id));
+    }
     session = await appendEvent(session, "capture_finished", {
       duration_ms: Date.now() - new Date(session.startedAt).getTime(),
     });
@@ -672,7 +703,13 @@ async function stopCapture(
           (artifact) =>
             `${artifact.artifact_id}: ${artifact.reason ?? artifact.status}`,
         ),
-    ].sort(),
+    ]
+      .map((gap) =>
+        session.evidenceMode === "hash_only"
+          ? sha256Identifier(canonicalBytes(gap))
+          : gap,
+      )
+      .sort(),
     client_key_id: session.keyId,
     client_public_key: base64UrlEncode(session.publicKey),
   };
@@ -686,7 +723,7 @@ async function stopCapture(
     ),
   );
   const result = await finalizeSession(session.id, captureClose, signatureHex);
-  const packageInfo = await preparePackage(session.id);
+  const packageInfo = await prepareEvidencePackage(session);
   session.status = "complete";
   session.privateKey = null;
   session.durationMs = Date.now() - new Date(session.startedAt).getTime();
@@ -698,12 +735,12 @@ async function stopCapture(
   await saveSession(session);
   await chrome.downloads.download({
     url: packageInfo.packageUrl,
-    filename: `chitaozinho-${session.id}.zip`,
+    filename: `${session.evidenceMode === "hash_only" ? "evidencias" : "chitaozinho"}-${session.id}.zip`,
     saveAs: true,
   });
   await chrome.downloads.download({
     url: packageInfo.checksumUrl,
-    filename: `chitaozinho-${session.id}.zip.sha256`,
+    filename: `${session.evidenceMode === "hash_only" ? "evidencias" : "chitaozinho"}-${session.id}.zip.sha256`,
     saveAs: false,
   });
   return session;
@@ -719,18 +756,23 @@ async function declareUnavailable(
   reason: string,
 ): Promise<void> {
   let session = requireActive(await getSession(sessionId));
-  const normalizedReason = reason.slice(0, 2_000);
+  const normalizedReason =
+    session.evidenceMode === "hash_only"
+      ? "capture_unavailable"
+      : reason.slice(0, 2_000);
   const attemptedAt = new Date().toISOString();
   const entry = nextEntry(session, "artifact_unavailable", {
     artifact_id: artifactId,
     event_data: {
-      ...artifactObservation(
-        method,
-        permissions,
-        attemptedAt,
-        attemptedAt,
-        "unavailable",
-      ),
+      ...(session.evidenceMode === "hash_only"
+        ? {}
+        : artifactObservation(
+            method,
+            permissions,
+            attemptedAt,
+            attemptedAt,
+            "unavailable",
+          )),
       status: "unavailable",
       reason: normalizedReason,
     },
@@ -765,6 +807,11 @@ async function appendEvent(
   const signed = await signedEntry(session, entry);
   await sendEvent(session.id, signed, `${type}-${entry.sequence}`);
   const advanced = advanceSession(session, signed.entry_hash);
+  if (session.evidenceMode === "hash_only")
+    advanced.localEvents = [
+      ...(session.localEvents ?? []),
+      { type, data: eventData, time: entry.client_wall_time },
+    ];
   await saveSession(advanced);
   return advanced;
 }
@@ -773,7 +820,10 @@ async function ensureOffscreenDocument(): Promise<void> {
   if (await chrome.offscreen.hasDocument()) return;
   await chrome.offscreen.createDocument({
     url: "offscreen.html",
-    reasons: [chrome.offscreen.Reason.USER_MEDIA],
+    reasons: [
+      chrome.offscreen.Reason.USER_MEDIA,
+      chrome.offscreen.Reason.BLOBS,
+    ],
     justification: "Record the user-selected active tab with MediaRecorder.",
   });
 }
@@ -816,6 +866,28 @@ async function installScrollObserverOrWarn(
   }
 }
 
+async function prepareEvidencePackage(session: SessionRecord) {
+  if (session.evidenceMode !== "hash_only") return preparePackage(session.id);
+  const cached = await getLocalPackage(session.id);
+  const template = cached
+    ? undefined
+    : await getLocalPackageTemplate(session.id);
+  await ensureOffscreenDocument();
+  const response = await chrome.runtime.sendMessage({
+    type: "BUILD_LOCAL_PACKAGE",
+    sessionId: session.id,
+    template,
+  } satisfies ExtensionMessage);
+  if (!response?.ok)
+    throw new Error(String(response?.error ?? "local package creation failed"));
+  return response.result as {
+    packageHash: string;
+    storageStatus: string;
+    packageUrl: string;
+    checksumUrl: string;
+  };
+}
+
 function requireActive(session: SessionRecord | undefined): SessionRecord {
   if (!session || session.status === "complete")
     throw new Error("no active capture");
@@ -842,6 +914,7 @@ function publicState(
     timestampStatus: session.timestampStatus,
     blockchainStatus: session.blockchainStatus,
     storageStatus: session.storageStatus,
+    evidenceMode: session.evidenceMode ?? "remote",
     error: session.error,
     captureFinished: session.captureFinished,
     unavailableArtifacts: session.artifacts.filter(

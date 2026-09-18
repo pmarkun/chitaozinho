@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     env: Literal["development", "test", "beta", "staging", "production"] = "development"
     database_url: str = "sqlite:///data/chitaozinho.db"
     storage_backend: str = "local"
+    evidence_mode: Literal["remote", "hash_only"] = "remote"
     storage_provider: Literal["local", "garage", "railway", "ceph"] = "local"
     storage_path: Path = Path("data/artifacts")
     proofs_path: Path = Path("data/proofs")
@@ -108,7 +109,7 @@ class Settings(BaseSettings):
     worker_retry_base_seconds: float = Field(default=5.0, ge=0.1, le=3600)
     worker_retry_max_seconds: float = Field(default=3600.0, ge=1, le=86400)
     software_name: str = "Chitãozinho Client"
-    software_version: str = "0.1.1"
+    software_version: str = "0.1.2"
     software_commit: str = Field(
         default_factory=lambda: environ.get("RAILWAY_GIT_COMMIT_SHA", "development")
     )

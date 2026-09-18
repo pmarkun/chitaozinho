@@ -11,6 +11,7 @@ pnpm -r test
 pnpm -r build
 playwright test --config apps/extension/playwright.config.cjs
 pnpm --filter @chitaozinho/verifier-web test:e2e
+bash scripts/test-hash-only-capture
 ./scripts/check-extension-reproducibility
 
 uv run ruff check .

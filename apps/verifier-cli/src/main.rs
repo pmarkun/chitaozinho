@@ -55,8 +55,8 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Command::Version => {
-            println!("protocol_version=0.1.0");
-            println!("schema_version=0.1.0");
+            println!("protocol_version=0.2.0 (legacy 0.1.0 supported)");
+            println!("schema_version=0.2.0");
         }
         Command::Pack {
             source,

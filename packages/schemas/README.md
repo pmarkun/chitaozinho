@@ -1,8 +1,13 @@
 # Protocol schemas
 
-Normative JSON Schemas for protocol version `0.1.0`. The latest schema version
-is `0.1.1`; individual artifacts retain their declared version, and historical
+Normative JSON Schemas for protocol versions `0.1.0` and `0.2.0`. The latest schema version
+is `0.2.0`; individual artifacts retain their declared version, and historical
 signed artifacts are not rewritten.
+
+Version `0.2.0` receipts use `hash_registered`: they attest registration of a
+client-declared hash, never storage or server verification of evidence bytes.
+Legacy `0.1.0` receipts remain readable. Entry, manifest, package-index and
+capture-close formats stay at `0.1.0`; their domain separators are unchanged.
 
 Changes that alter canonical bytes, required fields, hashes or signatures
 require a new version and updated cross-language test vectors.

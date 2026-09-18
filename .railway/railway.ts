@@ -51,6 +51,7 @@ export default defineRailway(() => {
   });
 
   const backendEnv = {
+    CHITAOZINHO_EVIDENCE_MODE: "hash_only",
     CHITAOZINHO_ENV: "beta",
     CHITAOZINHO_DATABASE_URL: database.env.DATABASE_URL,
     CHITAOZINHO_STORAGE_BACKEND: "s3",

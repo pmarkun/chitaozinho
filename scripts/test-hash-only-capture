@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+CHITAOZINHO_API_BASE_URL=http://127.0.0.1:8000 \
+CHITAOZINHO_ENVIRONMENT=desenvolvimento \
+  pnpm --filter @chitaozinho/extension build
+playwright test --config apps/extension/playwright.hash-only.config.cjs

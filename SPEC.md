@@ -223,6 +223,25 @@ Todo relatório deve incluir:
 
 ## 6. Arquitetura
 
+### Perfis de custódia
+
+`CHITAOZINHO_EVIDENCE_MODE=remote` mantém o fluxo de persistência descrito abaixo.
+`hash_only` é o perfil sem custódia de arquivos: a extensão preserva os bytes,
+envia hashes e metadados técnicos estritos e monta o ZIP localmente. URL, título,
+texto, DOM, imagens, vídeo e detalhes de eventos não são transmitidos à API.
+
+O perfil é fixado por sessão. Uploads binários são rejeitados no perfil só-hash.
+Recibos de protocolo `0.2.0` usam exclusivamente `hash_registered`: o serviço
+confere assinaturas/encadeamento e registra declarações, não confere bytes
+originais nem atesta persistência. A conferência dos bytes é local. Os schemas
+de entradas, manifesto, encerramento e índice permanecem `0.1.0`; recibos antigos
+continuam verificáveis, sem reescrita de assinaturas ou migração de artefatos.
+
+O armazenamento de evidências é plugável e pode ser desligado independentemente
+do armazenamento de hashes, assinaturas, autenticação e provas temporais.
+OpenBao e OpenTimestamps continuam operando sobre documentos técnicos/hashes.
+No perfil local, perda do dispositivo/ZIP não pode ser reparada pelo servidor.
+
 ```text
 ┌──────────────────────┐
 │ Extensão Chromium    │

@@ -71,6 +71,7 @@ class CaptureSession(Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     owner_user_id: Mapped[str | None] = mapped_column(String(64), index=True)
     server_challenge: Mapped[str] = mapped_column(String(256), nullable=False)
+    evidence_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="remote")
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="created")
     next_sequence: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

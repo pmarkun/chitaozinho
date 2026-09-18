@@ -3,6 +3,76 @@ const AxeBuilder = require("axe-core");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const crypto = require("node:crypto");
+
+test("Evidências separates capture from validation and credits only Conectas", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page).toHaveTitle(/Evidências/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Registre evidências digitais. Compartilhe registros verificáveis.",
+  );
+  for (const name of [
+    "Registre com contexto",
+    "Organize e compartilhe",
+    "Confira a integridade",
+  ]) {
+    await expect(
+      page.getByRole("heading", { name, exact: true }),
+    ).toBeVisible();
+  }
+  await expect(page.locator("footer")).toContainText("Realização");
+  await expect(page.locator("footer")).not.toContainText(/arapy/i);
+  await expect(
+    page.getByRole("img", { name: "Conectas Direitos Humanos" }),
+  ).toBeVisible();
+  await page
+    .locator(".hero-actions")
+    .getByRole("button", { name: "Verificar evidência" })
+    .click();
+  await expect(page).toHaveURL(/\/validar$/);
+  await expect(page.locator("main")).toBeFocused();
+  await expect(page.locator(".extension-download")).toHaveCount(0);
+  await expect(page.locator(".optional-section[open]")).toHaveCount(0);
+  await page.goBack();
+  await expect(page.locator(".home-hero")).toBeVisible();
+});
+
+test("beta download and keyboard installation instructions work", async ({
+  page,
+  request,
+}) => {
+  for (const route of ["/"]) {
+    await page.goto(route);
+    const download = page.getByRole("link", {
+      name: "Baixar extensão beta · ZIP",
+    });
+    await expect(download).toHaveAttribute("download", "");
+    const response = await request.get(await download.getAttribute("href"));
+    expect(response.ok()).toBe(true);
+    expect(
+      crypto
+        .createHash("sha256")
+        .update(await response.body())
+        .digest("hex"),
+    ).toBe("1fe25883d7f4f650386430a8ebf21750394b809947b0788b0846b6fd23e5f4aa");
+    const instructions = page.locator(".extension-download summary");
+    await instructions.focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByText("chrome://extensions", { exact: true }),
+    ).toBeVisible();
+    await expect(page.locator(".extension-download details")).toHaveAttribute(
+      "open",
+      "",
+    );
+    await page.keyboard.press("Enter");
+    await expect(
+      page.locator(".extension-download details"),
+    ).not.toHaveAttribute("open", "");
+  }
+});
 
 test("public pages stay accessible on desktop and mobile", async ({
   browser,
@@ -52,7 +122,7 @@ test("public verifier stays local and has no automatic WCAG violations", async (
   await page.goto("/validar");
   await expect(
     page.getByRole("heading", {
-      name: "Confirme a integridade de uma evidência",
+      name: "Valide um pacote de evidências",
     }),
   ).toBeVisible();
 
@@ -73,6 +143,7 @@ test("public verifier stays local and has no automatic WCAG violations", async (
   );
   expect(axeResult.violations).toEqual([]);
 
+  await page.evaluate(() => navigator.serviceWorker.ready);
   const requestsAfterSelection = [];
   page.on("request", (request) => requestsAfterSelection.push(request.url()));
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "chitaozinho-web-"));
@@ -85,6 +156,9 @@ test("public verifier stays local and has no automatic WCAG violations", async (
       page.getByRole("alert").getByText("Pacote inválido ou não verificável"),
     ).toBeVisible();
     expect(requestsAfterSelection).toEqual([]);
+    await page.locator("#package").setInputFiles([]);
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    await expect(page.locator(".verify-button")).toBeDisabled();
   } finally {
     fs.rmSync(temporary, { recursive: true, force: true });
   }
@@ -99,7 +173,7 @@ test("the same production build reloads every public route offline", async ({
   await page.reload();
   await expect(
     page.getByRole("heading", {
-      name: "Como o Chitãozinho fortalece uma evidência digital",
+      name: "Como o Evidências fortalece uma evidência digital",
     }),
   ).toBeVisible();
 
@@ -107,7 +181,7 @@ test("the same production build reloads every public route offline", async ({
   await page.reload();
   await expect(
     page.getByRole("heading", {
-      name: "Como o Chitãozinho fortalece uma evidência digital",
+      name: "Como o Evidências fortalece uma evidência digital",
     }),
   ).toBeVisible();
 });
@@ -124,10 +198,17 @@ test("a supplied real package passes entirely in Chromium", async ({
   );
 
   await page.goto("/validar");
+  await page.evaluate(() => navigator.serviceWorker.ready);
   const requestsAfterSelection = [];
   page.on("request", (request) => requestsAfterSelection.push(request.url()));
   await page.locator("#package").setInputFiles(packagePath);
+  await page
+    .getByText("Adicionar comprovantes opcionais", { exact: true })
+    .click();
   await page.locator("#checksum").setInputFiles(checksumPath);
+  await page
+    .getByText("Verificação avançada de confiança", { exact: true })
+    .click();
   await page.locator("#trusted-key").fill(trustedKey);
   await page.locator(".verify-button").click();
 
