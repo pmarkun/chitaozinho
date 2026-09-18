@@ -8,8 +8,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
   ]) {
     test(`privacy: ${name} ${viewport.width}px`, async () => {
       const browser = await test.step("Launch browser", () =>
-        engine.launch({ timeout: 10_000 }),
-      );
+        engine.launch({ timeout: 10_000 }));
       // This matrix checks policy navigation, not offline service-worker
       // lifecycle (covered by verifier.pw.cjs). Isolate that lifecycle on WebKit.
       const context = await browser.newContext({
