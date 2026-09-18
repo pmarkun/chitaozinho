@@ -40,6 +40,8 @@ jobs:
         if: github.event_name == 'pull_request'
         run: nix develop --command ./scripts/check-protocol-compatibility "origin/${GITHUB_BASE_REF}"
       - name: Check TypeScript, Python, Rust and infrastructure
+        env:
+          DEBUG: pw:browser
         run: nix develop --command ./scripts/check
       - name: Preserve browser failure diagnostics
         if: failure()

@@ -7,7 +7,9 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     { width: 360, height: 800 },
   ]) {
     test(`privacy: ${name} ${viewport.width}px`, async () => {
-      const browser = await engine.launch();
+      const browser = await test.step("Launch browser", () =>
+        engine.launch({ timeout: 10_000 }),
+      );
       // This matrix checks policy navigation, not offline service-worker
       // lifecycle (covered by verifier.pw.cjs). Isolate that lifecycle on WebKit.
       const context = await browser.newContext({
@@ -15,7 +17,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         serviceWorkers: "block",
       });
       await context.tracing.start({ screenshots: true, snapshots: true });
-      const page = await context.newPage();
+      const page = await test.step("Create page", () => context.newPage());
       await page.addInitScript({ content: axe.source });
       const errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
