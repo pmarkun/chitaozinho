@@ -249,7 +249,7 @@ def test_running_jobs_prevent_capture_and_proof_deletion(environment):
     now = datetime.now(UTC)
     with factory() as database:
         database.add(capture("busy", now - timedelta(days=370)))
-        job = get_or_create_job(
+        job, _created = get_or_create_job(
             database, kind="package", idempotency_key="busy", subject_id="busy", payload={}
         )
         mark_job_running(database, job)
