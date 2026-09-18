@@ -131,7 +131,7 @@ def create_app(
         Base.metadata.create_all(engine)
 
     extension_origin_pattern = allowed_extension_origin_pattern(settings)
-    app = FastAPI(title="Chitãozinho API", version="0.1.1")
+    app = FastAPI(title="Evidências API", version="0.1.2")
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=extension_origin_pattern,
