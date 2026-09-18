@@ -95,20 +95,27 @@ export function Privacy() {
       <ul>
         <li>Conta: até você pedir sua exclusão.</li>
         <li>
-          Hashes e comprovantes no servidor: prazo aprovado de 12 meses a partir
-          do registro.
+          Hashes e comprovantes no servidor: 12 meses a partir do registro.
         </li>
         <li>
-          Registros de segurança: prazo aprovado de até 30 dias a partir do
+          Registros de segurança no banco da aplicação: 30 dias a partir do
           evento.
         </li>
         <li>Arquivos no dispositivo: até você apagá-los.</li>
       </ul>
       <p className="privacy-status">
-        Situação do beta: a limpeza automática para os prazos acima ainda está
-        em implementação. Aprovar esses prazos não significa que dados antigos
-        já tenham sido excluídos. Pedidos devem ser encaminhados ao contato de
-        privacidade. A expiração de um acesso não apaga seu registro no banco.
+        Uma rotina diária remove os registros vencidos. A remoção pode ocorrer
+        na execução seguinte ao término do prazo; falhas são registradas para
+        nova tentativa. Pedidos de exclusão de conta são atendidos pelo contato
+        de privacidade, após confirmação de identidade. Um ponto criptográfico,
+        sem o conteúdo dos eventos antigos, mantém a continuidade da auditoria.
+      </p>
+      <p>
+        Cópias de segurança e registros operacionais dos fornecedores têm ciclos
+        próprios de retenção e podem persistir temporariamente após a exclusão
+        na aplicação, com acesso restrito. A limpeza deve ser reaplicada antes
+        de colocar uma cópia restaurada em uso. Você pode solicitar detalhes
+        desses prazos pelo contato de privacidade.
       </p>
       <p>
         Uma obrigação legal ou o exercício regular de direitos pode exigir a
