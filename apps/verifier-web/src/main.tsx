@@ -125,7 +125,7 @@ function ExtensionDownload() {
       </p>
       <a
         className="primary button"
-        href="/downloads/chitaozinho-extension-0.1.1.zip"
+        href="/downloads/chitaozinho-extension-0.1.2.zip"
         download
       >
         Baixar extensão beta · ZIP
@@ -144,19 +144,21 @@ function ExtensionDownload() {
             Clique em <strong>Carregar sem compactação</strong> e selecione a
             pasta que contém o arquivo <code>manifest.json</code>.
           </li>
-          <li>
-            Abra a extensão pelo menu do Chrome. Nesta versão 0.1.1, ela ainda
-            aparece como Chitãozinho, o codinome do projeto Evidências.
-          </li>
+          <li>Abra Evidências pelo menu de extensões do Chrome.</li>
         </ol>
         <p>
           A instalação é manual, não automática. Mantenha a pasta no computador.
           Esta opção não instala a extensão no celular.
         </p>
+        <p>
+          Já usa uma versão anterior? Preserve seus ZIPs. Descompacte esta
+          versão na mesma pasta e clique em Atualizar em chrome://extensions.
+          Não desinstale a extensão: isso remove os dados locais.
+        </p>
       </details>
       <p className="extension-note">
-        Versão 0.1.1 · Beta para dados não críticos. Armazenamento por 30 dias,
-        sem garantia de imutabilidade ou Object Lock.
+        Versão 0.1.2 · Beta para dados não críticos. Arquivos somente no seu
+        dispositivo; o servidor registra hashes, não uma cópia dos arquivos.
       </p>
     </section>
   );
@@ -223,8 +225,8 @@ function Home({ navigate }: { navigate: (page: Page) => void }) {
         <h2 id="beta-heading">Antes de começar</h2>
         <div>
           <p>
-            Beta para dados não críticos. Arquivos hospedados por 30 dias, sem
-            garantia de imutabilidade ou Object Lock.
+            Beta para dados não críticos. Os arquivos ficam no seu dispositivo.
+            Não guardamos uma cópia para recuperação no servidor.
           </p>
           <p>
             Preserve o ZIP original em um local seguro e compartilhe-o apenas
@@ -526,13 +528,14 @@ function Methodology({ navigate }: { navigate: (page: Page) => void }) {
   return (
     <main id="main-content" tabIndex={-1} className="methodology">
       <section className="page-intro">
-        <p className="eyebrow">Metodologia v0.2</p>
+        <p className="eyebrow">Metodologia v0.3 · Guarda local</p>
         <h1>Como o Evidências fortalece uma evidência digital</h1>
         <p>
           A metodologia combina observação do navegador, encadeamento
           criptográfico, recibos assinados, fontes externas de tempo e
-          verificação independente. No beta, o armazenamento é temporário por 30
-          dias e não tem imutabilidade.
+          verificação independente. Neste beta, os arquivos ficam no
+          dispositivo; o servidor registra hashes e provas técnicas, sem receber
+          seu conteúdo.
         </p>
       </section>
       <section className="attests panel">
