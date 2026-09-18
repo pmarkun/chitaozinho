@@ -1,14 +1,15 @@
 # Deploy do beta no Railway
 
-Este ambiente é um beta para dados não críticos. Os objetos do Railway Bucket
-ficam armazenados por 30 dias e não são imutáveis: o serviço deve informar
-`stored`, nunca `locked`, e não pode alegar Object Lock ou proteção WORM.
+Este ambiente é um beta para dados não críticos. Desde a release 0.1.2, novas
+capturas usam guarda local: arquivos não são enviados ao servidor. Objetos
+legados no Railway Bucket mantêm a retenção original de 30 dias, sem
+imutabilidade. Nenhum perfil Railway pode alegar Object Lock ou proteção WORM.
 
 ## Serviços
 
 ### Transição para guarda local (`hash_only`)
 
-A próxima configuração declarativa define `CHITAOZINHO_EVIDENCE_MODE=hash_only`.
+A configuração declarativa define `CHITAOZINHO_EVIDENCE_MODE=hash_only`.
 Esse perfil não cria objetos de evidência nem ZIPs de captura no servidor. O
 Bucket continua contendo comprovantes criptográficos (hashes, Merkle/OTS),
 não o conteúdo de novas capturas. Autenticação, recibos e metadados técnicos
@@ -17,7 +18,7 @@ continuam no PostgreSQL; isso não elimina a necessidade de uma política de dad
 1. Publique a migração aditiva `0007_hash_only`; sessões existentes continuam
    `remote`. Não remova buckets, volumes, backups ou registros legados.
 2. Teste a nova extensão e API juntas antes de ativar o perfil. O ZIP assinado
-   `0.1.1` disponível na home ainda é legado: não é compatível com captura só-hash.
+   `0.1.1` é legado: não é compatível com captura só-hash; use `0.1.2` ou posterior.
 3. Publique uma nova release assinada da extensão, atualize o link da home e
    só então libere o novo fluxo. Não distribua builds de desenvolvimento como releases.
 4. Ative `hash_only` na API. Clientes antigos terão o upload recusado e precisarão

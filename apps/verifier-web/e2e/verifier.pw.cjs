@@ -24,6 +24,11 @@ test("Evidências separates capture from validation and credits only Conectas", 
   }
   await expect(page.locator("footer")).toContainText("Realização");
   await expect(page.locator("footer")).not.toContainText(/arapy/i);
+  await expect(page.locator(".beta-notice")).toContainText(
+    "Não guardamos uma cópia para recuperação no servidor.",
+  );
+  await expect(page.locator(".extension-note")).toContainText("Versão 0.1.2");
+  await expect(page.locator("main")).not.toContainText("30 dias");
   await expect(
     page.getByRole("img", { name: "Conectas Direitos Humanos" }),
   ).toBeVisible();
@@ -56,7 +61,7 @@ test("beta download and keyboard installation instructions work", async ({
         .createHash("sha256")
         .update(await response.body())
         .digest("hex"),
-    ).toBe("1fe25883d7f4f650386430a8ebf21750394b809947b0788b0846b6fd23e5f4aa");
+    ).toBe("3e8deeb257555ff3e0d235ee2748c5b496a4196e1c75a5dceb892d34c2983655");
     const instructions = page.locator(".extension-download summary");
     await instructions.focus();
     await page.keyboard.press("Enter");
