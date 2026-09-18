@@ -11,17 +11,14 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from .config import Settings
+from .storage import validate_storage_identifier
 
 MAX_PROOF_BYTES = 16 * 1024 * 1024
 
 
 def validate_proof_key(value: str) -> str:
     path = PurePosixPath(value)
-    if (
-        path.is_absolute()
-        or not path.parts
-        or any(part in {"", ".", ".."} for part in path.parts)
-    ):
+    if path.is_absolute() or not path.parts or any(part in {"", ".", ".."} for part in path.parts):
         raise ValueError(f"invalid proof key: {value}")
     return path.as_posix()
 
@@ -63,6 +60,19 @@ class LocalProofStorage:
             raise ValueError("proof exceeds configured size limit")
         return data
 
+    def delete_scope(self, kind: str, identifier: str) -> None:
+        prefix = proof_scope(kind, identifier)
+        target = self.root.joinpath(prefix)
+        target.resolve().relative_to(self.root.resolve())
+        if target.is_symlink():
+            raise ValueError("proof scope must not be a symlink")
+        if target.exists():
+            import shutil
+
+            shutil.rmtree(target)
+        if target.exists():
+            raise RuntimeError("proof scope still exists")
+
 
 class S3ProofStorage:
     def __init__(self, settings: Settings) -> None:
@@ -74,11 +84,7 @@ class S3ProofStorage:
             region_name=settings.s3_region,
             aws_access_key_id=settings.s3_access_key_id,
             aws_secret_access_key=settings.s3_secret_access_key,
-            verify=(
-                str(settings.s3_ca_bundle)
-                if settings.s3_ca_bundle is not None
-                else True
-            ),
+            verify=(str(settings.s3_ca_bundle) if settings.s3_ca_bundle is not None else True),
         )
         if settings.storage_provider == "railway":
             client_arguments["config"] = Config(s3={"addressing_style": "virtual"})
@@ -136,6 +142,34 @@ class S3ProofStorage:
     @staticmethod
     def _object_key(key: str) -> str:
         return f"proofs/{validate_proof_key(key)}"
+
+    def delete_scope(self, kind: str, identifier: str) -> None:
+        prefix = f"proofs/{proof_scope(kind, identifier)}/"
+        # Relist from the beginning after each page: safe if deletion changes pagination.
+        previous_keys: list[str] | None = None
+        while True:
+            objects = self.client.list_objects_v2(Bucket=self.bucket, Prefix=prefix)
+            keys = [item["Key"] for item in objects.get("Contents", [])]
+            if not keys:
+                return
+            if keys == previous_keys:
+                raise RuntimeError("proof deletion made no progress")
+            previous_keys = keys
+            if any(not key.startswith(prefix) for key in keys):
+                raise RuntimeError("proof listing escaped deletion scope")
+            result = self.client.delete_objects(
+                Bucket=self.bucket,
+                Delete={"Objects": [{"Key": key} for key in keys]},
+            )
+            if result.get("Errors"):
+                raise RuntimeError("partial proof deletion; retry required")
+
+
+def proof_scope(kind: str, identifier: str) -> str:
+    if kind not in {"sessions", "merkle"}:
+        raise ValueError("unsupported proof scope")
+    validate_storage_identifier(identifier, "proof scope")
+    return f"{kind}/{identifier}"
 
 
 ProofStorage = LocalProofStorage | S3ProofStorage

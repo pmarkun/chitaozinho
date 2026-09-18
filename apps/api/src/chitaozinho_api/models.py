@@ -277,6 +277,14 @@ class Attestation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class AuditCheckpoint(Base):
+    __tablename__ = "audit_checkpoint"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    event_hash: Mapped[str] = mapped_column(String(71), nullable=False)
+
+
 class AuditEvent(Base):
     __tablename__ = "audit_events"
 

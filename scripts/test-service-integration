@@ -34,7 +34,8 @@ export CHITAOZINHO_DATABASE_URL="postgresql+psycopg://${PGUSER}@127.0.0.1:${PGPO
 uv run --project "${project_root}/apps/api" alembic upgrade head >/dev/null
 CHITAOZINHO_RUN_SERVICE_INTEGRATION=1 \
   uv run --project "${project_root}" pytest \
-  "${project_root}/apps/api/tests/test_services_integration.py" -q
+  "${project_root}/apps/api/tests/test_services_integration.py" \
+  "${project_root}/apps/api/tests/test_privacy_cleanup.py" -q
 
 printf 'Service integration passed with isolated database %s\n' \
   "${integration_database}"

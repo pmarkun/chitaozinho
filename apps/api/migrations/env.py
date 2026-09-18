@@ -10,7 +10,7 @@ from sqlalchemy import engine_from_config, pool
 configuration = context.config
 if configuration.config_file_name is not None:
     fileConfig(configuration.config_file_name)
-configuration.set_main_option("sqlalchemy.url", Settings().database_url)
+configuration.set_main_option("sqlalchemy.url", Settings().database_url.replace("%", "%%"))
 target_metadata = Base.metadata
 
 

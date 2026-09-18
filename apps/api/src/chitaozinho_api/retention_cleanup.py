@@ -10,6 +10,8 @@ from .config import Settings
 from .database import create_database_engine
 from .models import CaptureSession
 from .observability import configure_operational_logging
+from .privacy_cleanup import cleanup_personal_data
+from .proof_storage import create_proof_storage
 from .storage import DurableStorage, create_storage
 
 
@@ -74,8 +76,10 @@ def main() -> None:
     # hash-only sessions never enter this queue and have no evidence objects.
     legacy_settings = settings.model_copy(update={"evidence_mode": "remote"})
     expired, failed = expire_due_sessions(factory, create_storage(legacy_settings))
+    privacy = cleanup_personal_data(factory, create_proof_storage(settings), apply=True)
+    print(f"privacy_cleanup {privacy}")
     print(f"retention_cleanup expired={expired} failed={failed}")
-    if failed:
+    if failed or privacy["failures"]:
         raise SystemExit(1)
 
 
