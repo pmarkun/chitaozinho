@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
 from chitaozinho_api.config import Settings
 from chitaozinho_api.database import create_database_engine
 from chitaozinho_api.models import (
@@ -20,11 +21,14 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import sessionmaker
 
 
+@pytest.mark.parametrize("mode", ["remote", "hash_only"])
 def test_processor_batches_pending_sessions_and_upgrades_without_bitcoin_node(
     tmp_path: Path,
     monkeypatch,
+    mode,
 ) -> None:
     settings = Settings(
+        evidence_mode=mode,
         database_url=f"sqlite:///{tmp_path / 'ots.db'}",
         proofs_path=tmp_path / "proofs",
         storage_path=tmp_path / "artifacts",
@@ -51,7 +55,8 @@ def test_processor_batches_pending_sessions_and_upgrades_without_bitcoin_node(
                     manifest_hash=f"sha256:{index:064x}",
                     timestamp_status="not_requested",
                     blockchain_status="not_submitted",
-                    storage_status="stored",
+                    storage_status="hash_only" if mode == "hash_only" else "stored",
+                    evidence_mode=mode,
                 )
                 for index in (1, 2)
             ]

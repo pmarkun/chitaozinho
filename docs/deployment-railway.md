@@ -6,6 +6,33 @@ ficam armazenados por 30 dias e não são imutáveis: o serviço deve informar
 
 ## Serviços
 
+### Transição para guarda local (`hash_only`)
+
+A próxima configuração declarativa define `CHITAOZINHO_EVIDENCE_MODE=hash_only`.
+Esse perfil não cria objetos de evidência nem ZIPs de captura no servidor. O
+Bucket continua contendo comprovantes criptográficos (hashes, Merkle/OTS),
+não o conteúdo de novas capturas. Autenticação, recibos e metadados técnicos
+continuam no PostgreSQL; isso não elimina a necessidade de uma política de dados.
+
+1. Publique a migração aditiva `0007_hash_only`; sessões existentes continuam
+   `remote`. Não remova buckets, volumes, backups ou registros legados.
+2. Teste a nova extensão e API juntas antes de ativar o perfil. O ZIP assinado
+   `0.1.1` disponível na home ainda é legado: não é compatível com captura só-hash.
+3. Publique uma nova release assinada da extensão, atualize o link da home e
+   só então libere o novo fluxo. Não distribua builds de desenvolvimento como releases.
+4. Ative `hash_only` na API. Clientes antigos terão o upload recusado e precisarão
+   atualizar. Capturas `remote` abertas não são convertidas silenciosamente.
+5. Valide captura, pacote local, download repetido sem API, conferência web/CLI
+   e processamento OTS. O teste local reproduzível é
+   `nix develop --command bash scripts/test-hash-only-capture` (porta 8000 livre).
+
+O módulo remoto permanece disponível com `remote`. O expirador mantém a política
+original das sessões antigas; sessões só-hash não possuem expiração de arquivos
+no servidor. Nenhuma exclusão de conteúdo legado faz parte da migração.
+Rollback de código antigo exige suspender novas capturas só-hash; não reclassifique
+esses recibos como persistência e não remova a coluna aditiva. Preserve a nova
+extensão/verificadores para abrir os ZIPs locais já produzidos.
+
 O ambiente lógico `beta` roda dentro do `staging` do Railway. Ele contém os
 serviços públicos `api` e `verifier-web`; os processos privados `worker`,
 `retention-cleanup` e `ots-processor`; PostgreSQL; o Bucket

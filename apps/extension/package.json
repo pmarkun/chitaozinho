@@ -14,6 +14,7 @@
   "dependencies": {
     "@chitaozinho/protocol": "workspace:*",
     "@noble/hashes": "2.2.0",
+    "@zip.js/zip.js": "2.8.34",
     "idb": "^8.0.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"

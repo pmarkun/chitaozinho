@@ -1,11 +1,17 @@
 {
-  "appName": { "message": "Chitãozinho" },
+  "hashOnly": { "message": "somente no seu dispositivo" },
+  "hashOnlyNotice": {
+    "message": "Guarde o ZIP: os arquivos ficam neste dispositivo. O servidor recebe hashes e dados técnicos, sem cópia para recuperação."
+  },
+  "appName": { "message": "Evidências" },
   "appDescription": {
     "message": "Captura e preservação verificável de evidências digitais."
   },
   "appTagline": { "message": "evidência digital verificável" },
   "betaTitle": { "message": "Beta — dados não críticos" },
-  "betaRetention": { "message": "Armazenado por 30 dias" },
+  "betaRetention": {
+    "message": "Guarde uma cópia do ZIP. Confira o modo de armazenamento da sua captura."
+  },
   "betaNoImmutability": {
     "message": "Sem garantia de imutabilidade ou Object Lock."
   },
@@ -51,7 +57,7 @@
   "beforeStarting": { "message": "Antes de começar" },
   "newCaptureTitle": { "message": "Prepare uma evidência completa" },
   "newCaptureBody": {
-    "message": "O Chitãozinho registra vídeo, imagens, estrutura da página, texto visível e metadados, vinculando tudo à sequência da coleta."
+    "message": "O Evidências registra vídeo, imagens, estrutura da página, texto visível e metadados, vinculando tudo à sequência da coleta."
   },
   "prepareContext": {
     "message": "Comece pela página que identifica o conteúdo e sua origem."
@@ -60,7 +66,7 @@
     "message": "Navegue com calma e mostre datas, perfis, endereços e contexto relevante."
   },
   "prepareFinish": {
-    "message": "Finalize pelo Chitãozinho para gerar e baixar o pacote de evidência."
+    "message": "Finalize pelo Evidências para gerar e baixar o pacote de evidência."
   },
   "responsibleUse": { "message": "Uso responsável" },
   "sensitiveDataNotice": {
@@ -70,8 +76,8 @@
     "message": "Confirmo que estou autorizado a registrar este conteúdo e quero iniciar a coleta."
   },
   "startCapture": { "message": "Começar a registrar" },
-  "savingContinuously": { "message": "Salvando e protegendo continuamente" },
-  "uploadedParts": { "message": "Partes enviadas" },
+  "savingContinuously": { "message": "Registrando a integridade da captura" },
+  "uploadedParts": { "message": "Partes registradas" },
   "connection": { "message": "Conexão" },
   "discardCapture": { "message": "Descartar captura local" },
   "discardCaptureConfirmation": {

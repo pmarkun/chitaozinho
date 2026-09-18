@@ -3,6 +3,13 @@
   "$id": "https://chitaozinho.dev/schemas/0.1.0/receipt.schema.json",
   "title": "Chitaozinho durable receipt",
   "type": "object",
+  "allOf": [
+    {
+      "if": { "properties": { "protocol_version": { "const": "0.2.0" } } },
+      "then": { "properties": { "persistence_state": { "const": "hash_registered" } } },
+      "else": { "properties": { "persistence_state": { "enum": ["durable_staging", "stored", "locked"] } } }
+    }
+  ],
   "additionalProperties": false,
   "required": [
     "protocol_version",
@@ -17,7 +24,7 @@
     "persistence_state"
   ],
   "properties": {
-    "protocol_version": { "const": "0.1.0" },
+    "protocol_version": { "enum": ["0.1.0", "0.2.0"] },
     "session_id": { "type": "string", "minLength": 1, "maxLength": 128 },
     "sequence": { "type": "integer", "minimum": 0 },
     "entry_hash": { "$ref": "#/$defs/sha256" },
@@ -32,7 +39,7 @@
     },
     "server_time": { "type": "string", "format": "date-time" },
     "persistence_state": {
-      "enum": ["durable_staging", "stored", "locked"]
+      "enum": ["durable_staging", "stored", "locked", "hash_registered"]
     }
   },
   "$defs": {

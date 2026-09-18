@@ -8,7 +8,7 @@ export default tseslint.config(
     ignores: ["dist/**"],
   },
   {
-    files: ["e2e/**/*.cjs", "playwright.config.cjs"],
+    files: ["e2e/**/*.cjs", "playwright*.config.cjs"],
     languageOptions: {
       sourceType: "commonjs",
       globals: {
@@ -17,6 +17,12 @@ export default tseslint.config(
         module: "readonly",
         require: "readonly",
         Response: "readonly",
+        process: "readonly",
+        fetch: "readonly",
+        URL: "readonly",
+        Buffer: "readonly",
+        chrome: "readonly",
+        console: "readonly",
       },
     },
     rules: {

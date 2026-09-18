@@ -1,7 +1,7 @@
 {
-  "name": "Validador Chitãozinho",
-  "short_name": "Chitãozinho",
-  "description": "Verificação local de pacotes probatórios Chitãozinho.",
+  "name": "Validador Evidências",
+  "short_name": "Evidências",
+  "description": "Verificação local de pacotes probatórios Evidências.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f5f3ec",

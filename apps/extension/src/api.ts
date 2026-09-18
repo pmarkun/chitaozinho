@@ -1,6 +1,8 @@
 import { base64UrlEncode, canonicalBytes } from "@chitaozinho/protocol";
 
 import type { ChainEntry } from "./types";
+import { getSession } from "./db";
+import type { LocalPackageTemplate } from "./types";
 
 const API_BASE_URL = __CHITAOZINHO_ENDPOINTS__.api;
 
@@ -70,22 +72,40 @@ export async function uploadPart(
   bytes: ArrayBuffer,
   signed: SignedEntry,
 ): Promise<Record<string, unknown>> {
+  const hashOnly = (await getSession(sessionId))?.evidenceMode === "hash_only";
   return (
     await checked(
       await apiFetch(
-        `${API_BASE_URL}/v1/sessions/${sessionId}/artifacts/${artifactId}/parts/${partNumber}`,
+        `${API_BASE_URL}/v1/sessions/${sessionId}/artifacts/${artifactId}/parts/${partNumber}${hashOnly ? "/hash" : ""}`,
         {
           method: "PUT",
           headers: {
-            "Content-Type": "application/octet-stream",
+            "Content-Type": hashOnly
+              ? "application/json"
+              : "application/octet-stream",
             "Idempotency-Key": `${artifactId}-${partNumber}`,
             "X-Entry-Json": base64UrlEncode(canonicalBytes(signed.entry)),
             "X-Entry-Hash": signed.entry_hash,
             "X-Entry-Signature": signed.signature_hex,
           },
-          body: bytes,
+          body: hashOnly
+            ? JSON.stringify({
+                size: bytes.byteLength,
+                part_hash: signed.entry.part_hash,
+              })
+            : bytes,
         },
       ),
+    )
+  ).json();
+}
+
+export async function getLocalPackageTemplate(
+  sessionId: string,
+): Promise<LocalPackageTemplate> {
+  return (
+    await checked(
+      await apiFetch(`${API_BASE_URL}/v1/sessions/${sessionId}/local-package`),
     )
   ).json();
 }

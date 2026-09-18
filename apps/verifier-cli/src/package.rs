@@ -478,7 +478,7 @@ fn verify_internal(
 
     verify_manifest_artifacts(extracted.path(), &manifest)?;
     let entries = verify_chain(extracted.path(), &manifest, &public_keys)?;
-    verify_receipts(extracted.path(), &entries, &public_keys)?;
+    let hash_only = verify_receipts(extracted.path(), &entries, &public_keys)?;
     verify_capture_close(extracted.path(), &manifest, &public_keys)?;
     let manifest_hash = sha256_identifier(&canonical_bytes(&manifest_value)?);
     let proof_result = proof_bundle
@@ -516,6 +516,11 @@ fn verify_internal(
             "artifact_hashes",
             "entry_chain",
             "receipt_chain",
+            if hash_only {
+                "hash_only_custody"
+            } else {
+                "remote_custody_receipts"
+            },
             "capture_close_signature",
             if proof_result.is_some() {
                 "external_proof_bundle"
@@ -864,11 +869,21 @@ fn verify_receipts(
     root: &Path,
     entries: &BTreeMap<u64, String>,
     public_keys: &PublicKeys,
-) -> Result<()> {
+) -> Result<bool> {
     let records: Vec<ReceiptRecord> = read_json_lines(&root.join(RECEIPTS_PATH))?;
     let server_key = decode_array::<32>(&public_keys.server.public_key_hex, "server public key")?;
     let mut previous: Option<String> = None;
+    let mut hash_only = false;
     for record in records {
+        let version = json_string(&record.receipt, "protocol_version")?;
+        let custody = json_string(&record.receipt, "persistence_state")?;
+        hash_only |= custody == "hash_registered";
+        ensure!(
+            (version == "0.2.0" && custody == "hash_registered")
+                || (version == "0.1.0"
+                    && matches!(custody, "durable_staging" | "stored" | "locked")),
+            "unsupported receipt custody mode"
+        );
         let sequence = json_u64(&record.receipt, "sequence")?;
         let entry_hash = json_string(&record.receipt, "entry_hash")?;
         ensure!(
@@ -890,7 +905,7 @@ fn verify_receipts(
             .with_context(|| format!("invalid receipt signature at sequence {sequence}"))?;
         previous = Some(record.receipt_hash);
     }
-    Ok(())
+    Ok(hash_only)
 }
 
 fn verify_manifest_artifacts(root: &Path, manifest: &CaptureManifest) -> Result<()> {

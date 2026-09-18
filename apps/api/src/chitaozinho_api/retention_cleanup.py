@@ -70,7 +70,10 @@ def main() -> None:
         raise RuntimeError("retention cleanup is only enabled in beta")
     engine = create_database_engine(settings)
     factory = sessionmaker(engine, expire_on_commit=False)
-    expired, failed = expire_due_sessions(factory, create_storage(settings))
+    # Only legacy sessions have an expiry. Preserve their original retention;
+    # hash-only sessions never enter this queue and have no evidence objects.
+    legacy_settings = settings.model_copy(update={"evidence_mode": "remote"})
+    expired, failed = expire_due_sessions(factory, create_storage(legacy_settings))
     print(f"retention_cleanup expired={expired} failed={failed}")
     if failed:
         raise SystemExit(1)

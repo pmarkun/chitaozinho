@@ -256,14 +256,22 @@ export async function verifyEvidencePackage(
         `${entries.size} eventos estão íntegros, ordenados e assinados.`,
       ),
     );
-    const receiptCount = await verifyReceiptChain(archive, entries, serverKey);
+    const receipts = await verifyReceiptChain(archive, entries, serverKey);
     checks.push(
       valid(
         "receipt_chain",
         "Recibos do servidor",
-        `${receiptCount} recibos estão íntegros e assinados.`,
+        `${receipts.count} recibos estão íntegros e assinados.`,
       ),
     );
+    if (receipts.hashOnly)
+      checks.push({
+        id: "hash_only_custody",
+        label: "Guarda local dos arquivos",
+        status: "warning",
+        detail:
+          "O servidor assinou hashes declarados pelo cliente. Não recebeu, conferiu ou armazenou os arquivos originais.",
+      });
     await verifyCaptureClose(archive, manifest, publicKeys, clientKey);
     checks.push(
       valid(
@@ -612,10 +620,19 @@ async function verifyReceiptChain(
   archive: Archive,
   entries: Map<number, string>,
   serverKey: Uint8Array,
-): Promise<number> {
+): Promise<{ count: number; hashOnly: boolean }> {
   const records = await readJsonLines<ReceiptRecord>(archive, RECEIPTS_PATH);
   let previous: string | null = null;
   for (const record of records) {
+    ensure(
+      (record.receipt.protocol_version === "0.2.0" &&
+        record.receipt.persistence_state === "hash_registered") ||
+        (record.receipt.protocol_version === "0.1.0" &&
+          ["durable_staging", "stored", "locked"].includes(
+            String(record.receipt.persistence_state),
+          )),
+      "Modo de recibo não suportado.",
+    );
     const sequence = integerField(record.receipt, "sequence");
     ensure(
       entries.get(sequence) === stringField(record.receipt, "entry_hash"),
@@ -641,7 +658,12 @@ async function verifyReceiptChain(
     );
     previous = receiptHash;
   }
-  return records.length;
+  return {
+    count: records.length,
+    hashOnly: records.some(
+      (record) => record.receipt.persistence_state === "hash_registered",
+    ),
+  };
 }
 
 async function verifyCaptureClose(

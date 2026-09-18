@@ -3,6 +3,10 @@ import { openDB, type DBSchema } from "idb";
 import type { PartRecord, ReceiptRecord, SessionRecord } from "./types";
 
 interface ChitaozinhoDatabase extends DBSchema {
+  packages: {
+    key: string;
+    value: { sessionId: string; blob: Blob; hash: string };
+  };
   sessions: {
     key: string;
     value: SessionRecord;
@@ -19,8 +23,11 @@ interface ChitaozinhoDatabase extends DBSchema {
   };
 }
 
-const database = openDB<ChitaozinhoDatabase>("chitaozinho", 1, {
-  upgrade(store) {
+const database = openDB<ChitaozinhoDatabase>("chitaozinho", 2, {
+  upgrade(store, oldVersion) {
+    if (oldVersion < 2)
+      store.createObjectStore("packages", { keyPath: "sessionId" });
+    if (oldVersion >= 1) return;
     store.createObjectStore("sessions", { keyPath: "id" });
     const parts = store.createObjectStore("parts", { keyPath: "id" });
     parts.createIndex("by-session", "sessionId");
@@ -28,6 +35,18 @@ const database = openDB<ChitaozinhoDatabase>("chitaozinho", 1, {
     receipts.createIndex("by-session", "sessionId");
   },
 });
+
+export async function getLocalPackage(sessionId: string) {
+  return (await database).get("packages", sessionId);
+}
+
+export async function saveLocalPackage(
+  sessionId: string,
+  blob: Blob,
+  hash: string,
+) {
+  await (await database).put("packages", { sessionId, blob, hash });
+}
 
 export async function closeDatabase(): Promise<void> {
   (await database).close();
@@ -111,7 +130,7 @@ export async function sessionReceipts(
 export async function deleteLocalSession(sessionId: string): Promise<void> {
   const connection = await database;
   const transaction = connection.transaction(
-    ["sessions", "parts", "receipts"],
+    ["sessions", "parts", "receipts", "packages"],
     "readwrite",
   );
   const partKeys = await transaction
@@ -124,6 +143,7 @@ export async function deleteLocalSession(sessionId: string): Promise<void> {
     .getAllKeys(sessionId);
   await Promise.all([
     transaction.objectStore("sessions").delete(sessionId),
+    transaction.objectStore("packages").delete(sessionId),
     ...partKeys.map((key) => transaction.objectStore("parts").delete(key)),
     ...receiptKeys.map((key) =>
       transaction.objectStore("receipts").delete(key),

@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     env: Literal["development", "test", "beta", "staging", "production"] = "development"
     database_url: str = "sqlite:///data/chitaozinho.db"
     storage_backend: str = "local"
+    evidence_mode: Literal["remote", "hash_only"] = "remote"
     storage_provider: Literal["local", "garage", "railway", "ceph"] = "local"
     storage_path: Path = Path("data/artifacts")
     proofs_path: Path = Path("data/proofs")

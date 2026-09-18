@@ -1,11 +1,17 @@
 {
-  "appName": { "message": "Chitãozinho" },
+  "hashOnly": { "message": "only on your device" },
+  "hashOnlyNotice": {
+    "message": "Keep the ZIP: evidence stays on this device. The server receives hashes and technical metadata, with no recovery copy."
+  },
+  "appName": { "message": "Evidências" },
   "appDescription": {
     "message": "Verifiable capture and preservation of digital evidence."
   },
   "appTagline": { "message": "verifiable digital evidence" },
   "betaTitle": { "message": "Beta — non-critical data only" },
-  "betaRetention": { "message": "Stored for 30 days" },
+  "betaRetention": {
+    "message": "Keep a copy of the ZIP. Check the custody mode of your capture."
+  },
   "betaNoImmutability": {
     "message": "No immutability or Object Lock guarantee."
   },
@@ -51,7 +57,7 @@
   "beforeStarting": { "message": "Before you start" },
   "newCaptureTitle": { "message": "Prepare complete evidence" },
   "newCaptureBody": {
-    "message": "Chitãozinho records video, images, page structure, visible text, and metadata, linking everything to the capture sequence."
+    "message": "Evidências records video, images, page structure, visible text, and metadata, linking everything to the capture sequence."
   },
   "prepareContext": {
     "message": "Start on the page that identifies the content and its source."
@@ -60,7 +66,7 @@
     "message": "Browse calmly and show dates, profiles, addresses, and relevant context."
   },
   "prepareFinish": {
-    "message": "Finish in Chitãozinho to generate and download the evidence package."
+    "message": "Finish in Evidências to generate and download the evidence package."
   },
   "responsibleUse": { "message": "Responsible use" },
   "sensitiveDataNotice": {

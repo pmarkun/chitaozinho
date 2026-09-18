@@ -21,6 +21,7 @@ interface PublicState {
   timestampStatus?: string;
   blockchainStatus?: string;
   storageStatus?: string;
+  evidenceMode?: "remote" | "hash_only";
   error?: string;
   unavailableArtifacts: number;
   captureFinished: boolean;
@@ -153,7 +154,7 @@ function App() {
     <main aria-busy={busy}>
       <header>
         <span className="brand-mark" aria-hidden="true">
-          C
+          E
         </span>
         <div>
           <strong>{t("appName")}</strong>
@@ -174,7 +175,11 @@ function App() {
       {__CHITAOZINHO_ENDPOINTS__.environment === "beta" && (
         <aside className="beta-notice" aria-label={t("betaTitle")}>
           <strong>{t("betaTitle")}</strong>
-          <span>{t("betaRetention")}</span>
+          <span>
+            {capture?.evidenceMode === "hash_only"
+              ? t("hashOnlyNotice")
+              : t("betaRetention")}
+          </span>
           <small>{t("betaNoImmutability")}</small>
         </aside>
       )}
@@ -625,6 +630,7 @@ function formatResult(status?: string): string {
       verification_failed: t("verificationFailed"),
       staging: t("staging"),
       stored: t("stored"),
+      hash_only: t("hashOnly"),
       locked: t("locked"),
       retention_failed: t("retentionFailed"),
       expired: t("expired"),

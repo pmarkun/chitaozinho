@@ -9,7 +9,7 @@ from hashlib import sha256
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
-from chitaozinho_protocol import DOMAINS, canonical_bytes, sha256_identifier
+from chitaozinho_protocol import DOMAINS, base64url_encode, canonical_bytes, sha256_identifier
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -39,11 +39,7 @@ def ensure_package(
     hash_target = target.with_suffix(".zip.sha256")
     if target.exists() and hash_target.exists():
         stored_hash = hash_target.read_text().split()[0]
-        package_hash = (
-            stored_hash
-            if stored_hash.startswith("sha256:")
-            else f"sha256:{stored_hash}"
-        )
+        package_hash = stored_hash if stored_hash.startswith("sha256:") else f"sha256:{stored_hash}"
         storage_status = protect_final_artifact(
             database,
             settings,
@@ -96,8 +92,7 @@ def ensure_package(
             os.link(temporary, target)
         package_hash = hash_path(target)
         hash_content = (
-            f"{package_hash.removeprefix('sha256:')}  "
-            f"chitaozinho-{capture_session.id}.zip\n"
+            f"{package_hash.removeprefix('sha256:')}  chitaozinho-{capture_session.id}.zip\n"
         )
         write_once(hash_target, hash_content.encode("ascii"))
         fsync_directory(target.parent)
@@ -125,7 +120,7 @@ def ensure_package(
 
 def package_members(
     database: Session,
-    storage: DurableStorage,
+    storage: DurableStorage | None,
     signer: ServerSigner,
     capture_session: CaptureSession,
 ) -> dict[str, bytes]:
@@ -172,13 +167,9 @@ def package_members(
         "public_key_hex": signer.public_key.hex(),
     }
     if signer.certificate is not None:
-        server_key_record["certificate_path"] = (
-            "signatures/server-key-certificate.json"
-        )
+        server_key_record["certificate_path"] = "signatures/server-key-certificate.json"
     if signer.revocation_list is not None:
-        server_key_record["revocation_list_path"] = (
-            "signatures/server-key-revocations.json"
-        )
+        server_key_record["revocation_list_path"] = "signatures/server-key-revocations.json"
     members = {
         "capture-manifest.json": canonical_bytes(capture_session.manifest),
         "chain/capture-close.json": canonical_bytes(capture_session.capture_close),
@@ -217,19 +208,25 @@ def package_members(
         ),
     }
     for member_path, asset_name in METHODOLOGY_MEMBERS.items():
-        members[member_path] = (PACKAGE_ASSETS / asset_name).read_bytes()
+        if capture_session.evidence_mode != "hash_only":
+            members[member_path] = (PACKAGE_ASSETS / asset_name).read_bytes()
+    if capture_session.evidence_mode == "hash_only":
+        members["methodology/methodology-v0.3.md"] = (
+            PACKAGE_ASSETS / "methodology-hash-only-v0.3.md"
+        ).read_bytes()
+        members["README.txt"] = (
+            b"Evidencias - hash-only capture. Evidence bytes remain with the client.\n"
+            b"Server signatures attest hash registration, not server custody or content truth.\n"
+            b"Keep this original ZIP and its checksum. No server recovery is available.\n"
+        )
     if signer.certificate is not None:
-        members["signatures/server-key-certificate.json"] = canonical_bytes(
-            signer.certificate
-        )
+        members["signatures/server-key-certificate.json"] = canonical_bytes(signer.certificate)
     if signer.revocation_list is not None:
-        members["signatures/server-key-revocations.json"] = canonical_bytes(
-            signer.revocation_list
-        )
+        members["signatures/server-key-revocations.json"] = canonical_bytes(signer.revocation_list)
     parts_by_artifact: dict[str, list[ArtifactPart]] = {}
     for part in parts:
         parts_by_artifact.setdefault(part.artifact_id, []).append(part)
-    for artifact in artifacts:
+    for artifact in artifacts if storage is not None else []:
         if artifact.status != "captured":
             continue
         members[artifact.path] = b"".join(
@@ -237,6 +234,68 @@ def package_members(
             for part in parts_by_artifact.get(artifact.artifact_id, [])
         )
     return members
+
+
+def local_package_template(
+    database: Session,
+    signer: ServerSigner,
+    capture_session: CaptureSession,
+) -> dict:
+    """Sign an index from declared hashes; never read or materialize evidence bytes."""
+    members = package_members(database, None, signer, capture_session)
+    index_members = [
+        {
+            "path": path,
+            "size": len(content),
+            "media_type": media_type(path),
+            "sha256": sha256_identifier(content),
+        }
+        for path, content in members.items()
+    ]
+    artifacts = list(
+        database.scalars(
+            select(Artifact).where(
+                Artifact.session_id == capture_session.id,
+                Artifact.status == "captured",
+            )
+        )
+    )
+    index_members.extend(
+        {
+            "path": artifact.path,
+            "size": artifact.size,
+            "media_type": artifact.media_type,
+            "sha256": artifact.artifact_hash,
+        }
+        for artifact in artifacts
+    )
+    paths = [member["path"] for member in index_members]
+    if len(paths) != len(set(paths)):
+        raise ValueError("duplicate package path")
+    index = {
+        "schema_version": "0.1.0",
+        "session_id": capture_session.id,
+        "created_at": rfc3339(capture_session.ended_at or capture_session.updated_at),
+        "members": sorted(index_members, key=lambda member: member["path"]),
+    }
+    members["package-index.json"] = canonical_bytes(index)
+    members["signatures/package-index.server.sig"] = (
+        signer.sign(DOMAINS["package_index"], index).encode("ascii") + b"\n"
+    )
+    return {
+        "evidence_mode": "hash_only",
+        "session_id": capture_session.id,
+        "members": {path: base64url_encode(data) for path, data in members.items()},
+        "artifacts": [
+            {
+                "artifact_id": artifact.artifact_id,
+                "path": artifact.path,
+                "size": artifact.size,
+                "sha256": artifact.artifact_hash,
+            }
+            for artifact in artifacts
+        ],
+    }
 
 
 def json_lines(values: Iterable[dict]) -> bytes:
