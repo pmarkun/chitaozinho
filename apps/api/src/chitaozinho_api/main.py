@@ -461,6 +461,14 @@ def create_app(
         database: Session = Depends(get_session),
     ) -> CreateSessionResponse:
         active_signer = require_signer(signer)
+        if settings.auth_mode == "magic_link":
+            from .models import User
+
+            owner = database.scalar(
+                select(User).where(User.id == request.state.user_id).with_for_update()
+            )
+            if owner is None:
+                raise HTTPException(status_code=401, detail="authentication required")
         now = datetime.now(UTC)
         capture_session = CaptureSession(
             id=uuid.uuid4().hex,

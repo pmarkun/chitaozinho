@@ -67,7 +67,7 @@ export default defineRailway(() => {
     CHITAOZINHO_OTS_UPGRADE_RETRY_SECONDS: "3600",
     CHITAOZINHO_OTS_CALENDARS:
       "https://alice.btc.calendar.opentimestamps.org,https://bob.btc.calendar.opentimestamps.org,https://finney.calendar.eternitywall.com,https://ots.btc.catallaxy.com",
-    CHITAOZINHO_PUBLIC_BASE_URL: "https://api-staging-db23.up.railway.app",
+    CHITAOZINHO_PUBLIC_BASE_URL: "https://api.evidencias.org.br",
     CHITAOZINHO_AUTH_MODE: "magic_link",
     CHITAOZINHO_AUTH_TOKEN_PEPPER: preserve(),
     CHITAOZINHO_EMAIL_PROVIDER: "resend",
@@ -107,6 +107,7 @@ export default defineRailway(() => {
       limitOverride: { containers: { memoryBytes: 384 * mib } },
     },
     networking: {
+      customDomains: { "api.evidencias.org.br": { port: 8080 } },
       serviceDomains: { "api-staging-db23.up.railway.app": { port: 8080 } },
     },
     env: backendEnv,
@@ -222,6 +223,7 @@ export default defineRailway(() => {
       limitOverride: { containers: { memoryBytes: 128 * mib } },
     },
     networking: {
+      customDomains: { "evidencias.org.br": { port: 8080 } },
       serviceDomains: { "verifier-web-staging.up.railway.app": { port: 8080 } },
     },
   });
