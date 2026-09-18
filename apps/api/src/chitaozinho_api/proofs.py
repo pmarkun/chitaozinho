@@ -255,7 +255,7 @@ def upgrade_ots(original: Path, complement: Path) -> bool:
 
 
 def inspect_ots(proof_file: Path) -> str:
-    result = run_checked(["ots", "info", str(proof_file)])
+    result = run_checked(["ots", "--no-cache", "info", str(proof_file)])
     output = f"{result.stdout}\n{result.stderr}"
     if "BitcoinBlockHeaderAttestation" in output:
         return "bitcoin_attestation_available"
@@ -269,7 +269,7 @@ def verify_ots(
     proof_file: Path,
     bitcoin_node_url: str | None = None,
 ) -> str:
-    command = ["ots"]
+    command = ["ots", "--no-cache"]
     if bitcoin_node_url is not None:
         command.extend(["--bitcoin-node", bitcoin_node_url])
     command.extend(["verify", "-f", str(root_file), str(proof_file)])

@@ -118,17 +118,40 @@ def test_ots_inspection_distinguishes_proof_from_node_verification(
     inspection: str,
     expected: str,
 ) -> None:
+    def inspect_without_cache(command: list[str]) -> subprocess.CompletedProcess[str]:
+        assert command == ["ots", "--no-cache", "info", str(tmp_path / "proof.ots")]
+        return subprocess.CompletedProcess(command, 0, stdout=inspection, stderr="")
+
     monkeypatch.setattr(
         proofs,
         "run_checked",
-        lambda command: subprocess.CompletedProcess(
-            command,
-            0,
-            stdout=inspection,
-            stderr="",
-        ),
+        inspect_without_cache,
     )
     assert inspect_ots(tmp_path / "proof.ots") == expected
+
+
+def test_ots_verification_does_not_require_a_writable_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def verify_without_cache(command: list[str]) -> subprocess.CompletedProcess[str]:
+        assert command == [
+            "ots",
+            "--no-cache",
+            "--bitcoin-node",
+            "http://bitcoin.internal",
+            "verify",
+            "-f",
+            str(tmp_path / "root.bin"),
+            str(tmp_path / "proof.ots"),
+        ]
+        return subprocess.CompletedProcess(command, 0, stdout="Success", stderr="")
+
+    monkeypatch.setattr(proofs, "run_checked", verify_without_cache)
+    assert (
+        proofs.verify_ots(tmp_path / "root.bin", tmp_path / "proof.ots", "http://bitcoin.internal")
+        == "confirmed"
+    )
 
 
 def test_ots_upgrade_treats_pending_calendar_confirmation_as_retryable(
