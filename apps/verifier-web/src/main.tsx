@@ -98,6 +98,50 @@ function NavButton({
   );
 }
 
+function ExtensionDownload() {
+  return (
+    <section className="extension-download" aria-labelledby="extension-heading">
+      <h2 id="extension-heading">Quer capturar uma evidência?</h2>
+      <p>
+        Baixe a extensão beta para Chrome 116 ou superior no computador. Para
+        validar um pacote nesta página, não é preciso instalar nada.
+      </p>
+      <a
+        className="primary button"
+        href="/downloads/chitaozinho-extension-0.1.1.zip"
+        download
+      >
+        Baixar extensão beta · ZIP
+      </a>
+      <details>
+        <summary>Como instalar no Chrome</summary>
+        <ol>
+          <li>Baixe o ZIP e descompacte em uma pasta permanente.</li>
+          <li>
+            Digite <code>chrome://extensions</code> na barra de endereços.
+          </li>
+          <li>
+            Ative o <strong>Modo do desenvolvedor</strong>.
+          </li>
+          <li>
+            Clique em <strong>Carregar sem compactação</strong> e selecione a
+            pasta que contém o arquivo <code>manifest.json</code>.
+          </li>
+          <li>Abra o Chitãozinho pelo menu de extensões do Chrome.</li>
+        </ol>
+        <p>
+          A instalação é manual, não automática. Mantenha a pasta no computador.
+          Esta opção não instala a extensão no celular.
+        </p>
+      </details>
+      <p className="extension-note">
+        Versão 0.1.1 · Beta para dados não críticos. Armazenamento por 30 dias,
+        sem garantia de imutabilidade ou Object Lock.
+      </p>
+    </section>
+  );
+}
+
 function Home({ navigate }: { navigate: (page: Page) => void }) {
   const installUrl = import.meta.env.VITE_EXTENSION_INSTALL_URL as
     string | undefined;
@@ -130,6 +174,8 @@ function Home({ navigate }: { navigate: (page: Page) => void }) {
         </div>
         <EvidenceCard />
       </section>
+
+      <ExtensionDownload />
 
       <section className="comparison" aria-labelledby="comparison-title">
         <p className="eyebrow">Além do print</p>
@@ -410,6 +456,7 @@ function Verifier() {
         </div>
       </section>
       {report && <Report report={report} />}
+      <ExtensionDownload />
     </main>
   );
 }

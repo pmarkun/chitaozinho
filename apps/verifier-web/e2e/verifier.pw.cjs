@@ -3,6 +3,42 @@ const AxeBuilder = require("axe-core");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const crypto = require("node:crypto");
+
+test("beta download and keyboard installation instructions work", async ({
+  page,
+  request,
+}) => {
+  for (const route of ["/", "/validar"]) {
+    await page.goto(route);
+    const download = page.getByRole("link", {
+      name: "Baixar extensão beta · ZIP",
+    });
+    await expect(download).toHaveAttribute("download", "");
+    const response = await request.get(await download.getAttribute("href"));
+    expect(response.ok()).toBe(true);
+    expect(
+      crypto
+        .createHash("sha256")
+        .update(await response.body())
+        .digest("hex"),
+    ).toBe("1fe25883d7f4f650386430a8ebf21750394b809947b0788b0846b6fd23e5f4aa");
+    const instructions = page.locator(".extension-download summary");
+    await instructions.focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByText("chrome://extensions", { exact: true }),
+    ).toBeVisible();
+    await expect(page.locator(".extension-download details")).toHaveAttribute(
+      "open",
+      "",
+    );
+    await page.keyboard.press("Enter");
+    await expect(
+      page.locator(".extension-download details"),
+    ).not.toHaveAttribute("open", "");
+  }
+});
 
 test("public pages stay accessible on desktop and mobile", async ({
   browser,

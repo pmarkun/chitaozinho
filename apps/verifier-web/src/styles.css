@@ -121,6 +121,40 @@ main {
   letter-spacing: 0.13em;
   text-transform: uppercase;
 }
+.extension-download {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  border: 1px solid #b4c5ba;
+  border-radius: 1rem;
+  background: #fffdf7;
+}
+.extension-download h2 {
+  margin-top: 0;
+  font-size: 1.6rem;
+}
+.extension-download .button {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+.extension-download details {
+  margin-top: 1rem;
+}
+.extension-download summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding: 0.6rem 0;
+  font-weight: 700;
+}
+.extension-download li {
+  margin-bottom: 0.65rem;
+}
+.extension-download code {
+  overflow-wrap: anywhere;
+}
+.extension-note {
+  font-size: 0.9rem;
+}
 h1,
 h2 {
   color: #123e2d;
