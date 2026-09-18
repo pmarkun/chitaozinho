@@ -45,6 +45,7 @@
             ];
 
             env = {
+              __EGL_VENDOR_LIBRARY_FILENAMES = "${pkgs.mesa}/share/glvnd/egl_vendor.d/50_mesa.json";
               PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
               UV_PROJECT_ENVIRONMENT = ".venv";
             };

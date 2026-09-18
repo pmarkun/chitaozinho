@@ -15,7 +15,6 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         viewport,
         serviceWorkers: "block",
       });
-      await context.tracing.start({ screenshots: true, snapshots: true });
       const page = await test.step("Create page", () => context.newPage());
       await page.addInitScript({ content: axe.source });
       const errors = [];
@@ -62,9 +61,6 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         );
         expect(errors).toEqual([]);
       } finally {
-        await context.tracing.stop({
-          path: test.info().outputPath("privacy-trace.zip"),
-        });
         await context.close();
         await browser.close();
       }

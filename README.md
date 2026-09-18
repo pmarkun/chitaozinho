@@ -86,9 +86,8 @@ python -m http.server 4174 --directory apps/verifier-web/dist
 ```
 
 Abra <http://127.0.0.1:4174>. O pacote selecionado permanece no navegador. O
-mesmo build está disponível em
-<https://verifier-web-staging.up.railway.app> e pode ser reaberto offline após
-a primeira carga.
+mesmo build está disponível em <https://evidencias.org.br> e pode ser reaberto
+offline após a primeira carga.
 
 ## Política de dependências
 

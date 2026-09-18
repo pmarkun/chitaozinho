@@ -36,8 +36,7 @@ const buildIdentity = {
 const endpoints = {
   api: process.env.CHITAOZINHO_API_BASE_URL ?? "http://127.0.0.1:8000",
   verifier:
-    process.env.CHITAOZINHO_VERIFIER_URL ??
-    "https://verifier-web-staging.up.railway.app/validar",
+    process.env.CHITAOZINHO_VERIFIER_URL ?? "https://evidencias.org.br/validar",
   environment: process.env.CHITAOZINHO_ENVIRONMENT ?? "desenvolvimento",
 };
 
