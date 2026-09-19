@@ -1,4 +1,5 @@
 const path = require("node:path");
+const authMode = process.env.CHITAOZINHO_E2E_AUTH_MODE ?? "magic_link";
 
 module.exports = {
   testDir: path.join(__dirname, "e2e"),
@@ -14,7 +15,7 @@ module.exports = {
     command:
       "CHITAOZINHO_API_BASE_URL=https://api.evidencias.org.br " +
       "CHITAOZINHO_VERIFIER_URL=https://evidencias.org.br/validar " +
-      "CHITAOZINHO_ENVIRONMENT=beta pnpm build && " +
+      `CHITAOZINHO_ENVIRONMENT=beta CHITAOZINHO_AUTH_MODE=${authMode} pnpm build && ` +
       "python -m http.server 4173 --bind 127.0.0.1 --directory dist",
     cwd: __dirname,
     url: "http://127.0.0.1:4173/popup.html",

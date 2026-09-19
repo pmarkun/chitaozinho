@@ -68,7 +68,8 @@ export default defineRailway(() => {
     CHITAOZINHO_OTS_CALENDARS:
       "https://alice.btc.calendar.opentimestamps.org,https://bob.btc.calendar.opentimestamps.org,https://finney.calendar.eternitywall.com,https://ots.btc.catallaxy.com",
     CHITAOZINHO_PUBLIC_BASE_URL: "https://api.evidencias.org.br",
-    CHITAOZINHO_AUTH_MODE: "magic_link",
+    CHITAOZINHO_VERIFIER_BASE_URL: "https://evidencias.org.br",
+    CHITAOZINHO_AUTH_MODE: "anonymous",
     CHITAOZINHO_AUTH_TOKEN_PEPPER: preserve(),
     CHITAOZINHO_EMAIL_PROVIDER: "resend",
     CHITAOZINHO_RESEND_API_KEY: preserve(),
@@ -96,7 +97,7 @@ export default defineRailway(() => {
       watchPatterns: backendWatchPatterns,
     },
     start:
-      'sh -c \'exec uvicorn chitaozinho_api.main:create_app --factory --host 0.0.0.0 --port "$PORT" --no-access-log\'',
+      "sh -c 'exec uvicorn chitaozinho_api.main:create_app --factory --host 0.0.0.0 --port \"$PORT\" --no-access-log'",
     preDeploy: "alembic upgrade head",
     healthcheck: "/readyz",
     healthcheckTimeout: 30,

@@ -131,10 +131,13 @@ def create_app(
         Base.metadata.create_all(engine)
 
     extension_origin_pattern = allowed_extension_origin_pattern(settings)
-    app = FastAPI(title="Evidências API", version="0.1.4")
+    verifier_url = urlsplit(settings.verifier_base_url)
+    verifier_origin = f"{verifier_url.scheme}://{verifier_url.netloc}"
+    cors_origin_pattern = f"(?:{extension_origin_pattern}|{re.escape(verifier_origin)})"
+    app = FastAPI(title="Evidências API", version="0.1.5")
     app.add_middleware(
         CORSMiddleware,
-        allow_origin_regex=extension_origin_pattern,
+        allow_origin_regex=cors_origin_pattern,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT"],
         allow_headers=[
@@ -163,12 +166,13 @@ def create_app(
 
     @app.middleware("http")
     async def authenticate(request: Request, call_next):
-        if settings.auth_mode == "development":
-            request.state.user_id = "development"
+        if settings.auth_mode in {"development", "anonymous"}:
+            request.state.user_id = "development" if settings.auth_mode == "development" else None
         elif (
             request.method != "OPTIONS"
             and request.url.path.startswith("/v1/")
             and not request.url.path.startswith("/v1/auth/")
+            and not request.url.path.startswith("/v1/public/")
         ):
             download_match = re.fullmatch(
                 r"/v1/sessions/([A-Za-z0-9_-]{1,128})/"
@@ -1538,6 +1542,93 @@ def create_app(
             bundle_path,
             media_type="application/zip",
             filename=f"chitaozinho-proofs-{session_id}.zip",
+            headers={
+                "X-Proof-Bundle-SHA256": bundle_hash,
+                "X-Storage-Status": storage_status,
+            },
+        )
+
+    def require_public_proof_session(
+        database: Session,
+        session_id: str,
+        manifest_hash: str,
+        *,
+        for_update: bool = False,
+    ) -> CaptureSession:
+        capture_session = require_capture_session(
+            database,
+            session_id,
+            for_update=for_update,
+        )
+        if (
+            capture_session.evidence_mode != "hash_only"
+            or capture_session.manifest_hash is None
+            or not secrets.compare_digest(capture_session.manifest_hash, manifest_hash)
+        ):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "proof record not found")
+        return capture_session
+
+    @app.get("/v1/public/proofs/{session_id}")
+    def get_public_proof_status(
+        session_id: str,
+        manifest_hash: str,
+        database: Session = Depends(get_session),
+    ) -> dict[str, object]:
+        capture_session = require_public_proof_session(
+            database,
+            session_id,
+            manifest_hash,
+        )
+        attestation_count = (
+            database.scalar(
+                select(func.count(Attestation.id)).where(Attestation.session_id == session_id)
+            )
+            or 0
+        )
+        return {
+            "session_id": session_id,
+            "manifest_hash": manifest_hash,
+            "timestamp_status": capture_session.timestamp_status,
+            "blockchain_status": capture_session.blockchain_status,
+            "bundle_available": attestation_count > 0,
+            "attestation_count": attestation_count,
+        }
+
+    @app.get("/v1/public/proofs/{session_id}/bundle")
+    def download_public_proof_bundle(
+        session_id: str,
+        manifest_hash: str,
+        database: Session = Depends(get_session),
+    ) -> FileResponse:
+        active_signer = require_signer(signer)
+        capture_session = require_public_proof_session(
+            database,
+            session_id,
+            manifest_hash,
+            for_update=True,
+        )
+        try:
+            bundle_path, bundle_hash, storage_status = ensure_proof_bundle(
+                database,
+                settings,
+                storage,
+                active_signer,
+                capture_session,
+                proof_storage,
+            )
+        except ValueError as error:
+            raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+        append_audit_event(
+            database,
+            "public_proof_bundle_download_requested",
+            subject_id=session_id,
+            details={"bundle_hash": bundle_hash, "storage_status": storage_status},
+        )
+        database.commit()
+        return FileResponse(
+            bundle_path,
+            media_type="application/zip",
+            filename=f"evidencias-proofs-{session_id}.zip",
             headers={
                 "X-Proof-Bundle-SHA256": bundle_hash,
                 "X-Storage-Status": storage_status,

@@ -26,6 +26,24 @@ const baseCapture = {
   captureFinished: false,
 };
 
+test("anonymous beta opens directly without requesting email", async ({
+  browser,
+}) => {
+  test.skip(process.env.CHITAOZINHO_E2E_AUTH_MODE !== "anonymous");
+  const page = await scenarioPage(browser, {
+    authenticated: false,
+    capture: null,
+  });
+  await expect(
+    page.getByRole("textbox", { name: messages.emailLabel }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: messages.homeTitle }),
+  ).toBeVisible();
+  await audit(page, "anonymous beta home");
+  await page.context().close();
+});
+
 test("login and authenticated navigation have no automatic WCAG violations", async ({
   browser,
 }) => {

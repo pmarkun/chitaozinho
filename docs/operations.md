@@ -114,9 +114,10 @@ manifesto.
 
 ## OpenTimestamps
 
-O `ots-processor` roda a cada 15 minutos, agrupa até 100 manifests com salt em
-uma raiz Merkle e envia somente a raiz aos calendários públicos configurados.
-Ele não usa conta, API key ou calendário próprio.
+O worker contínuo inicia o lote poucos segundos depois da finalização. O
+`ots-processor` roda a cada 15 minutos como recuperação. Ambos agrupam até 100
+manifests com salt em uma raiz Merkle e enviam somente a raiz aos calendários
+públicos configurados. Eles não usam conta, API key ou calendário próprio.
 
 Preserve o `.ots` inicial. Cada atualização gera complemento e attestation
 novos, sem substituir a prova anterior:

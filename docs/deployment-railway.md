@@ -87,8 +87,9 @@ AppRole nunca entram no Git, nos builds ou nos logs do Railway.
 
 ## OpenTimestamps público
 
+O worker contínuo cria o lote OpenTimestamps poucos segundos após a finalização.
 O serviço privado `ots-processor` executa `python -m
-chitaozinho_api.ots_processor` a cada 15 minutos e termina após o lote. Ele usa
+chitaozinho_api.ots_processor` a cada 15 minutos como recuperação e termina após o lote. Ele usa
 o PostgreSQL para coordenação e o Bucket para compartilhar provas com API e
 worker; não monta volume Railway. Os documentos de confiança e credenciais
 necessários são referências internas às variáveis do worker, sem duplicar seus

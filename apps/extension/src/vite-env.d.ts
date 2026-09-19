@@ -9,4 +9,5 @@ declare const __CHITAOZINHO_ENDPOINTS__: {
   api: string;
   verifier: string;
   environment: string;
+  authMode: "development" | "anonymous" | "magic_link";
 };

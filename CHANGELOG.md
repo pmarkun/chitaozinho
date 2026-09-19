@@ -6,6 +6,13 @@ Mudanças relevantes do Chitãozinho são registradas aqui. As versões seguem
 
 ## Unreleased
 
+- Remove a exigência de e-mail do beta `hash_only`, mantendo magic link como
+  módulo opcional para guarda remota.
+- Consulta e baixa automaticamente complementos OpenTimestamps no verificador,
+  sem enviar os arquivos capturados.
+- Valida a chave operacional pela raiz pública oficial e mostra guarda local
+  como informação, não como falha.
+- Inicia lotes OpenTimestamps pelo worker contínuo, com o cron como recuperação.
 - Corrige o descarte de upgrades OpenTimestamps parciais antes de uma nova
   tentativa.
 - Simplifica a estrutura e a documentação do repositório para colaboradores.

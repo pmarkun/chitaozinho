@@ -74,6 +74,13 @@ def test_magic_link_is_single_use_and_creates_an_authorized_cookie(
     )
 
     assert client.post("/v1/sessions").status_code == 401
+    assert (
+        client.get(
+            "/v1/public/proofs/unknown",
+            params={"manifest_hash": "sha256:" + "0" * 64},
+        ).status_code
+        == 404
+    )
     assert client.get("/v1/auth/session").json() == {"authenticated": False}
     requested = client.post(
         "/v1/auth/magic-links",
@@ -104,9 +111,7 @@ def test_magic_link_is_single_use_and_creates_an_authorized_cookie(
     assert client.get("/v1/auth/session").json() == {"authenticated": True}
     created = client.post(
         "/v1/sessions",
-        headers={
-            "Origin": "chrome-extension://abcdefghijklmnopabcdefghijklmnop"
-        },
+        headers={"Origin": "chrome-extension://abcdefghijklmnopabcdefghijklmnop"},
     )
     assert created.status_code == 201
     assert client.post("/v1/sessions").status_code == 403
@@ -148,10 +153,7 @@ def test_magic_link_is_single_use_and_creates_an_authorized_cookie(
         ).status_code
         == 204
     )
-    assert (
-        other.get(f"/v1/sessions/{created.json()['session_id']}").status_code
-        == 404
-    )
+    assert other.get(f"/v1/sessions/{created.json()['session_id']}").status_code == 404
 
 
 def test_resend_sender_uses_bounded_http_api_without_sdk() -> None:
@@ -249,9 +251,7 @@ def test_expired_magic_link_and_delivery_failure_fail_closed(
     assert "synthetic" not in response.text
     with failing_app.state.session_factory() as database:
         failure = database.scalar(
-            select(AuditEvent).where(
-                AuditEvent.event_type == "magic_link_delivery_failed"
-            )
+            select(AuditEvent).where(AuditEvent.event_type == "magic_link_delivery_failed")
         )
         assert failure is not None
         assert failure.details == {"error_type": "RuntimeError"}
@@ -312,9 +312,7 @@ def test_download_urls_are_owner_authorized_bound_and_expiring(
         ).status_code
         == 204
     )
-    extension_origin = {
-        "Origin": "chrome-extension://abcdefghijklmnopabcdefghijklmnop"
-    }
+    extension_origin = {"Origin": "chrome-extension://abcdefghijklmnopabcdefghijklmnop"}
     created = owner.post("/v1/sessions", headers=extension_origin)
     assert created.status_code == 201
     session_id = created.json()["session_id"]
@@ -354,22 +352,16 @@ def test_download_urls_are_owner_authorized_bound_and_expiring(
     checksum = anonymous.get(urls["checksum_url"])
     assert checksum.status_code == 200
     assert checksum.text == checksum_path.read_text()
-    assert (
-        owner.get(f"/v1/sessions/{session_id}/package").status_code
-        == 401
-    )
+    assert owner.get(f"/v1/sessions/{session_id}/package").status_code == 401
     assert anonymous.get(urls["package_url"] + "x").status_code == 401
     assert (
-        anonymous.get(urls["package_url"].replace(session_id, "other-session"))
-        .status_code
-        == 401
+        anonymous.get(urls["package_url"].replace(session_id, "other-session")).status_code == 401
     )
 
     expired, _ = create_download_token(
         settings,
         session_id,
-        now=datetime.now(UTC)
-        - timedelta(seconds=settings.download_url_ttl_seconds + 1),
+        now=datetime.now(UTC) - timedelta(seconds=settings.download_url_ttl_seconds + 1),
     )
     assert not verify_download_token(settings, expired, session_id)
 

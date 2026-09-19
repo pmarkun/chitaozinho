@@ -603,6 +603,9 @@ h3 {
 .checks li.warning {
   background: #fff1d8;
 }
+.checks li.info {
+  background: #eaf3f7;
+}
 .checks li > span {
   display: grid;
   width: 1.6rem;
@@ -617,6 +620,9 @@ h3 {
 .checks li.warning > span {
   color: #542f00;
   background: #efa73d;
+}
+.checks li.info > span {
+  background: #37758d;
 }
 .checks p {
   margin: 0.2rem 0 0;
