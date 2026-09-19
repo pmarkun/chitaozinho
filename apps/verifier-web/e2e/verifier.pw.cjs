@@ -26,7 +26,7 @@ test("Evidências separates capture from validation and credits only Conectas", 
   await expect(page.locator(".beta-notice")).toContainText(
     "Não guardamos uma cópia para recuperação no servidor.",
   );
-  await expect(page.locator(".extension-note")).toContainText("Versão 0.1.4");
+  await expect(page.locator(".extension-note")).toContainText("Versão 0.1.5");
   await expect(page.locator("main")).not.toContainText("30 dias");
   await expect(
     page.getByRole("img", { name: "Conectas Direitos Humanos" }),
@@ -53,7 +53,7 @@ test("beta download and keyboard installation instructions work", async ({
     });
     await expect(download).toHaveAttribute(
       "href",
-      "https://github.com/pmarkun/chitaozinho/releases/download/v0.1.4/chitaozinho-extension-0.1.4.zip",
+      "https://github.com/pmarkun/chitaozinho/releases/download/v0.1.5/chitaozinho-extension-0.1.5.zip",
     );
     const instructions = page.locator(".extension-download summary");
     await instructions.focus();

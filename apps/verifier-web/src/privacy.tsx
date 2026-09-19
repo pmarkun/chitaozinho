@@ -10,8 +10,8 @@ export function Privacy() {
         O Evidências é uma ferramenta da Conectas Direitos Humanos para
         registrar conteúdos da internet e compartilhar registros verificáveis.
         Na versão atual, os arquivos capturados ficam no seu dispositivo. O
-        servidor recebe seu e-mail, hashes e informações técnicas necessárias ao
-        serviço — não uma cópia dos conteúdos capturados.
+        servidor recebe hashes e informações técnicas necessárias ao serviço —
+        não seu e-mail nem uma cópia dos conteúdos capturados.
       </p>
       <p>
         Um hash é um resumo criptográfico usado para conferir se um arquivo
@@ -31,12 +31,8 @@ export function Privacy() {
       <h2>O que usamos e por quê</h2>
       <ul>
         <li>
-          E-mail e dados de autenticação: criar sua conta e permitir o acesso
-          por link, sem pedir a senha do seu e-mail.
-        </li>
-        <li>
-          IP e registros de segurança: limitar pedidos de acesso e combater
-          abuso. O controle de pedidos guarda um hash do IP.
+          IP e registros de segurança: proteger o serviço e combater abuso.
+          Quando necessário, o controle guarda somente um hash do IP.
         </li>
         <li>
           Hashes, identificadores, horários e dados técnicos: organizar
@@ -64,18 +60,19 @@ export function Privacy() {
       </p>
       <p>
         O verificador confere os arquivos no navegador, sem enviá-los ao
-        servidor. A visita ao site gera as conexões necessárias para carregar a
-        página. Se você compartilhar um ZIP, o destinatário terá acesso ao
-        conteúdo dele.
+        servidor. Depois da conferência local, envia apenas o identificador
+        aleatório da sessão e o hash do manifesto para consultar se existe uma
+        prova temporal. A visita ao site gera as conexões necessárias para
+        carregar a página. Se você compartilhar um ZIP, o destinatário terá
+        acesso ao conteúdo dele.
       </p>
 
       <h2>Fornecedores e comprovantes públicos</h2>
       <p>
-        Usamos Railway para hospedagem e Resend para enviar links de acesso. O
-        Resend recebe o e-mail e a mensagem necessários ao envio. Esses serviços
-        podem tratar dados fora do Brasil; as transferências devem seguir as
-        garantias exigidas pela LGPD. Você pode pedir informações sobre elas
-        pelo nosso contato de privacidade.
+        Usamos Railway para hospedagem. A autenticação por e-mail e a guarda
+        remota são módulos opcionais e estão desativados nesta versão. O serviço
+        de hospedagem pode tratar dados técnicos fora do Brasil; as
+        transferências devem seguir as garantias exigidas pela LGPD.
       </p>
       <p>
         Calendários públicos OpenTimestamps recebem resumos criptográficos para
@@ -93,7 +90,6 @@ export function Privacy() {
 
       <h2>Por quanto tempo</h2>
       <ul>
-        <li>Conta: até você pedir sua exclusão.</li>
         <li>
           Hashes e comprovantes no servidor: 12 meses a partir do registro.
         </li>
@@ -106,9 +102,9 @@ export function Privacy() {
       <p className="privacy-status">
         Uma rotina diária remove os registros vencidos. A remoção pode ocorrer
         na execução seguinte ao término do prazo; falhas são registradas para
-        nova tentativa. Pedidos de exclusão de conta são atendidos pelo contato
-        de privacidade, após confirmação de identidade. Um ponto criptográfico,
-        sem o conteúdo dos eventos antigos, mantém a continuidade da auditoria.
+        nova tentativa. Pedidos relacionados a dados são atendidos pelo contato
+        de privacidade. Um ponto criptográfico, sem o conteúdo dos eventos
+        antigos, mantém a continuidade da auditoria.
       </p>
       <p>
         Cópias de segurança e registros operacionais dos fornecedores têm ciclos

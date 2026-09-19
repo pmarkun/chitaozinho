@@ -74,7 +74,8 @@ class Settings(BaseSettings):
         repr=False,
     )
     public_base_url: str = "http://127.0.0.1:8000"
-    auth_mode: str = "development"
+    verifier_base_url: str = "http://127.0.0.1:4173"
+    auth_mode: Literal["development", "anonymous", "magic_link"] = "development"
     auth_token_pepper: str | None = Field(default=None, min_length=32, repr=False)
     magic_link_ttl_seconds: int = Field(default=15 * 60, ge=60, le=60 * 60)
     access_token_ttl_seconds: int = Field(
@@ -109,7 +110,7 @@ class Settings(BaseSettings):
     worker_retry_base_seconds: float = Field(default=5.0, ge=0.1, le=3600)
     worker_retry_max_seconds: float = Field(default=3600.0, ge=1, le=86400)
     software_name: str = "Chitãozinho Client"
-    software_version: str = "0.1.4"
+    software_version: str = "0.1.5"
     software_commit: str = Field(
         default_factory=lambda: environ.get("RAILWAY_GIT_COMMIT_SHA", "development")
     )
@@ -227,19 +228,22 @@ class Settings(BaseSettings):
                 )
             if self.server_root_public_path is None and self.server_root_public_json is None:
                 raise ValueError("offline root public key is required outside local development")
-            if self.auth_mode != "magic_link":
-                raise ValueError("magic-link authentication is required outside local development")
-            if self.auth_token_pepper is None:
+            if self.auth_mode not in {"anonymous", "magic_link"}:
                 raise ValueError(
-                    "authentication token pepper is required outside local development"
+                    "anonymous or magic-link authentication is required outside local development"
                 )
-            if self.email_provider == "smtp":
-                if self.smtp_host is None or self.smtp_from is None:
-                    raise ValueError("SMTP host and sender are required outside local development")
-                if not self.smtp_starttls:
-                    raise ValueError("SMTP STARTTLS is required outside local development")
-            elif self.resend_api_key is None or self.resend_from is None:
-                raise ValueError("Resend API key and sender are required")
+            if self.auth_mode == "anonymous" and self.evidence_mode != "hash_only":
+                raise ValueError("anonymous authentication requires hash-only evidence mode")
+            if self.auth_mode == "magic_link":
+                if self.auth_token_pepper is None:
+                    raise ValueError("authentication token pepper is required for magic links")
+                if self.email_provider == "smtp":
+                    if self.smtp_host is None or self.smtp_from is None:
+                        raise ValueError("SMTP host and sender are required")
+                    if not self.smtp_starttls:
+                        raise ValueError("SMTP STARTTLS is required outside local development")
+                elif self.resend_api_key is None or self.resend_from is None:
+                    raise ValueError("Resend API key and sender are required")
             if not self.parsed_extension_ids():
                 raise ValueError(
                     "at least one exact Chromium extension ID is required outside local development"
@@ -254,8 +258,6 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "non-zero SHA-256 build identity is required outside local development"
                 )
-        elif self.auth_mode not in {"development", "magic_link"}:
-            raise ValueError("unsupported authentication mode")
         openbao_values = [
             self.openbao_addr,
             self.openbao_transit_key,

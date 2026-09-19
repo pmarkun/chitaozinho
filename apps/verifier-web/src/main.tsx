@@ -9,6 +9,9 @@ import {
 import "./styles.css";
 import { Privacy } from "./privacy";
 
+const PROOF_API_BASE_URL =
+  import.meta.env.VITE_PROOF_API_BASE_URL ?? "https://api.evidencias.org.br";
+
 type Page = "home" | "verify" | "methodology" | "privacy";
 
 const routes: Record<Page, string> = {
@@ -130,7 +133,7 @@ function ExtensionDownload() {
       </p>
       <a
         className="primary button"
-        href="https://github.com/pmarkun/chitaozinho/releases/download/v0.1.4/chitaozinho-extension-0.1.4.zip"
+        href="https://github.com/pmarkun/chitaozinho/releases/download/v0.1.5/chitaozinho-extension-0.1.5.zip"
       >
         Baixar extensão beta · ZIP
       </a>
@@ -161,7 +164,7 @@ function ExtensionDownload() {
         </p>
       </details>
       <p className="extension-note">
-        Versão 0.1.4 · Beta para dados não críticos. Arquivos somente no seu
+        Versão 0.1.5 · Beta para dados não críticos. Arquivos somente no seu
         dispositivo; o servidor registra hashes, não uma cópia dos arquivos.
       </p>
     </section>
@@ -269,6 +272,7 @@ function Verifier() {
           ...(trustedKey.trim()
             ? { trustedServerKeyHex: trustedKey.trim() }
             : {}),
+          proofApiBaseUrl: PROOF_API_BASE_URL,
         }),
       );
     } catch (caught) {
@@ -288,8 +292,9 @@ function Verifier() {
         <p className="eyebrow">Verificação independente</p>
         <h1>Valide um pacote de evidências</h1>
         <p>
-          Todo o processamento acontece neste navegador. Nenhum byte dos
-          arquivos selecionados é transmitido.
+          Os arquivos são processados neste navegador e não são enviados. Após a
+          conferência local, consultamos a API usando somente o identificador da
+          sessão e o hash do manifesto para localizar a prova temporal.
         </p>
       </section>
       <section className="panel" aria-labelledby="files-heading">
@@ -320,8 +325,9 @@ function Verifier() {
           <details className="optional-section">
             <summary>Adicionar comprovantes opcionais</summary>
             <p>
-              O checksum e o complemento podem confirmar camadas adicionais
-              quando acompanham o pacote.
+              O complemento é localizado automaticamente quando está disponível.
+              Você também pode fornecer uma cópia recebida por outro meio para
+              fazer a verificação offline.
             </p>
             <div className="file-grid">
               <FileField
@@ -474,9 +480,11 @@ function Report({ report }: { report: VerificationReport }) {
         <div>
           <dt>Confiança</dt>
           <dd>
-            {report.trustMode === "custom_operational_key"
-              ? "Chave confirmada separadamente"
-              : "Assinatura consistente com a chave do pacote"}
+            {report.trustMode === "root_certified"
+              ? "Chave certificada pela raiz oficial"
+              : report.trustMode === "custom_operational_key"
+                ? "Chave confirmada separadamente"
+                : "Assinatura consistente com a chave do pacote"}
           </dd>
         </div>
       </dl>
@@ -485,7 +493,11 @@ function Report({ report }: { report: VerificationReport }) {
         {report.checks.map((check) => (
           <li key={check.id} className={check.status}>
             <span aria-hidden="true">
-              {check.status === "valid" ? "✓" : "!"}
+              {check.status === "valid"
+                ? "✓"
+                : check.status === "info"
+                  ? "i"
+                  : "!"}
             </span>
             <div>
               <strong>{check.label}</strong>
@@ -495,6 +507,11 @@ function Report({ report }: { report: VerificationReport }) {
         ))}
       </ul>
       <div className="actions">
+        {report.proofBundleUrl && (
+          <a className="secondary button" href={report.proofBundleUrl}>
+            Baixar complemento temporal
+          </a>
+        )}
         <button
           className="secondary"
           onClick={() =>

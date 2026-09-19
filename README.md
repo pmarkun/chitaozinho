@@ -68,7 +68,7 @@ banco de desenvolvimento.
 
 - Para executar ou diagnosticar serviços, veja
   [operações](docs/operations.md).
-- Para autenticação por magic link e Resend, veja
+- Para o modo anônimo atual e a autenticação opcional por magic link, veja
   [autenticação](docs/authentication.md).
 - Para publicar ou recuperar o beta, veja
   [deploy no Railway](docs/deployment-railway.md).

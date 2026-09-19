@@ -14,6 +14,7 @@ import {
   ZipReader,
   configure,
 } from "@zip.js/zip.js";
+import { OFFICIAL_ROOT } from "./trust-root";
 
 const MAX_ENTRIES = 10_000;
 const MAX_FILE_SIZE = 512 * 1024 * 1024;
@@ -36,7 +37,7 @@ const PROOF_INDEX_PATH = "proof-bundle-index.json";
 const PROOF_INDEX_SIGNATURE_PATH = "signatures/proof-bundle-index.server.sig";
 const ATTESTATIONS_PATH = "attestations.jsonl";
 
-export type CheckStatus = "valid" | "warning";
+export type CheckStatus = "valid" | "info" | "warning";
 
 export interface VerificationCheck {
   id: string;
@@ -52,7 +53,8 @@ export interface VerificationReport {
   membersVerified: number;
   temporalProof: "not_provided" | "pending" | "signed_claims_only";
   attestationsVerified: number;
-  trustMode: "self_declared" | "custom_operational_key";
+  trustMode: "root_certified" | "self_declared" | "custom_operational_key";
+  proofBundleUrl?: string;
   checks: VerificationCheck[];
 }
 
@@ -61,6 +63,14 @@ export interface VerificationInput {
   checksumFile?: File;
   proofBundleFile?: File;
   trustedServerKeyHex?: string;
+  proofApiBaseUrl?: string;
+  trustedRoot?: TrustRoot;
+}
+
+export interface TrustRoot {
+  key_id: string;
+  algorithm: "Ed25519";
+  public_key_hex: string;
 }
 
 interface Archive {
@@ -79,6 +89,7 @@ interface PackageMember {
 interface PackageIndex {
   schema_version: string;
   session_id: string;
+  created_at: string;
   members: PackageMember[];
 }
 
@@ -86,6 +97,8 @@ interface KeyRecord {
   key_id: string;
   algorithm: string;
   public_key_hex: string;
+  certificate_path?: string;
+  revocation_list_path?: string;
 }
 
 interface PublicKeys {
@@ -177,10 +190,6 @@ export async function verifyEvidencePackage(
     validatePublicKeys(publicKeys);
     const serverKey = hexToBytes(publicKeys.server.public_key_hex);
     const clientKey = hexToBytes(publicKeys.client.public_key_hex);
-    const trustMode = validateOperationalTrust(
-      input.trustedServerKeyHex,
-      serverKey,
-    );
     const indexSignature = await readHex(
       archive,
       PACKAGE_INDEX_SIGNATURE_PATH,
@@ -194,6 +203,14 @@ export async function verifyEvidencePackage(
         serverKey,
       ),
       "A assinatura do índice do pacote é inválida.",
+    );
+    const trustMode = await validateOperationalTrust(
+      archive,
+      publicKeys,
+      input.trustedServerKeyHex,
+      serverKey,
+      Date.parse(packageIndex.created_at),
+      input.trustedRoot ?? OFFICIAL_ROOT,
     );
     checks.push(
       valid(
@@ -268,7 +285,7 @@ export async function verifyEvidencePackage(
       checks.push({
         id: "hash_only_custody",
         label: "Guarda local dos arquivos",
-        status: "warning",
+        status: "info",
         detail:
           "O servidor assinou hashes declarados pelo cliente. Não recebeu, conferiu ou armazenou os arquivos originais.",
       });
@@ -300,6 +317,7 @@ export async function verifyEvidencePackage(
 
     let temporalProof: VerificationReport["temporalProof"] = "not_provided";
     let attestationsVerified = 0;
+    let proofBundleUrl: string | undefined;
     if (input.proofBundleFile) {
       const proof = await verifyProofBundle(
         input.proofBundleFile,
@@ -309,6 +327,45 @@ export async function verifyEvidencePackage(
       temporalProof = proof.temporalProof;
       attestationsVerified = proof.attestationsVerified;
       checks.push(...proof.checks);
+    } else if (input.proofApiBaseUrl) {
+      const manifestHash = sha256Identifier(canonicalBytes(manifest));
+      const lookup = await lookupPublicProof(
+        input.proofApiBaseUrl,
+        manifest.session_id,
+        manifestHash,
+      );
+      if (lookup.bundle) {
+        const proof = await verifyProofBundle(
+          lookup.bundle,
+          manifest,
+          serverKey,
+        );
+        temporalProof = proof.temporalProof;
+        attestationsVerified = proof.attestationsVerified;
+        proofBundleUrl = lookup.bundleUrl;
+        checks.push(...proof.checks);
+      } else {
+        temporalProof = lookup.found ? "pending" : "not_provided";
+        checks.push(
+          lookup.unavailable
+            ? warning(
+                "external_proofs",
+                "Provas temporais",
+                "A integridade local foi validada, mas não foi possível consultar o serviço de provas temporais agora.",
+              )
+            : lookup.found
+              ? warning(
+                  "external_proofs",
+                  "Provas temporais",
+                  "O registro foi localizado e a prova está sendo preparada. Tente novamente em cerca de um minuto.",
+                )
+              : warning(
+                  "external_proofs",
+                  "Provas temporais",
+                  "O servidor não localizou uma prova para este manifesto.",
+                ),
+        );
+      }
     } else {
       checks.push(
         warning(
@@ -320,17 +377,23 @@ export async function verifyEvidencePackage(
     }
 
     checks.push(
-      trustMode === "custom_operational_key"
+      trustMode === "root_certified"
         ? valid(
             "trust",
             "Confiança da chave",
-            "A chave operacional corresponde à chave informada separadamente.",
+            "A chave operacional foi certificada pela raiz pública oficial do Evidências e não consta como revogada.",
           )
-        : warning(
-            "trust",
-            "Confiança da chave",
-            "A consistência criptográfica é válida, mas a chave foi obtida do próprio pacote.",
-          ),
+        : trustMode === "custom_operational_key"
+          ? valid(
+              "trust",
+              "Confiança da chave",
+              "A chave operacional corresponde à chave informada separadamente.",
+            )
+          : warning(
+              "trust",
+              "Confiança da chave",
+              "A consistência criptográfica é válida, mas a chave foi obtida do próprio pacote.",
+            ),
     );
 
     return {
@@ -343,6 +406,7 @@ export async function verifyEvidencePackage(
       attestationsVerified,
       trustMode,
       checks,
+      ...(proofBundleUrl ? { proofBundleUrl } : {}),
     };
   } finally {
     await archive.close();
@@ -425,6 +489,10 @@ async function openArchive(blob: Blob): Promise<Archive> {
 function validatePackageIndex(value: PackageIndex): void {
   ensure(value.schema_version === "0.1.0", "Schema de índice não suportado.");
   ensure(nonEmpty(value.session_id), "O índice não identifica a sessão.");
+  ensure(
+    Number.isFinite(Date.parse(value.created_at)),
+    "Data do índice inválida.",
+  );
   ensure(Array.isArray(value.members), "Lista de membros inválida.");
   const paths = new Set<string>();
   for (const member of value.members) {
@@ -458,10 +526,27 @@ function validatePublicKeys(value: PublicKeys): void {
   }
 }
 
-function validateOperationalTrust(
+async function validateOperationalTrust(
+  archive: Archive,
+  publicKeys: PublicKeys,
   configured: string | undefined,
   packaged: Uint8Array,
-): VerificationReport["trustMode"] {
+  signedAt: number,
+  root: TrustRoot,
+): Promise<VerificationReport["trustMode"]> {
+  const server = publicKeys.server;
+  if (server.certificate_path && server.revocation_list_path) {
+    const certificate = await readJson<SignedTrustDocument>(
+      archive,
+      server.certificate_path,
+    );
+    const revocations = await readJson<SignedTrustDocument>(
+      archive,
+      server.revocation_list_path,
+    );
+    await validateRootTrust(certificate, revocations, server, signedAt, root);
+    return "root_certified";
+  }
   if (!configured?.trim()) return "self_declared";
   let trusted: Uint8Array;
   try {
@@ -478,6 +563,133 @@ function validateOperationalTrust(
     "A chave do pacote difere da chave confiável informada.",
   );
   return "custom_operational_key";
+}
+
+interface SignedTrustDocument {
+  document: Record<string, unknown>;
+  signature_hex: string;
+}
+
+async function validateRootTrust(
+  certificate: SignedTrustDocument,
+  revocations: SignedTrustDocument,
+  server: KeyRecord,
+  signedAt: number,
+  root: TrustRoot,
+): Promise<void> {
+  const rootKey = hexToBytes(root.public_key_hex);
+  const cert = certificate.document;
+  const revoked = revocations.document;
+  ensure(cert.schema_version === "0.1.0", "Certificado operacional inválido.");
+  ensure(
+    cert.issuer_key_id === root.key_id,
+    "Raiz do certificado desconhecida.",
+  );
+  ensure(cert.key_id === server.key_id, "Certificado pertence a outra chave.");
+  ensure(cert.algorithm === "Ed25519", "Algoritmo do certificado inválido.");
+  ensure(
+    cert.purpose === "server_signing",
+    "Finalidade do certificado inválida.",
+  );
+  ensure(
+    cert.public_key_hex === server.public_key_hex,
+    "Chave operacional diverge do certificado.",
+  );
+  ensure(
+    await verifyCanonical(
+      DOMAINS.keyCertificate,
+      cert,
+      decodeHex(certificate.signature_hex, 64, "assinatura do certificado"),
+      rootKey,
+    ),
+    "Assinatura da raiz no certificado é inválida.",
+  );
+  const validFrom = Date.parse(String(cert.valid_from));
+  const validUntil = Date.parse(String(cert.valid_until));
+  ensure(
+    Number.isFinite(validFrom) && Number.isFinite(validUntil),
+    "Validade do certificado inválida.",
+  );
+  ensure(Number.isFinite(signedAt), "Data de criação do pacote inválida.");
+  ensure(
+    signedAt >= validFrom && signedAt <= validUntil,
+    "Certificado operacional fora da validade na criação do pacote.",
+  );
+  ensure(revoked.schema_version === "0.1.0", "Lista de revogação inválida.");
+  ensure(
+    revoked.issuer_key_id === root.key_id,
+    "Raiz da lista de revogação desconhecida.",
+  );
+  ensure(
+    await verifyCanonical(
+      DOMAINS.keyRevocationList,
+      revoked,
+      decodeHex(
+        revocations.signature_hex,
+        64,
+        "assinatura da lista de revogação",
+      ),
+      rootKey,
+    ),
+    "Assinatura da lista de revogação é inválida.",
+  );
+  const records = revoked.revoked_keys;
+  ensure(Array.isArray(records), "Registros de revogação inválidos.");
+  ensure(
+    !records.some(
+      (record) =>
+        typeof record === "object" &&
+        record !== null &&
+        (record as Record<string, unknown>).key_id === server.key_id &&
+        Date.parse(String((record as Record<string, unknown>).revoked_at)) <=
+          signedAt,
+    ),
+    "A chave operacional foi revogada.",
+  );
+}
+
+async function lookupPublicProof(
+  apiBaseUrl: string,
+  sessionId: string,
+  manifestHash: string,
+): Promise<{
+  found: boolean;
+  unavailable?: boolean;
+  bundle?: File;
+  bundleUrl?: string;
+}> {
+  const base = apiBaseUrl.replace(/\/$/u, "");
+  const query = new URLSearchParams({ manifest_hash: manifestHash });
+  const statusUrl = `${base}/v1/public/proofs/${encodeURIComponent(sessionId)}?${query}`;
+  let statusResponse: Response;
+  try {
+    statusResponse = await fetch(statusUrl, {
+      credentials: "omit",
+      redirect: "error",
+      headers: { Accept: "application/json" },
+    });
+  } catch {
+    return { found: false, unavailable: true };
+  }
+  if (statusResponse.status === 404) return { found: false };
+  ensure(statusResponse.ok, "A consulta da prova temporal falhou.");
+  const statusDocument = (await statusResponse.json()) as {
+    bundle_available?: boolean;
+  };
+  if (!statusDocument.bundle_available) return { found: true };
+  const bundleUrl = `${base}/v1/public/proofs/${encodeURIComponent(sessionId)}/bundle?${query}`;
+  const bundleResponse = await fetch(bundleUrl, {
+    credentials: "omit",
+    redirect: "error",
+    headers: { Accept: "application/zip" },
+  });
+  ensure(bundleResponse.ok, "Não foi possível baixar o complemento temporal.");
+  const bundle = new File(
+    [await bundleResponse.blob()],
+    `evidencias-proofs-${sessionId}.zip`,
+    { type: "application/zip" },
+  );
+  return { found: true, bundle, bundleUrl };
 }
 
 async function verifyIndexedMembers(
@@ -808,7 +1020,7 @@ async function verifyProofBundle(
           "Complemento probatório",
           `${attestations.length} attestations e todos os membros estão íntegros e assinados.`,
         ),
-        warning(
+        info(
           "external_proof_cryptography",
           "Criptografia temporal externa",
           "Esta versão web valida o vínculo e as assinaturas; a validação criptográfica completa de RFC 3161 e OpenTimestamps ainda requer a CLI.",
@@ -818,6 +1030,10 @@ async function verifyProofBundle(
   } finally {
     await archive.close();
   }
+}
+
+function info(id: string, label: string, detail: string): VerificationCheck {
+  return { id, label, status: "info", detail };
 }
 
 async function readJson<T>(archive: Archive, path: string): Promise<T> {

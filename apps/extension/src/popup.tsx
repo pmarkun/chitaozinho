@@ -30,9 +30,7 @@ interface PublicState {
 type Screen = "home" | "new" | "captures" | "settings";
 
 function App() {
-  const usesLocalAuthentication =
-    window.location.protocol === "chrome-extension:" &&
-    __CHITAOZINHO_ENDPOINTS__.environment === "desenvolvimento";
+  const requiresMagicLink = __CHITAOZINHO_ENDPOINTS__.authMode === "magic_link";
   const [capture, setCapture] = useState<PublicState | null>(null);
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [email, setEmail] = useState("");
@@ -56,7 +54,7 @@ function App() {
 
   async function refresh(): Promise<boolean> {
     const hasSession =
-      usesLocalAuthentication || (await authStatus().catch(() => false));
+      !requiresMagicLink || (await authStatus().catch(() => false));
     setAuthenticated(hasSession);
     if (!hasSession) return false;
     const response = await send({ type: "GET_STATE" });

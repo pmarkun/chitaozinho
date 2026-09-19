@@ -169,6 +169,16 @@ def test_hash_only_capture_never_stores_evidence(tmp_path: Path) -> None:
     )
     assert result.status_code == 200, result.text
     assert result.json()["storage_status"] == "hash_only"
+    manifest_hash = result.json()["manifest_hash"]
+    public_status = client.get(f"/v1/public/proofs/{sid}", params={"manifest_hash": manifest_hash})
+    assert public_status.status_code == 200
+    assert public_status.json()["bundle_available"] is False
+    assert (
+        client.get(
+            f"/v1/public/proofs/{sid}", params={"manifest_hash": "sha256:" + "0" * 64}
+        ).status_code
+        == 404
+    )
     template = client.get(f"/v1/sessions/{sid}/local-package").json()
     assert "SENSITIVE_EVIDENCE_SENTINEL" not in json.dumps(template)
     members = {name: base64url_decode(data) for name, data in template["members"].items()}
@@ -194,6 +204,14 @@ def test_hash_only_capture_never_stores_evidence(tmp_path: Path) -> None:
         timestamp_capture(
             db, settings, ServerSigner.from_settings(settings), db.get(CaptureSession, sid)
         )
+    public_status = client.get(f"/v1/public/proofs/{sid}", params={"manifest_hash": manifest_hash})
+    assert public_status.status_code == 200
+    assert public_status.json()["bundle_available"] is True
+    public_bundle = client.get(
+        f"/v1/public/proofs/{sid}/bundle", params={"manifest_hash": manifest_hash}
+    )
+    assert public_bundle.status_code == 200
+    assert public_bundle.headers["X-Storage-Status"] == "hash_only"
     proof_bundle = client.get(f"/v1/sessions/{sid}/proof-bundle")
     assert proof_bundle.status_code == 200, proof_bundle.text
     assert proof_bundle.headers["X-Storage-Status"] == "hash_only"

@@ -38,6 +38,11 @@ const endpoints = {
   verifier:
     process.env.CHITAOZINHO_VERIFIER_URL ?? "https://evidencias.org.br/validar",
   environment: process.env.CHITAOZINHO_ENVIRONMENT ?? "desenvolvimento",
+  authMode:
+    process.env.CHITAOZINHO_AUTH_MODE ??
+    (process.env.CHITAOZINHO_ENVIRONMENT === "beta"
+      ? "anonymous"
+      : "development"),
 };
 
 export default defineConfig({

@@ -16,15 +16,14 @@ from .jobs import (
 )
 from .models import CaptureSession, Job
 from .observability import configure_operational_logging, emit_worker_log
+from .ots_processor import run_once as run_ots_once
 from .proof_service import timestamp_capture
 from .proof_storage import ProofStorage, create_proof_storage
 from .security import ServerSigner
 
 
 def claim_job(database: Session, settings: Settings) -> Job | None:
-    stale_before = datetime.now(UTC) - timedelta(
-        seconds=settings.worker_stale_seconds
-    )
+    stale_before = datetime.now(UTC) - timedelta(seconds=settings.worker_stale_seconds)
     statement = (
         select(Job)
         .where(
@@ -114,6 +113,18 @@ def run_once(
         return True
 
 
+def run_ots_cycle(
+    factory: sessionmaker[Session],
+    settings: Settings,
+    signer: ServerSigner,
+    proof_storage: ProofStorage,
+) -> bool:
+    if not settings.ots_enabled:
+        return False
+    batches, upgrades = run_ots_once(factory, settings, signer, proof_storage)
+    return batches > 0 or upgrades > 0
+
+
 def main() -> None:
     configure_operational_logging()
     settings = Settings()
@@ -123,8 +134,25 @@ def main() -> None:
     engine = create_database_engine(settings)
     factory = sessionmaker(engine, expire_on_commit=False)
     proof_storage = create_proof_storage(settings)
+    next_ots_cycle = 0.0
     while True:
         worked = run_once(factory, settings, signer, proof_storage)
+        monotonic_now = time.monotonic()
+        if monotonic_now >= next_ots_cycle:
+            try:
+                worked = run_ots_cycle(factory, settings, signer, proof_storage) or worked
+                next_ots_cycle = monotonic_now + 5
+            except Exception as error:
+                emit_worker_log(
+                    event="ots_cycle_failed",
+                    job_id="ots-cycle",
+                    job_kind="ots_batch",
+                    status="failed",
+                    attempts=1,
+                    subject_id=None,
+                    error_type=type(error).__name__,
+                )
+                next_ots_cycle = monotonic_now + 60
         if not worked:
             time.sleep(settings.worker_poll_seconds)
 

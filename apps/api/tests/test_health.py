@@ -454,6 +454,18 @@ def test_beta_requires_railway_storage_approle_resend_and_temporary_retention() 
     with pytest.raises(ValidationError, match="static OpenBao tokens"):
         Settings(**{**base, "openbao_token": "t" * 32})
 
+    anonymous = {
+        **base,
+        "evidence_mode": "hash_only",
+        "auth_mode": "anonymous",
+        "auth_token_pepper": None,
+        "resend_api_key": None,
+        "resend_from": None,
+    }
+    assert Settings(**anonymous).auth_mode == "anonymous"
+    with pytest.raises(ValidationError, match="hash-only"):
+        Settings(**{**anonymous, "evidence_mode": "remote"})
+
 
 def test_empty_optional_environment_value_is_not_treated_as_configuration(
     monkeypatch: pytest.MonkeyPatch,

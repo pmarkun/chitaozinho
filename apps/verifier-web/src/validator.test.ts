@@ -7,11 +7,13 @@ import {
   signCanonicalWithKey,
 } from "@chitaozinho/protocol";
 import { BlobWriter, Uint8ArrayReader, ZipWriter } from "@zip.js/zip.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { verifyEvidencePackage } from "./validator";
+import { type TrustRoot, verifyEvidencePackage } from "./validator";
 
 describe("web evidence verifier", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it("validates a signed package locally without network access", async () => {
     const fixture = await buildPackage();
 
@@ -41,6 +43,20 @@ describe("web evidence verifier", () => {
     );
   });
 
+  it("trusts an operational key certified by an independent root", async () => {
+    const fixture = await buildPackage({ rootCertified: true });
+
+    const report = await verifyEvidencePackage({
+      packageFile: fixture.file,
+      trustedRoot: fixture.trustedRoot!,
+    });
+
+    expect(report.trustMode).toBe("root_certified");
+    expect(report.checks.find((check) => check.id === "trust")?.status).toBe(
+      "valid",
+    );
+  });
+
   it("recognizes both legacy and current methodology versions", async () => {
     for (const methodologyVersion of ["0.1", "0.2"] as const) {
       const fixture = await buildPackage({ methodologyVersion });
@@ -49,6 +65,36 @@ describe("web evidence verifier", () => {
         report.checks.find((check) => check.id === "methodology")?.status,
       ).toBe("valid");
     }
+  });
+
+  it("looks up the temporal proof using only the session and manifest hash", async () => {
+    const fixture = await buildPackage();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ bundle_available: false, attestation_count: 0 }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const report = await verifyEvidencePackage({
+      packageFile: fixture.file,
+      proofApiBaseUrl: "https://api.example.test/",
+    });
+
+    expect(report.temporalProof).toBe("pending");
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toMatch(
+      /^https:\/\/api\.example\.test\/v1\/public\/proofs\/synthetic-web-session\?manifest_hash=sha256%3A[0-9a-f]{64}$/,
+    );
+    expect(options.credentials).toBe("omit");
+    expect(options.redirect).toBe("error");
+    expect(
+      report.checks.find((check) => check.id === "external_proofs")?.status,
+    ).toBe("warning");
   });
 
   it("rejects changed indexed content and a wrong detached checksum", async () => {
@@ -85,14 +131,17 @@ async function buildPackage(
     tamperMethodology?: boolean;
     unsafePath?: boolean;
     methodologyVersion?: "0.1" | "0.2";
+    rootCertified?: boolean;
   } = {},
 ): Promise<{
   file: File;
   checksum: File;
   serverPublicKeyHex: string;
+  trustedRoot?: TrustRoot;
 }> {
   const server = await generateKeyPair();
   const client = await generateKeyPair();
+  const root = options.rootCertified ? await generateKeyPair() : undefined;
   const sessionId = "synthetic-web-session";
   const methodologyPath = `methodology/methodology-v${options.methodologyVersion ?? "0.1"}.md`;
   const entry = {
@@ -195,6 +244,62 @@ async function buildPackage(
     manifest,
     server.privateKey,
   );
+  const serverRecord: Record<string, string> = {
+    key_id: "server-synthetic",
+    algorithm: "Ed25519",
+    public_key_hex: bytesToHex(server.publicKey),
+  };
+  const trustMembers: [string, Uint8Array][] = [];
+  if (root) {
+    serverRecord.certificate_path = "signatures/server-key-certificate.json";
+    serverRecord.revocation_list_path =
+      "signatures/server-key-revocations.json";
+    const certificateDocument = {
+      schema_version: "0.1.0",
+      key_id: "server-synthetic",
+      algorithm: "Ed25519",
+      public_key_hex: bytesToHex(server.publicKey),
+      purpose: "server_signing",
+      issuer_key_id: "root-synthetic",
+      valid_from: "2026-07-01T00:00:00Z",
+      valid_until: "2026-09-29T00:00:00Z",
+    };
+    const revocationDocument = {
+      schema_version: "0.1.0",
+      issuer_key_id: "root-synthetic",
+      sequence: 1,
+      issued_at: "2026-07-30T12:00:00Z",
+      revoked_keys: [],
+    };
+    trustMembers.push(
+      [
+        serverRecord.certificate_path,
+        canonicalBytes({
+          document: certificateDocument,
+          signature_hex: bytesToHex(
+            await signCanonicalWithKey(
+              DOMAINS.keyCertificate,
+              certificateDocument,
+              root.privateKey,
+            ),
+          ),
+        }),
+      ],
+      [
+        serverRecord.revocation_list_path,
+        canonicalBytes({
+          document: revocationDocument,
+          signature_hex: bytesToHex(
+            await signCanonicalWithKey(
+              DOMAINS.keyRevocationList,
+              revocationDocument,
+              root.privateKey,
+            ),
+          ),
+        }),
+      ],
+    );
+  }
   const members = new Map<string, Uint8Array>([
     ["README.txt", encode("Synthetic evidence package\n")],
     [
@@ -232,11 +337,7 @@ async function buildPackage(
       "signatures/public-keys.json",
       canonicalBytes({
         schema_version: "0.1.0",
-        server: {
-          key_id: "server-synthetic",
-          algorithm: "Ed25519",
-          public_key_hex: bytesToHex(server.publicKey),
-        },
+        server: serverRecord,
         client: {
           key_id: "client-synthetic",
           algorithm: "Ed25519",
@@ -244,6 +345,7 @@ async function buildPackage(
         },
       }),
     ],
+    ...trustMembers,
   ]);
   const packageIndex = {
     schema_version: "0.1.0",
@@ -303,6 +405,15 @@ async function buildPackage(
     file,
     checksum,
     serverPublicKeyHex: bytesToHex(server.publicKey),
+    ...(root
+      ? {
+          trustedRoot: {
+            key_id: "root-synthetic",
+            algorithm: "Ed25519" as const,
+            public_key_hex: bytesToHex(root.publicKey),
+          },
+        }
+      : {}),
   };
 }
 

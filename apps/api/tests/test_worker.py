@@ -4,6 +4,7 @@ import json
 import logging
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from chitaozinho_api.config import Settings
 from chitaozinho_api.database import create_database_engine
@@ -11,9 +12,29 @@ from chitaozinho_api.jobs import get_or_create_job, job_retry_delay
 from chitaozinho_api.models import Base, CaptureSession, Job, TimestampAttempt
 from chitaozinho_api.observability import configure_operational_logging
 from chitaozinho_api.security import ServerSigner
-from chitaozinho_api.worker import run_once
+from chitaozinho_api.worker import run_once, run_ots_cycle
 from sqlalchemy import func, select
 from sqlalchemy.orm import sessionmaker
+
+
+def test_continuous_worker_processes_open_timestamps_without_waiting_for_cron() -> None:
+    dependencies = (MagicMock(), MagicMock(), MagicMock())
+    with patch("chitaozinho_api.worker.run_ots_once", return_value=(1, 0)) as run:
+        assert run_ots_cycle(
+            dependencies[0],
+            Settings(ots_enabled=True),
+            dependencies[1],
+            dependencies[2],
+        )
+        run.assert_called_once()
+    with patch("chitaozinho_api.worker.run_ots_once") as run:
+        assert not run_ots_cycle(
+            dependencies[0],
+            Settings(ots_enabled=False),
+            dependencies[1],
+            dependencies[2],
+        )
+        run.assert_not_called()
 
 
 def test_worker_recovers_abandoned_persistent_timestamp_job(
@@ -61,9 +82,7 @@ def test_worker_recovers_abandoned_persistent_timestamp_job(
     assert signer is not None
     assert run_once(factory, settings, signer)
     with factory() as database:
-        job = database.scalar(
-            select(Job).where(Job.idempotency_key == "worker-job")
-        )
+        job = database.scalar(select(Job).where(Job.idempotency_key == "worker-job"))
         assert job is not None
         assert job.status == "completed"
         assert job.attempts == 2

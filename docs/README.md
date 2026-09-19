@@ -6,7 +6,7 @@ a especificação sem repeti-la.
 | Documento | Use quando precisar de |
 | --- | --- |
 | [Metodologia](methodology.md) | Explicação acessível do ciclo da evidência |
-| [Autenticação](authentication.md) | Magic link, cookies, Resend, CORS e isolamento |
+| [Autenticação](authentication.md) | Modo anônimo atual e magic link opcional |
 | [Deploy no Railway](deployment-railway.md) | Topologia, bootstrap e rollback do beta |
 | [Operações](operations.md) | Runbooks, storage, chaves, backup, TSA e OTS |
 | [Segurança](security.md) | Modelo de ameaças, limites e auditorias |
