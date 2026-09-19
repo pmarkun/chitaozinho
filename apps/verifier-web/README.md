@@ -1,11 +1,9 @@
 # Validador web
 
 A home apresenta Evidências e oferece o ZIP beta com instruções de
-instalação manual. `public/downloads/` contém o artefato original da release
-v0.1.2 e seu bundle Sigstore, sem reempacotar. O SHA-256 do ZIP é conferido
-no teste de download e no arquivo SHA256SUMS da release assinada.
+instalação manual. O download aponta para o artefato imutável da release no
+GitHub, onde também ficam o bundle Sigstore e o arquivo SHA256SUMS.
 Ao atualizar a versão, atualize também o link, o texto e o teste de download.
-O arquivo é servido pelo próprio site, sem depender da navegação pelo GitHub.
 Essa release exibe Evidências e suporta guarda local: o servidor registra hashes,
 enquanto a extensão monta o pacote com os arquivos locais.
 

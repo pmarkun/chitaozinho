@@ -3,7 +3,6 @@ const AxeBuilder = require("axe-core");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const crypto = require("node:crypto");
 
 test("Evidências separates capture from validation and credits only Conectas", async ({
   page,
@@ -27,7 +26,7 @@ test("Evidências separates capture from validation and credits only Conectas", 
   await expect(page.locator(".beta-notice")).toContainText(
     "Não guardamos uma cópia para recuperação no servidor.",
   );
-  await expect(page.locator(".extension-note")).toContainText("Versão 0.1.2");
+  await expect(page.locator(".extension-note")).toContainText("Versão 0.1.4");
   await expect(page.locator("main")).not.toContainText("30 dias");
   await expect(
     page.getByRole("img", { name: "Conectas Direitos Humanos" }),
@@ -46,22 +45,16 @@ test("Evidências separates capture from validation and credits only Conectas", 
 
 test("beta download and keyboard installation instructions work", async ({
   page,
-  request,
 }) => {
   for (const route of ["/"]) {
     await page.goto(route);
     const download = page.getByRole("link", {
       name: "Baixar extensão beta · ZIP",
     });
-    await expect(download).toHaveAttribute("download", "");
-    const response = await request.get(await download.getAttribute("href"));
-    expect(response.ok()).toBe(true);
-    expect(
-      crypto
-        .createHash("sha256")
-        .update(await response.body())
-        .digest("hex"),
-    ).toBe("3e8deeb257555ff3e0d235ee2748c5b496a4196e1c75a5dceb892d34c2983655");
+    await expect(download).toHaveAttribute(
+      "href",
+      "https://github.com/pmarkun/chitaozinho/releases/download/v0.1.4/chitaozinho-extension-0.1.4.zip",
+    );
     const instructions = page.locator(".extension-download summary");
     await instructions.focus();
     await page.keyboard.press("Enter");
