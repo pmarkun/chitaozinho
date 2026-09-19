@@ -1,5 +1,6 @@
 const { defineConfig } = require("@playwright/test");
 const path = require("node:path");
+const externalBaseURL = process.env.CHITAOZINHO_WEB_BASE_URL;
 
 module.exports = defineConfig({
   testDir: path.join(__dirname, "e2e"),
@@ -7,7 +8,7 @@ module.exports = defineConfig({
   timeout: 30_000,
   workers: 1,
   use: {
-    baseURL: "http://127.0.0.1:4174",
+    baseURL: externalBaseURL ?? "http://127.0.0.1:4174",
     browserName: "chromium",
     headless: true,
     viewport: { width: 1280, height: 900 },
@@ -19,10 +20,14 @@ module.exports = defineConfig({
         }
       : {}),
   },
-  webServer: {
-    command: "pnpm exec vite preview --host 127.0.0.1 --port 4174",
-    cwd: __dirname,
-    url: "http://127.0.0.1:4174/",
-    reuseExistingServer: false,
-  },
+  ...(externalBaseURL
+    ? {}
+    : {
+        webServer: {
+          command: "pnpm exec vite preview --host 127.0.0.1 --port 4174",
+          cwd: __dirname,
+          url: "http://127.0.0.1:4174/",
+          reuseExistingServer: false,
+        },
+      }),
 });

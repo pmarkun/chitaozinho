@@ -84,11 +84,11 @@ usabilidade com leitor de tela, zoom ou extensão instalada de verdade.
 
 O smoke do beta deve:
 
-- solicitar e consumir um magic link enviado pelo Resend;
-- produzir uma captura sintética completa;
-- observar `stored`, nunca `locked`;
+- operar sem conta nem solicitação de e-mail no modo `hash_only`;
+- produzir uma captura sintética completa sem enviar os bytes ao servidor;
+- observar `hash_registered` e `hash_only`, nunca `stored` ou `locked`;
 - baixar e validar pacote no navegador e na CLI;
-- obter e validar o complemento OpenTimestamps;
+- localizar, baixar e validar automaticamente o complemento OpenTimestamps;
 - provar falha segura com OpenBao selado e recuperação após unseal;
 - executar expiração com tempo controlado e confirmar HTTP 410.
 

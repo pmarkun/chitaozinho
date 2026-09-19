@@ -189,9 +189,8 @@ test("a supplied real package passes entirely in Chromium", async ({
 }) => {
   const packagePath = process.env.CHITAOZINHO_WEB_TEST_PACKAGE;
   const checksumPath = process.env.CHITAOZINHO_WEB_TEST_CHECKSUM;
-  const trustedKey = process.env.CHITAOZINHO_WEB_TEST_SERVER_KEY;
   test.skip(
-    !packagePath || !checksumPath || !trustedKey,
+    !packagePath || !checksumPath,
     "set the opt-in real-package inputs",
   );
 
@@ -204,15 +203,20 @@ test("a supplied real package passes entirely in Chromium", async ({
     .getByText("Adicionar comprovantes opcionais", { exact: true })
     .click();
   await page.locator("#checksum").setInputFiles(checksumPath);
-  await page
-    .getByText("Verificação avançada de confiança", { exact: true })
-    .click();
-  await page.locator("#trusted-key").fill(trustedKey);
   await page.locator(".verify-button").click();
 
   await expect(
     page.getByRole("heading", { name: "Integridade confirmada", exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("Chave confirmada separadamente")).toBeVisible();
-  expect(requestsAfterSelection).toEqual([]);
+  await expect(
+    page.getByText("Chave certificada pela raiz oficial"),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Baixar complemento temporal" }),
+  ).toBeVisible();
+  expect(requestsAfterSelection).toHaveLength(2);
+  expect(requestsAfterSelection[0]).toMatch(
+    /^https:\/\/api\.evidencias\.org\.br\/v1\/public\/proofs\//,
+  );
+  expect(requestsAfterSelection[1]).toContain("/bundle?");
 });
