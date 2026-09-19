@@ -2,13 +2,17 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
 import json
 import ssl
 import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
+from zipfile import ZIP_STORED, ZipFile
 
 from chitaozinho_protocol import (
     DOMAINS,
@@ -26,13 +30,13 @@ EXTENSION_ORIGIN = "chrome-extension://ekdgmdbnkfmjeppmmceeigojgemklpgd"
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run a synthetic Railway beta capture")
     parser.add_argument("--base-url", required=True)
-    parser.add_argument("--token-file", type=Path, required=True)
+    parser.add_argument("--token-file", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     return parser.parse_args()
 
 
 class Client:
-    def __init__(self, base_url: str, token: str) -> None:
+    def __init__(self, base_url: str, token: str | None = None) -> None:
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.opener = urllib.request.build_opener(
@@ -57,7 +61,7 @@ class Client:
             request_headers["Content-Type"] = "application/json"
         else:
             data = body
-        if authenticate:
+        if authenticate and self.token:
             request_headers["Authorization"] = f"Bearer {self.token}"
             request_headers["Origin"] = EXTENSION_ORIGIN
         request_headers.update(headers or {})
@@ -99,8 +103,8 @@ def signed_entry(entry: dict, seed: bytes) -> dict:
 
 def main() -> int:
     args = parse_args()
-    token = args.token_file.read_text().strip()
-    if len(token) < 32:
+    token = args.token_file.read_text().strip() if args.token_file else None
+    if token is not None and len(token) < 32:
         raise RuntimeError("access token file is empty or invalid")
     args.output.mkdir(parents=True, exist_ok=True)
     client = Client(args.base_url, token)
@@ -119,7 +123,7 @@ def main() -> int:
     session_id = str(created["session_id"])
     challenge = str(created["server_challenge"])
     retention = created.get("retention_policy")
-    if retention != {"mode": "temporary", "days": 30, "immutable": False}:
+    if retention != {"mode": "client_only", "days": None, "immutable": False}:
         raise RuntimeError(f"unexpected retention policy: {retention!r}")
 
     client.request(
@@ -149,14 +153,14 @@ def main() -> int:
         expected=(201,),
     )
 
-    part = b"Chitaozinho Railway beta synthetic evidence\n"
+    part = b'{"synthetic":true,"source":"railway-smoke"}\n'
     part_hash = sha256_identifier(part)
     part_entry = {
         "protocol_version": "0.1.0",
         "entry_type": "artifact_part",
         "session_id": session_id,
         "sequence": 1,
-        "artifact_id": "smoke-text",
+        "artifact_id": "metadata",
         "part_number": 0,
         "part_hash": part_hash,
         "previous_entry_hash": signed_start["entry_hash"],
@@ -166,28 +170,28 @@ def main() -> int:
         "server_challenge": challenge,
     }
     signed_part = signed_entry(part_entry, seed)
-    receipt = client.json(
+    registered = client.json(
         "PUT",
-        f"/v1/sessions/{session_id}/artifacts/smoke-text/parts/0",
-        body=part,
+        f"/v1/sessions/{session_id}/artifacts/metadata/parts/0/hash",
+        body={"size": len(part), "part_hash": part_hash},
         headers={
             "Idempotency-Key": f"smoke-part-{session_id}",
             "X-Entry-Json": base64url_encode(canonical_bytes(part_entry)),
             "X-Entry-Hash": signed_part["entry_hash"],
             "X-Entry-Signature": signed_part["signature_hex"],
-            "Content-Type": "application/octet-stream",
         },
         expected=(201,),
     )
-    if receipt.get("persistence_state") != "stored":
-        raise RuntimeError(f"unexpected persistence state: {receipt!r}")
+    receipt = registered.get("receipt", {})
+    if receipt.get("persistence_state") != "hash_registered":
+        raise RuntimeError(f"unexpected persistence state: {registered!r}")
 
     complete_entry = {
         "protocol_version": "0.1.0",
         "entry_type": "artifact_completed",
         "session_id": session_id,
         "sequence": 2,
-        "artifact_id": "smoke-text",
+        "artifact_id": "metadata",
         "artifact_hash": part_hash,
         "previous_entry_hash": signed_part["entry_hash"],
         "client_clock_id": "railway-smoke-clock",
@@ -198,15 +202,15 @@ def main() -> int:
     signed_complete = signed_entry(complete_entry, seed)
     client.request(
         "POST",
-        f"/v1/sessions/{session_id}/artifacts/smoke-text/complete",
+        f"/v1/sessions/{session_id}/artifacts/metadata/complete",
         body={
             "entry": signed_complete,
             "part_count": 1,
             "size": len(part),
             "artifact_hash": part_hash,
-            "path": "capture/smoke.txt",
-            "media_type": "text/plain",
-            "method": "synthetic-smoke",
+            "path": "capture/metadata.json",
+            "media_type": "application/json",
+            "method": "browser metadata",
             "provenance": "client_reported",
         },
         expected=(201,),
@@ -238,8 +242,8 @@ def main() -> int:
         "entry_count": 4,
         "artifacts": [
             {
-                "artifact_id": "smoke-text",
-                "path": "capture/smoke.txt",
+                "artifact_id": "metadata",
+                "path": "capture/metadata.json",
                 "size": len(part),
                 "status": "captured",
                 "artifact_hash": part_hash,
@@ -257,22 +261,51 @@ def main() -> int:
             "signature_hex": sign_canonical(DOMAINS["capture_close"], capture_close, seed).hex(),
         },
     )
-    urls = client.json("POST", f"/v1/sessions/{session_id}/download-urls")
-    package, package_headers, _ = client.request(
-        "GET", str(urls["package_url"]), authenticate=False
-    )
-    checksum, _, _ = client.request("GET", str(urls["checksum_url"]), authenticate=False)
-    package_path = args.output / f"chitaozinho-{session_id}.zip"
-    package_path.write_bytes(package)
-    (args.output / f"chitaozinho-{session_id}.zip.sha256").write_bytes(checksum)
+    template = client.json("GET", f"/v1/sessions/{session_id}/local-package")
+    members = {
+        name: base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+        for name, value in template["members"].items()
+    }
+    members["capture/metadata.json"] = part
+    package_path = args.output / f"evidencias-{session_id}.zip"
+    with ZipFile(package_path, "w", compression=ZIP_STORED) as archive:
+        for name, content in sorted(members.items()):
+            archive.writestr(name, content)
+    package_hash = hashlib.sha256(package_path.read_bytes()).hexdigest()
+    checksum_path = package_path.with_suffix(".zip.sha256")
+    checksum_path.write_text(f"{package_hash}  {package_path.name}\n")
+
+    manifest_hash = str(finalized["manifest_hash"])
+    proof_status: dict = {}
+    for _attempt in range(20):
+        proof_status = client.json(
+            "GET",
+            f"/v1/public/proofs/{session_id}?manifest_hash={manifest_hash}",
+            authenticate=False,
+        )
+        if proof_status.get("bundle_available"):
+            break
+        time.sleep(3)
+    proof_path = None
+    if proof_status.get("bundle_available"):
+        proof, _, _ = client.request(
+            "GET",
+            f"/v1/public/proofs/{session_id}/bundle?manifest_hash={manifest_hash}",
+            authenticate=False,
+        )
+        proof_path = args.output / f"evidencias-proofs-{session_id}.zip"
+        proof_path.write_bytes(proof)
     report = {
         "session_id": session_id,
         "capture_status": finalized.get("status"),
-        "manifest_hash": finalized.get("manifest_hash"),
+        "manifest_hash": manifest_hash,
         "persistence_state": receipt.get("persistence_state"),
-        "storage_status": package_headers.get("x-storage-status"),
-        "package_hash": package_headers.get("x-package-sha256"),
+        "storage_status": finalized.get("storage_status"),
+        "package_hash": f"sha256:{package_hash}",
         "package_path": str(package_path),
+        "checksum_path": str(checksum_path),
+        "proof_status": proof_status,
+        "proof_path": str(proof_path) if proof_path else None,
     }
     (args.output / "smoke-report.json").write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n"
