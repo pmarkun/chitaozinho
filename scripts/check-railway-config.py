@@ -81,9 +81,9 @@ def validate_graph(graph: dict[str, Any]) -> None:
     if openbao.get("networking"):
         raise ValueError("OpenBao must not be publicly exposed")
     if openbao["deploy"].get("healthcheckPath") != "/healthz":
-        raise ValueError("OpenBao must expose seal-aware readiness")
+        raise ValueError("OpenBao must expose seal-aware liveness")
     if openbao["deploy"].get("healthcheckTimeout") != 600:
-        raise ValueError("OpenBao readiness must leave time for manual unseal")
+        raise ValueError("OpenBao liveness must leave time for manual unseal")
     attachments = openbao.get("volumeAttachments") or {}
     if set(attachments) != {"openbao-data"}:
         raise ValueError("OpenBao must have exactly one persistent volume")

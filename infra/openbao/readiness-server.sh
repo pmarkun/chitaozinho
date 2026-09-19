@@ -2,15 +2,19 @@
 set -eu
 
 readonly listen_port="${PORT:-8080}"
-readonly health_url="https://127.0.0.1:8200/v1/sys/health"
+# Railway needs a liveness signal before it promotes the new container. A
+# sealed, initialized OpenBao is alive and must remain reachable so operators
+# can unseal it. Application readiness still calls the default sys/health
+# endpoint and therefore fails closed while OpenBao is sealed.
+readonly health_url="https://127.0.0.1:8200/v1/sys/health?standbyok=true&sealedcode=200&uninitcode=503"
 
 if [ "${OPENBAO_READINESS_RESPONSE:-}" = "1" ]; then
   if wget --quiet --no-check-certificate --output-document=/dev/null "$health_url"; then
     status="200 OK"
-    body="ready"
+    body="alive"
   else
     status="503 Service Unavailable"
-    body="sealed"
+    body="unavailable"
   fi
 
   body_length=${#body}
