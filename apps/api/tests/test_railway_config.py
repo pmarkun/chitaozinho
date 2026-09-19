@@ -63,11 +63,11 @@ def test_openbao_must_be_private_and_persistent() -> None:
         railway.validate_graph(document)
 
 
-def test_openbao_readiness_and_deploy_scope_cannot_drift() -> None:
+def test_openbao_liveness_and_deploy_scope_cannot_drift() -> None:
     document = graph()
     openbao = resource(document, "openbao")
     openbao["deploy"]["healthcheckPath"] = "/v1/sys/health"
-    with pytest.raises(ValueError, match="seal-aware readiness"):
+    with pytest.raises(ValueError, match="seal-aware liveness"):
         railway.validate_graph(document)
 
     document = graph()
@@ -75,6 +75,13 @@ def test_openbao_readiness_and_deploy_scope_cannot_drift() -> None:
     openbao["build"]["watchPatterns"].append("/**")
     with pytest.raises(ValueError, match="deploy scope"):
         railway.validate_graph(document)
+
+
+def test_openbao_liveness_keeps_initialized_sealed_node_reachable() -> None:
+    script = (ROOT / "infra" / "openbao" / "readiness-server.sh").read_text()
+
+    assert "sealedcode=200" in script
+    assert "uninitcode=503" in script
 
 
 def test_beta_storage_and_approle_guards_cannot_drift() -> None:
