@@ -8,6 +8,7 @@ import {
 } from "./validator";
 import "./styles.css";
 import { Privacy } from "./privacy";
+import { Construction, isConstructionHost } from "./construction";
 
 const PROOF_API_BASE_URL =
   import.meta.env.VITE_PROOF_API_BASE_URL ?? "https://api.evidencias.org.br";
@@ -29,6 +30,11 @@ function pageFromPath(): Page {
 }
 
 function App() {
+  if (isConstructionHost(location.hostname)) return <Construction />;
+  return <BetaApp />;
+}
+
+function BetaApp() {
   const [page, setPage] = useState<Page>(pageFromPath);
 
   useEffect(() => {
@@ -726,7 +732,11 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </React.StrictMode>,
 );
-if (import.meta.env.PROD && "serviceWorker" in navigator)
+if (
+  import.meta.env.PROD &&
+  !isConstructionHost(location.hostname) &&
+  "serviceWorker" in navigator
+)
   window.addEventListener("load", () => {
     void navigator.serviceWorker.register("/sw.js");
   });

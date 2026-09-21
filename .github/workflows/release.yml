@@ -23,7 +23,7 @@ jobs:
       - name: Build release artifacts and SPDX SBOMs
         env:
           CHITAOZINHO_API_BASE_URL: https://api.evidencias.org.br
-          CHITAOZINHO_VERIFIER_URL: https://evidencias.org.br/validar
+          CHITAOZINHO_VERIFIER_URL: https://beta.evidencias.org.br/validar
           CHITAOZINHO_ENVIRONMENT: beta
         run: nix develop --command ./scripts/build-release-artifacts dist/release
       - name: Sign every release artifact with GitHub OIDC
