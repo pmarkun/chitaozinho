@@ -8,7 +8,11 @@ import {
 } from "./validator";
 import "./styles.css";
 import { Privacy } from "./privacy";
-import { Construction, isConstructionHost } from "./construction";
+import {
+  Construction,
+  isConstructionHost,
+  PublicPrivacy,
+} from "./construction";
 
 const PROOF_API_BASE_URL =
   import.meta.env.VITE_PROOF_API_BASE_URL ?? "https://api.evidencias.org.br";
@@ -30,7 +34,12 @@ function pageFromPath(): Page {
 }
 
 function App() {
-  if (isConstructionHost(location.hostname)) return <Construction />;
+  if (isConstructionHost(location.hostname)) {
+    if (location.pathname.startsWith("/privacidade")) {
+      return <PublicPrivacy />;
+    }
+    return <Construction />;
+  }
   return <BetaApp />;
 }
 

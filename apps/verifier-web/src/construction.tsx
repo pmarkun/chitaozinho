@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import "./construction.css";
+import { Privacy } from "./privacy";
 
 export function isConstructionHost(hostname: string): boolean {
   return (
@@ -8,12 +9,12 @@ export function isConstructionHost(hostname: string): boolean {
   );
 }
 
-export function Construction() {
+function usePublicSiteShell(title: string, themeColor: string) {
   useEffect(() => {
-    document.title = "Evidências — em construção";
+    document.title = title;
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute("content", "#00004b");
+      ?.setAttribute("content", themeColor);
     document.querySelector('link[rel="manifest"]')?.remove();
     if ("serviceWorker" in navigator) {
       void navigator.serviceWorker
@@ -24,7 +25,11 @@ export function Construction() {
           ),
         );
     }
-  }, []);
+  }, [themeColor, title]);
+}
+
+export function Construction() {
+  usePublicSiteShell("Evidências — em construção", "#00004b");
 
   return (
     <main id="main-content" className="construction-page" tabIndex={-1}>
@@ -66,13 +71,6 @@ export function Construction() {
             <strong>carregando…</strong>
           </div>
 
-          <a
-            className="construction-beta"
-            href="https://beta.evidencias.org.br/"
-          >
-            Entrar na versão beta
-          </a>
-
           <p className="construction-note">
             Melhor visualizado em qualquer navegador moderno — mas com saudade
             de 1998.
@@ -82,10 +80,28 @@ export function Construction() {
 
       <footer className="construction-footer">
         <span>Evidências · desde 2026</span>
-        <a href="https://beta.evidencias.org.br/privacidade">
-          Política de privacidade
-        </a>
+        <a href="/privacidade">Política de privacidade</a>
       </footer>
     </main>
+  );
+}
+
+export function PublicPrivacy() {
+  usePublicSiteShell("Política de privacidade — Evidências", "#145c3d");
+
+  return (
+    <>
+      <a className="skip-link" href="#main-content">
+        Pular para o conteúdo
+      </a>
+      <header className="public-privacy-header">
+        <a href="/">Evidências</a>
+      </header>
+      <Privacy />
+      <footer className="public-privacy-footer">
+        <strong>Evidências</strong>
+        <a href="/">Voltar ao início</a>
+      </footer>
+    </>
   );
 }
