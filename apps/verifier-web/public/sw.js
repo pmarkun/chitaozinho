@@ -1,9 +1,8 @@
-const CACHE_NAME = "chitaozinho-verifier-v0.3.0";
+const CACHE_NAME = "chitaozinho-verifier-v0.3.1";
 const APP_SHELL = [
   "/",
   "/index.html",
   "/manifest.webmanifest",
-  "/brand/conectas.svg",
 ];
 
 self.addEventListener("install", (event) => {

@@ -172,17 +172,6 @@
   text-transform: uppercase;
 }
 
-.construction-footer a {
-  display: inline-flex;
-  padding: 0.25rem 0.55rem;
-  background: #fff;
-}
-
-.construction-footer img {
-  width: 125px;
-  height: auto;
-}
-
 @keyframes construction-blink {
   50% {
     visibility: hidden;
@@ -210,11 +199,6 @@
 
   .construction-status strong {
     grid-column: 1 / -1;
-  }
-
-  .construction-footer {
-    flex-direction: column;
-    gap: 0.35rem;
   }
 }
 

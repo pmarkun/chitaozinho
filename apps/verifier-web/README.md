@@ -7,9 +7,8 @@ Ao atualizar a versão, atualize também o link, o texto e o teste de download.
 Essa release exibe Evidências e suporta guarda local: o servidor registra hashes,
 enquanto a extensão monta o pacote com os arquivos locais.
 
-O rodapé contém somente Conectas. O logo original é servido localmente de
-`public/brand/conectas.svg`, obtido de
-https://conectas.org/wp-content/uploads/2021/04/logo-conectas-portugues-1.svg.
+O rodapé apresenta apenas o nome do produto e o link para a política de
+privacidade, sem marcas institucionais.
 Nomes internos, identificadores e formatos assinados continuam compatíveis.
 
 O mesmo build estático funciona pelo link público e offline após a primeira

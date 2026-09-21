@@ -7,11 +7,11 @@ export function Privacy() {
 
       <h2>O essencial</h2>
       <p>
-        O Evidências é uma ferramenta da Conectas Direitos Humanos para
-        registrar conteúdos da internet e compartilhar registros verificáveis.
-        Na versão atual, os arquivos capturados ficam no seu dispositivo. O
-        servidor recebe hashes e informações técnicas necessárias ao serviço —
-        não seu e-mail nem uma cópia dos conteúdos capturados.
+        O Evidências é uma ferramenta para registrar conteúdos da internet e
+        compartilhar registros verificáveis. Na versão atual, os arquivos
+        capturados ficam no seu dispositivo. O servidor recebe hashes e
+        informações técnicas necessárias ao serviço — não seu e-mail nem uma
+        cópia dos conteúdos capturados.
       </p>
       <p>
         Um hash é um resumo criptográfico usado para conferir se um arquivo
@@ -21,9 +21,8 @@ export function Privacy() {
 
       <h2>Quem cuida dos dados</h2>
       <p>
-        A Conectas Direitos Humanos (Associação Direitos Humanos em Rede) é a
-        responsável pelo tratamento dos dados do serviço. Para dúvidas ou
-        pedidos sobre seus dados, escreva para{" "}
+        A equipe responsável pelo Evidências cuida dos dados tratados pelo
+        serviço. Para dúvidas ou pedidos sobre seus dados, escreva para{" "}
         <a href="mailto:contato@evidencias.org.br">contato@evidencias.org.br</a>
         .
       </p>
