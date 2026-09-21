@@ -23,6 +23,12 @@
 	@serviceWorker path /sw.js
 	header @serviceWorker Cache-Control "no-cache, no-store, must-revalidate"
 
+	@legacyRoutes {
+		host evidencias.org.br www.evidencias.org.br
+		path /validar* /metodologia* /privacidade*
+	}
+	redir @legacyRoutes https://beta.evidencias.org.br{uri} 308
+
 	handle /health {
 		respond "ok" 200
 	}

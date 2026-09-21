@@ -4,6 +4,53 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
+test("the public domain renders the accessible construction page", async ({
+  browser,
+}) => {
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 360, height: 800 },
+  ]) {
+    const context = await browser.newContext({ viewport });
+    const page = await context.newPage();
+    await page.route("https://evidencias.org.br/**", async (route) => {
+      const url = new URL(route.request().url());
+      const response = await route.fetch({
+        url: `http://127.0.0.1:4174${url.pathname}${url.search}`,
+      });
+      await route.fulfill({ response });
+    });
+    await page.addInitScript({ content: AxeBuilder.source });
+    await page.goto("https://evidencias.org.br/");
+
+    await expect(page).toHaveTitle("Evidências — em construção");
+    await expect(
+      page.getByRole("heading", { name: "Evidências", level: 1 }),
+    ).toBeVisible();
+    await expect(page.getByText("SITE EM CONSTRUÇÃO")).toBeVisible();
+    await expect(
+      page.getByRole("img", { name: /Placa animada/ }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Entrar na versão beta" }),
+    ).toHaveAttribute("href", "https://beta.evidencias.org.br/");
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+    const result = await page.evaluate(async () =>
+      globalThis.axe.run(document, {
+        runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] },
+      }),
+    );
+    expect(result.violations).toEqual([]);
+    await context.close();
+  }
+});
+
 test("Evidências separates capture from validation and credits only Conectas", async ({
   page,
 }) => {
