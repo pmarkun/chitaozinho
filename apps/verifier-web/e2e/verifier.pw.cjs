@@ -31,12 +31,19 @@ test("the public domain renders the accessible construction page", async ({
     await expect(
       page.getByRole("img", { name: /Placa animada/ }),
     ).toBeVisible();
-    await expect(
-      page.getByRole("link", { name: "Entrar na versão beta" }),
-    ).toHaveAttribute("href", "https://beta.evidencias.org.br/");
+    await expect(page.locator('a[href*="beta.evidencias.org.br"]')).toHaveCount(
+      0,
+    );
+    await expect(page.locator("html")).not.toContainText(
+      "beta.evidencias.org.br",
+    );
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+      "content",
+      "noindex, nofollow, noarchive, nosnippet",
+    );
     await expect(
       page.getByRole("link", { name: "Política de privacidade" }),
-    ).toHaveAttribute("href", "https://beta.evidencias.org.br/privacidade");
+    ).toHaveAttribute("href", "/privacidade");
     expect(
       await page.evaluate(
         () =>
@@ -50,6 +57,20 @@ test("the public domain renders the accessible construction page", async ({
       }),
     );
     expect(result.violations).toEqual([]);
+
+    await page.getByRole("link", { name: "Política de privacidade" }).click();
+    await expect(page).toHaveURL("https://evidencias.org.br/privacidade");
+    await expect(
+      page.getByRole("heading", { name: "Política de privacidade", level: 1 }),
+    ).toBeVisible();
+    await expect(page.locator('a[href*="beta.evidencias.org.br"]')).toHaveCount(
+      0,
+    );
+
+    const robotsResponse = await page.request.get(
+      "http://127.0.0.1:4174/robots.txt",
+    );
+    expect(await robotsResponse.text()).toBe("User-agent: *\nDisallow: /\n");
     await context.close();
   }
 });
