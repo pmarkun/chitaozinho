@@ -34,6 +34,9 @@ test("the public domain renders the accessible construction page", async ({
     await expect(
       page.getByRole("link", { name: "Entrar na versão beta" }),
     ).toHaveAttribute("href", "https://beta.evidencias.org.br/");
+    await expect(
+      page.getByRole("link", { name: "Política de privacidade" }),
+    ).toHaveAttribute("href", "https://beta.evidencias.org.br/privacidade");
     expect(
       await page.evaluate(
         () =>

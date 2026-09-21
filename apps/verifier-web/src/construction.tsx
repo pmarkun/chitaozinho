@@ -80,7 +80,12 @@ export function Construction() {
         </div>
       </section>
 
-      <footer className="construction-footer">Evidências · desde 2026</footer>
+      <footer className="construction-footer">
+        <span>Evidências · desde 2026</span>
+        <a href="https://beta.evidencias.org.br/privacidade">
+          Política de privacidade
+        </a>
+      </footer>
     </main>
   );
 }

@@ -172,6 +172,11 @@
   text-transform: uppercase;
 }
 
+.construction-footer a {
+  color: #fff;
+  text-underline-offset: 0.2rem;
+}
+
 @keyframes construction-blink {
   50% {
     visibility: hidden;
