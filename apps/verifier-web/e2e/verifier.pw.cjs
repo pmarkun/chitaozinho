@@ -34,6 +34,9 @@ test("the public domain renders the accessible construction page", async ({
     await expect(
       page.getByRole("link", { name: "Entrar na versão beta" }),
     ).toHaveAttribute("href", "https://beta.evidencias.org.br/");
+    await expect(
+      page.getByRole("link", { name: "Política de privacidade" }),
+    ).toHaveAttribute("href", "https://beta.evidencias.org.br/privacidade");
     expect(
       await page.evaluate(
         () =>
@@ -51,7 +54,7 @@ test("the public domain renders the accessible construction page", async ({
   }
 });
 
-test("Evidências separates capture from validation and credits only Conectas", async ({
+test("Evidências separates capture from validation without organization branding", async ({
   page,
 }) => {
   await page.goto("/");
@@ -68,16 +71,14 @@ test("Evidências separates capture from validation and credits only Conectas", 
       page.getByRole("heading", { name, exact: true }),
     ).toBeVisible();
   }
-  await expect(page.locator("footer")).toContainText("Realização");
+  await expect(page.locator("footer")).toContainText("Evidências");
   await expect(page.locator("footer")).not.toContainText(/arapy/i);
+  await expect(page.locator("footer img")).toHaveCount(0);
   await expect(page.locator(".beta-notice")).toContainText(
     "Não guardamos uma cópia para recuperação no servidor.",
   );
   await expect(page.locator(".extension-note")).toContainText("Versão 0.1.5");
   await expect(page.locator("main")).not.toContainText("30 dias");
-  await expect(
-    page.getByRole("img", { name: "Conectas Direitos Humanos" }),
-  ).toBeVisible();
   await page
     .locator(".hero-actions")
     .getByRole("button", { name: "Verificar evidência" })

@@ -739,16 +739,6 @@ footer {
   line-height: 1.6;
   margin: 0.5rem 0;
 }
-.conectas-credit {
-  color: #fff;
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-}
-.conectas-credit img {
-  object-fit: contain;
-}
 footer > div > strong {
   font:
     2rem Georgia,
@@ -852,10 +842,6 @@ footer > div > strong {
     grid-template-columns: 1fr;
     gap: 0.5rem;
     padding: 1.5rem;
-  }
-  .conectas-credit {
-    flex-direction: column;
-    gap: 0.5rem;
   }
   footer {
     align-items: flex-start;

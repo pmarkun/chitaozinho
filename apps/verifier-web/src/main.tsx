@@ -91,19 +91,6 @@ function BetaApp() {
           <p>Registro e verificação de evidências digitais.</p>
           <a href="/privacidade">Política de privacidade</a>
         </div>
-        <a
-          className="conectas-credit"
-          href="https://conectas.org/"
-          aria-label="Conectas Direitos Humanos"
-        >
-          <span>Realização</span>
-          <img
-            src="/brand/conectas.svg"
-            alt="Conectas Direitos Humanos"
-            width="190"
-            height="83"
-          />
-        </a>
       </footer>
     </>
   );

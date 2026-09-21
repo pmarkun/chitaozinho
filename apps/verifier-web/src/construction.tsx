@@ -81,14 +81,9 @@ export function Construction() {
       </section>
 
       <footer className="construction-footer">
-        <span>uma iniciativa</span>
-        <a href="https://conectas.org/" aria-label="Conectas Direitos Humanos">
-          <img
-            src="/brand/conectas.svg"
-            alt="Conectas Direitos Humanos"
-            width="190"
-            height="83"
-          />
+        <span>Evidências · desde 2026</span>
+        <a href="https://beta.evidencias.org.br/privacidade">
+          Política de privacidade
         </a>
       </footer>
     </main>
