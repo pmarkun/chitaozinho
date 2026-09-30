@@ -6,6 +6,17 @@ Mudanças relevantes do Chitãozinho são registradas aqui. As versões seguem
 
 ## Unreleased
 
+## 0.1.6 — 2026-09-30
+
+- Preserva a reprodução do áudio da aba durante a gravação.
+- Adiciona captura de tela/janela com áudio autorizado pelo seletor do Chrome,
+  conforme suporte do sistema operacional, e aviso quando o áudio faltar.
+- Adiciona microfone opcional, desligado por padrão, com autorização explícita
+  e mistura de áudio somente no arquivo gravado.
+- Atualiza a política de privacidade para os novos modos de captura.
+- Testes automatizados verificam dois sinais de áudio no WebM; Zoom e
+  dispositivos reais em cada plataforma ainda precisam de teste manual.
+
 - Remove a exigência de e-mail do beta `hash_only`, mantendo magic link como
   módulo opcional para guarda remota.
 - Consulta e baixa automaticamente complementos OpenTimestamps no verificador,
