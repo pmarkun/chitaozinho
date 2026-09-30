@@ -11,6 +11,7 @@ document.documentElement.lang = documentLanguage(chrome.i18n.getUILanguage());
 interface PublicState {
   captureSource?: "tab" | "desktop";
   recordingAudio?: boolean;
+  microphoneActive?: boolean;
   id: string;
   status: string;
   startedAt: string;
@@ -39,6 +40,7 @@ function App() {
   const [linkSent, setLinkSent] = useState(false);
   const [consent, setConsent] = useState(false);
   const [captureSource, setCaptureSource] = useState<"tab" | "desktop">("tab");
+  const [microphone, setMicrophone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [technicalError, setTechnicalError] = useState<string>();
@@ -226,7 +228,14 @@ function App() {
             {t("homeTitle")}
           </h1>
           <p className="lead">{t("homeBody")}</p>
-          <button className="hero-action" onClick={() => setScreen("new")}>
+          <button
+            className="hero-action"
+            onClick={() => {
+              setMicrophone(false);
+              setConsent(false);
+              setScreen("new");
+            }}
+          >
             <span aria-hidden="true">＋</span>
             <span>
               <strong>{t("newEvidence")}</strong>
@@ -276,6 +285,31 @@ function App() {
                 : "tabAudioNotice",
             )}
           </p>
+          <label className="consent">
+            <input
+              type="checkbox"
+              checked={microphone}
+              disabled={busy}
+              onChange={(event) => setMicrophone(event.target.checked)}
+            />
+            {t("includeMicrophone")}
+          </label>
+          {microphone && (
+            <>
+              <p>{t("microphoneNotice")}</p>
+              <button
+                className="secondary"
+                disabled={busy}
+                onClick={() =>
+                  void chrome.tabs.create({
+                    url: chrome.runtime.getURL("microphone.html"),
+                  })
+                }
+              >
+                {t("authorizeMicrophone")}
+              </button>
+            </>
+          )}
           <ol className="preparation-list">
             <li>{t("prepareContext")}</li>
             <li>{t("prepareNavigation")}</li>
@@ -296,7 +330,12 @@ function App() {
           <button
             disabled={!consent || busy}
             onClick={() =>
-              void act({ type: "START_CAPTURE", consent, captureSource })
+              void act({
+                type: "START_CAPTURE",
+                consent,
+                captureSource,
+                microphone,
+              })
             }
           >
             {t("startCapture")}
@@ -399,7 +438,16 @@ function App() {
             </p>
           )}
           {capture.recordingAudio === false && (
-            <p role="status">{t("audioUnavailable")}</p>
+            <p role="status">
+              {t(
+                capture.microphoneActive
+                  ? "sourceAudioUnavailable"
+                  : "audioUnavailable",
+              )}
+            </p>
+          )}
+          {capture.microphoneActive && (
+            <p role="status">{t("microphoneRecording")}</p>
           )}
           {capture.unavailableArtifacts > 0 && (
             <p className="notice" role="status">

@@ -50,6 +50,11 @@ export function Privacy() {
         </li>
       </ul>
       <p>
+        O microfone é opcional e vem desativado. Se você marcar a opção e
+        autorizar o Chrome, sua voz e sons próximos também entram na gravação
+        local. Sem essa escolha, não capturamos o microfone.
+      </p>
+      <p>
         A captura começa por uma ação sua. Não lemos todo o histórico do
         navegador nem usamos GPS. Evite registrar informações desnecessárias.
         Uma página pode conter conversas ou dados sensíveis de outras pessoas;
