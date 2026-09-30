@@ -10,7 +10,7 @@ pnpm -r typecheck
 pnpm -r test
 pnpm -r build
 playwright test --config apps/extension/playwright.config.cjs
-pnpm --filter @chitaozinho/verifier-web test:e2e
+uv run python scripts/test-adversarial-packages.py
 bash scripts/test-hash-only-capture
 ./scripts/check-extension-reproducibility
 
