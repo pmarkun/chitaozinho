@@ -14,3 +14,9 @@ For the POC, open `chrome://extensions`, enable developer mode, choose
 
 The popup and manifest use Chrome's native locale selection, with pt-BR as the
 default and an equivalent English catalog.
+
+Capture records video and output audio from the selected Chrome tab, not the
+whole computer or microphone. An AudioContext restores local tab playback while
+MediaRecorder keeps the original audio/video stream. Playback resources and
+tracks are released on stop or startup failure. Validate audibility and the
+downloaded WebM with a real tone/video before releasing a new extension build.
