@@ -208,6 +208,15 @@ test("source selection and missing audio are accessible in tall and short popups
     await page.getByRole("button", { name: messages.newEvidence }).click();
     const source = page.getByRole("combobox", { name: messages.captureSource });
     await expect(source).toHaveValue("tab");
+    const microphone = page.getByRole("checkbox", {
+      name: messages.includeMicrophone,
+    });
+    await expect(microphone).not.toBeChecked();
+    await microphone.check();
+    await expect(
+      page.getByRole("button", { name: messages.authorizeMicrophone }),
+    ).toBeVisible();
+    await microphone.uncheck();
     await source.selectOption("desktop");
     await expect(page.getByText(messages.desktopAudioNotice)).toBeVisible();
     await audit(page, `source selection ${height}`);

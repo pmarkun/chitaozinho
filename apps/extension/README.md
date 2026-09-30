@@ -29,3 +29,12 @@ cross-platform guarantee. Cancellation fails without falling back to a tab.
 This mode does not collect an unrelated tab's DOM, URL, scroll or screenshots.
 External sharing stop preserves chunks and marks the capture interrupted.
 The new desktopCapture permission needs justification in the Chrome Store.
+
+Microphone capture is opt-in, off by default and requires Chrome permission.
+For first use, open the dedicated authorization page, grant access and return
+to the popup. The permission probe stops its tracks immediately and never
+records/uploads audio. The offscreen recorder then mixes microphone and source
+audio into the recorded WebM only (not speaker playback), with 0.5 gain per
+source. Use headphones to avoid acoustic echo. Denial/startup failure does not
+silently continue a requested microphone capture. Device disconnection marks
+the recording interrupted. Signed markers identify requested/present sources.

@@ -1,4 +1,13 @@
 export type MessageKey =
+  | "includeMicrophone"
+  | "authorizeMicrophone"
+  | "microphoneTitle"
+  | "microphoneNotice"
+  | "microphonePermissionNotice"
+  | "microphonePermissionGranted"
+  | "microphonePermissionDenied"
+  | "microphoneRecording"
+  | "sourceAudioUnavailable"
   | "audioUnavailable"
   | "captureSource"
   | "captureTab"

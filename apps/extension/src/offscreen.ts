@@ -3,6 +3,7 @@ import { encodeMessageBytes } from "./message-bytes";
 import { localPackageUrls } from "./local-package";
 import { preserveTabAudio } from "./audio";
 import { captureConstraints } from "./capture-source";
+import { addMicrophone } from "./microphone";
 
 let recorder: MediaRecorder | undefined;
 let stream: MediaStream | undefined;
@@ -11,6 +12,8 @@ const pendingChunks = new Set<Promise<void>>();
 let chunkError: unknown;
 let closeAudio: (() => Promise<void>) | undefined;
 let mediaRelease = Promise.resolve();
+let originalStream: MediaStream | undefined;
+let closeMicrophone: (() => Promise<void>) | undefined;
 
 chrome.runtime.onMessage.addListener(
   (
@@ -35,6 +38,7 @@ chrome.runtime.onMessage.addListener(
         message.sessionId,
         message.captureSource ?? "tab",
         message.audio ?? true,
+        message.microphone === true,
       )
         .then((result) => sendResponse({ ok: true, result }))
         .catch((error: unknown) => sendResponse({ error: String(error) }));
@@ -55,7 +59,8 @@ async function startRecording(
   captureSessionId: string,
   source: "tab" | "desktop",
   audio: boolean,
-): Promise<{ audio: boolean }> {
+  microphone: boolean,
+): Promise<{ audio: boolean; microphone: boolean }> {
   if (recorder?.state === "recording") {
     throw new Error("recorder is already active");
   }
@@ -64,8 +69,17 @@ async function startRecording(
   stream = await navigator.mediaDevices.getUserMedia(
     captureConstraints(source, streamId, audio),
   );
+  originalStream = stream;
+  const sourceAudio = stream.getAudioTracks().length > 0;
   try {
     if (source === "tab") closeAudio = await preserveTabAudio(stream);
+    let microphoneStream: MediaStream | undefined;
+    if (microphone) {
+      const mixed = await addMicrophone(stream);
+      closeMicrophone = mixed.close;
+      microphoneStream = mixed.microphone;
+      stream = mixed.stream;
+    }
     recorder = new MediaRecorder(stream, {
       mimeType: preferredMimeType(),
       videoBitsPerSecond: 2_500_000,
@@ -95,7 +109,7 @@ async function startRecording(
       },
     );
     recorder.start(4_000);
-    stream.getVideoTracks().forEach((track) =>
+    originalStream.getTracks().forEach((track) =>
       track.addEventListener(
         "ended",
         () => {
@@ -107,7 +121,19 @@ async function startRecording(
         { once: true },
       ),
     );
-    return { audio: stream.getAudioTracks().length > 0 };
+    microphoneStream?.getAudioTracks().forEach((track) =>
+      track.addEventListener(
+        "ended",
+        () => {
+          if (recorder?.state === "recording") recorder.stop();
+          void chrome.runtime
+            .sendMessage({ type: "RECORDER_STOPPED" })
+            .catch(() => undefined);
+        },
+        { once: true },
+      ),
+    );
+    return { audio: sourceAudio, microphone };
   } catch (error) {
     await releaseMedia();
     recorder = undefined;
@@ -118,9 +144,14 @@ async function startRecording(
 function releaseMedia(): Promise<void> {
   stream?.getTracks().forEach((track) => track.stop());
   stream = undefined;
+  originalStream?.getTracks().forEach((track) => track.stop());
+  originalStream = undefined;
   const close = closeAudio;
   closeAudio = undefined;
-  if (close) mediaRelease = close();
+  const closeMic = closeMicrophone;
+  closeMicrophone = undefined;
+  if (close || closeMic)
+    mediaRelease = Promise.all([close?.(), closeMic?.()]).then(() => undefined);
   return mediaRelease;
 }
 

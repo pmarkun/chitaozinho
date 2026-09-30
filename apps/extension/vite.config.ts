@@ -27,6 +27,7 @@ const buildIdentity = {
     resolve(extensionRoot, "src"),
     resolve(extensionRoot, "public"),
     resolve(extensionRoot, "offscreen.html"),
+    resolve(extensionRoot, "microphone.html"),
     resolve(extensionRoot, "popup.html"),
     resolve(extensionRoot, "package.json"),
     resolve(repositoryRoot, "packages/protocol-ts/src"),
@@ -67,6 +68,7 @@ export default defineConfig({
       input: {
         popup: resolve(import.meta.dirname, "popup.html"),
         offscreen: resolve(import.meta.dirname, "offscreen.html"),
+        microphone: resolve(import.meta.dirname, "microphone.html"),
         background: resolve(import.meta.dirname, "src/background.ts"),
       },
       output: {

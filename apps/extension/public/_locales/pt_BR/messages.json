@@ -1,4 +1,25 @@
 {
+  "includeMicrophone": {
+    "message": "Incluir minha voz pelo microfone (opcional)"
+  },
+  "authorizeMicrophone": { "message": "Autorizar microfone" },
+  "microphoneTitle": { "message": "Microfone — Evidências" },
+  "microphoneNotice": {
+    "message": "O microfone só será gravado se você marcar esta opção e autorizar no Chrome. Na primeira vez, abra Autorizar microfone e depois volte à extensão. Use fones para evitar eco. Se o acesso falhar, a gravação não começa."
+  },
+  "microphonePermissionNotice": {
+    "message": "Clique para permitir o microfone no Chrome. Este passo apenas verifica o acesso: não grava nem envia áudio. Depois, volte à extensão e inicie a captura com a opção de microfone marcada."
+  },
+  "microphonePermissionGranted": {
+    "message": "Acesso autorizado. O microfone de teste foi desligado. Volte à extensão para iniciar a captura."
+  },
+  "microphonePermissionDenied": {
+    "message": "Não foi possível acessar o microfone. Confira a permissão do Chrome e tente novamente, ou capture sem microfone."
+  },
+  "microphoneRecording": { "message": "Microfone incluído nesta gravação." },
+  "sourceAudioUnavailable": {
+    "message": "Sem áudio da tela ou aba compartilhada; somente o microfone foi incluído."
+  },
   "audioUnavailable": {
     "message": "Sem áudio compartilhado: a gravação contém somente imagem."
   },

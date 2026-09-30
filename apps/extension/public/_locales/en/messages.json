@@ -1,4 +1,25 @@
 {
+  "includeMicrophone": { "message": "Include my microphone (optional)" },
+  "authorizeMicrophone": { "message": "Authorize microphone" },
+  "microphoneTitle": { "message": "Microphone — Evidências" },
+  "microphoneNotice": {
+    "message": "Microphone recording requires this option and Chrome permission. The first time, open Authorize microphone, then return to the extension. Use headphones to avoid echo. If access fails, recording will not start."
+  },
+  "microphonePermissionNotice": {
+    "message": "Click to allow microphone access in Chrome. This step only checks access: it does not record or send audio. Then return to the extension and start capture with the microphone option selected."
+  },
+  "microphonePermissionGranted": {
+    "message": "Access granted. The test microphone was stopped. Return to the extension to start capture."
+  },
+  "microphonePermissionDenied": {
+    "message": "Could not access the microphone. Check Chrome permission and retry, or capture without microphone."
+  },
+  "microphoneRecording": {
+    "message": "Microphone included in this recording."
+  },
+  "sourceAudioUnavailable": {
+    "message": "No shared screen/tab audio; only microphone audio was included."
+  },
   "audioUnavailable": {
     "message": "No shared audio: the recording contains video only."
   },

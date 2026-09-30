@@ -171,7 +171,12 @@ async function handleMessage(message: ExtensionMessage): Promise<unknown> {
         !["tab", "desktop"].includes(message.captureSource)
       )
         throw new Error("invalid capture source");
-      return publicState(await startCapture(message.captureSource ?? "tab"));
+      return publicState(
+        await startCapture(
+          message.captureSource ?? "tab",
+          message.microphone === true,
+        ),
+      );
     case "RESUME_CAPTURE":
       return publicState(await resumeCapture());
     case "RECORDER_STOPPED": {
@@ -249,6 +254,7 @@ async function recordOperationError(error: unknown): Promise<void> {
 
 async function startCapture(
   captureSource: CaptureSource,
+  microphone: boolean,
 ): Promise<SessionRecord> {
   if (await currentSession()) throw new Error("a capture is already active");
   await chrome.storage.local.remove("dismissedSessionId");
@@ -286,6 +292,7 @@ async function startCapture(
   await registerKey(sessionId, keyId, publicKey);
   let session: SessionRecord = {
     captureSource,
+    microphone,
     id: sessionId,
     evidenceMode,
     challenge: String(created.server_challenge),
@@ -315,6 +322,7 @@ async function startCapture(
   session = await appendEvent(session, "capture_started", {
     consent: true,
     capture_source: captureSource,
+    microphone_requested: microphone,
     url: captureSource === "tab" ? (tab.url ?? null) : null,
     title: captureSource === "tab" ? (tab.title ?? null) : null,
     software: __CHITAOZINHO_BUILD__,
@@ -329,14 +337,18 @@ async function startCapture(
       streamId: selected.streamId,
       captureSource,
       audio: selected.audio,
+      microphone,
       sessionId,
     } satisfies ExtensionMessage);
     if (started?.error) throw new Error(String(started.error));
     session.recordingAudio = Boolean(started?.result?.audio);
+    session.microphoneActive = Boolean(started?.result?.microphone);
     session = await appendEvent(session, "marker", {
       kind: "recording_source",
       capture_source: captureSource,
       audio_track_present: session.recordingAudio,
+      microphone_requested: microphone,
+      microphone_track_present: session.microphoneActive,
       audio_unavailable_reason: session.recordingAudio
         ? null
         : "Audio was not shared or is unavailable on this platform",
@@ -345,11 +357,13 @@ async function startCapture(
           ? "selected tab"
           : "not collected; screen/window chosen in Chrome picker",
     });
-    if (!session.recordingAudio)
-      session.error = "Áudio não disponível. A gravação contém somente imagem.";
     session.recordingActive = true;
   } catch (error) {
-    if (captureSource === "desktop") throw error;
+    // Do not await stop here: pending chunks are handled by this operation queue.
+    void chrome.runtime
+      .sendMessage({ type: "RECORDER_STOP" } satisfies ExtensionMessage)
+      .catch(() => undefined);
+    if (captureSource === "desktop" || microphone) throw error;
     await declareUnavailable(
       session.id,
       "recording",
@@ -396,17 +410,19 @@ async function resumeCapture(): Promise<SessionRecord> {
     streamId: selected.streamId,
     captureSource: selected.source,
     audio: selected.audio,
+    microphone: session.microphone === true,
     sessionId: session.id,
   } satisfies ExtensionMessage);
   if (started?.error) throw new Error(String(started.error));
   session.recordingAudio = Boolean(started?.result?.audio);
+  session.microphoneActive = Boolean(started?.result?.microphone);
   session = await appendEvent(session, "marker", {
     kind: "recording_source",
     capture_source: selected.source,
     audio_track_present: session.recordingAudio,
+    microphone_requested: session.microphone === true,
+    microphone_track_present: session.microphoneActive,
   });
-  if (!session.recordingAudio)
-    session.error = "Áudio não disponível. A gravação contém somente imagem.";
   session.recordingActive = true;
   session.status = "recording";
   await saveSession(session);
@@ -967,6 +983,7 @@ function publicState(
     id: session.id,
     captureSource: session.captureSource ?? "tab",
     recordingAudio: session.recordingAudio,
+    microphoneActive: session.microphoneActive,
     status: session.status,
     startedAt: session.startedAt,
     pageTitle: session.pageTitle,
