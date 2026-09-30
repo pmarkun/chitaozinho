@@ -8,7 +8,10 @@ Essa release exibe Evidências e suporta guarda local: o servidor registra hashe
 enquanto a extensão monta o pacote com os arquivos locais.
 
 O rodapé apresenta apenas o nome do produto e o link para a política de
-privacidade, sem marcas institucionais.
+privacidade. A home do beta apresenta as seções “O que é” e “Quem faz”, com
+CTRL+Z como realizadora e Conectas Direitos Humanos como apoiadora.
+Novos parceiros entram nos créditos após confirmação; não há placeholders
+publicados. O domínio principal mantém a página em construção.
 Nomes internos, identificadores e formatos assinados continuam compatíveis.
 
 O mesmo build estático funciona pelo link público e offline após a primeira

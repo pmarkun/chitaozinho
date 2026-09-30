@@ -75,13 +75,13 @@ test("the public domain renders the accessible construction page", async ({
   }
 });
 
-test("Evidências separates capture from validation without organization branding", async ({
+test("Evidências presents the electoral project and separates capture from validation", async ({
   page,
 }) => {
   await page.goto("/");
   await expect(page).toHaveTitle(/Evidências/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-    "Registre evidências digitais. Compartilhe registros verificáveis.",
+    "Registre evidências digitais para a integridade eleitoral. Compartilhe registros verificáveis.",
   );
   for (const name of [
     "Registre com contexto",
