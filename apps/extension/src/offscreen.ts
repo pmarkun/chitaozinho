@@ -1,12 +1,15 @@
 import type { ExtensionMessage } from "./types";
 import { encodeMessageBytes } from "./message-bytes";
 import { localPackageUrls } from "./local-package";
+import { preserveTabAudio } from "./audio";
 
 let recorder: MediaRecorder | undefined;
 let stream: MediaStream | undefined;
 let sessionId: string | undefined;
 const pendingChunks = new Set<Promise<void>>();
 let chunkError: unknown;
+let closeAudio: (() => Promise<void>) | undefined;
+let mediaRelease = Promise.resolve();
 
 chrome.runtime.onMessage.addListener(
   (
@@ -64,24 +67,51 @@ async function startRecording(
       },
     } as MediaTrackConstraints,
   });
-  recorder = new MediaRecorder(stream, {
-    mimeType: preferredMimeType(),
-    videoBitsPerSecond: 2_500_000,
-  });
-  recorder.addEventListener("dataavailable", (event) => {
-    if (event.data.size > 0 && sessionId) {
-      const pending = sendChunk(event.data, sessionId);
-      pendingChunks.add(pending);
-      void pending.then(
-        () => pendingChunks.delete(pending),
-        (error: unknown) => {
+  try {
+    closeAudio = await preserveTabAudio(stream);
+    recorder = new MediaRecorder(stream, {
+      mimeType: preferredMimeType(),
+      videoBitsPerSecond: 2_500_000,
+    });
+    recorder.addEventListener("dataavailable", (event) => {
+      if (event.data.size > 0 && sessionId) {
+        const pending = sendChunk(event.data, sessionId);
+        pendingChunks.add(pending);
+        void pending.then(
+          () => pendingChunks.delete(pending),
+          (error: unknown) => {
+            chunkError = error;
+            pendingChunks.delete(pending);
+          },
+        );
+      }
+    });
+    recorder.addEventListener(
+      "stop",
+      () => {
+        void releaseMedia().catch((error: unknown) => {
           chunkError = error;
-          pendingChunks.delete(pending);
-        },
-      );
-    }
-  });
-  recorder.start(4_000);
+        });
+      },
+      {
+        once: true,
+      },
+    );
+    recorder.start(4_000);
+  } catch (error) {
+    await releaseMedia();
+    recorder = undefined;
+    throw error;
+  }
+}
+
+function releaseMedia(): Promise<void> {
+  stream?.getTracks().forEach((track) => track.stop());
+  stream = undefined;
+  const close = closeAudio;
+  closeAudio = undefined;
+  if (close) mediaRelease = close();
+  return mediaRelease;
 }
 
 async function sendChunk(blob: Blob, captureSessionId: string): Promise<void> {
@@ -102,21 +132,23 @@ async function sendChunk(blob: Blob, captureSessionId: string): Promise<void> {
 
 async function stopRecording(): Promise<void> {
   if (!recorder || recorder.state === "inactive") {
+    await releaseMedia();
+    await Promise.all([...pendingChunks]);
+    if (chunkError) throw chunkError;
     return;
   }
   await new Promise<void>((resolve) => {
     recorder?.addEventListener(
       "stop",
       () => {
-        stream?.getTracks().forEach((track) => track.stop());
         recorder = undefined;
-        stream = undefined;
         resolve();
       },
       { once: true },
     );
     recorder?.stop();
   });
+  await releaseMedia();
   await Promise.all([...pendingChunks]);
   if (chunkError) {
     throw chunkError;
