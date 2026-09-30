@@ -180,13 +180,16 @@ function Home({ navigate }: { navigate: (page: Page) => void }) {
         <div>
           <p className="eyebrow">Registro digital · Beta</p>
           <h1>
-            Registre evidências digitais. Compartilhe registros verificáveis.
+            Registre evidências digitais para a integridade eleitoral.
+            Compartilhe registros verificáveis.
           </h1>
           <p className="hero-copy">
-            Capture conteúdos da internet com seu contexto e reúna arquivos,
-            informações da coleta e assinaturas digitais em um único pacote.
-            Compartilhe esse registro para que outras pessoas possam conferir
-            sua integridade.
+            Capture conteúdos da internet relacionados à eleição com seu
+            contexto e reúna arquivos, informações da coleta e assinaturas
+            digitais em um único pacote. Compartilhe esse registro para que
+            outras pessoas possam conferir a integridade do registro,
+            contribuindo para a transparência e a integridade do processo
+            eleitoral.
           </p>
           <div className="hero-actions">
             <a className="primary button" href="#extension-heading">
@@ -229,6 +232,50 @@ function Home({ navigate }: { navigate: (page: Page) => void }) {
             </div>
           </li>
         </ol>
+      </section>
+      <nav className="home-section-links" aria-label="Sobre o projeto">
+        <a href="#o-que-e">O que é</a>
+        <a href="#quem-faz">Quem faz</a>
+      </nav>
+      <section className="home-about" aria-labelledby="o-que-e">
+        <p className="eyebrow">Projeto Evidências</p>
+        <h2 id="o-que-e" tabIndex={-1}>
+          O que é
+        </h2>
+        <p>
+          Evidências é uma extensão gratuita para o navegador. Com ela, você
+          registra evidências digitais e compartilha registros verificáveis com
+          a finalidade de defender a integridade eleitoral e reunir registros
+          para apresentar às autoridades eleitorais, para que providências sejam
+          tomadas em caso de violações da legislação e regras eleitorais
+          brasileiras.
+        </p>
+        <p>
+          Ela captura o conteúdo da navegação que você escolhe registrar junto
+          com o contexto: de onde veio e a sequência da navegação. Tudo vira um
+          único pacote, com os arquivos, as informações da coleta e as
+          assinaturas digitais. Quem recebe esse pacote pode conferir se nada
+          foi alterado depois do registro.
+        </p>
+        <p>
+          A ferramenta serve para documentar casos de violência política de
+          gênero nos meios digitais e outros ilícitos eleitorais, como
+          desinformação, deepfakes e anúncios ilegais, conteúdo produzido por IA
+          sem identificação, etc. Foi pensada para candidaturas, mandatos,
+          movimentos sociais, organizações de sociedade civil, jornalistas e
+          pessoas comunicadoras, e para quem acompanha e apoia a defesa de um
+          debate público justo e democrático.
+        </p>
+      </section>
+      <section className="home-about" aria-labelledby="quem-faz">
+        <p className="eyebrow">Realização</p>
+        <h2 id="quem-faz" tabIndex={-1}>
+          Quem faz
+        </h2>
+        <p>
+          Evidências é um projeto de código aberto, realizado pela CTRL+Z, com o
+          apoio de Conectas Direitos Humanos.
+        </p>
       </section>
       <section className="beta-notice" aria-labelledby="beta-heading">
         <h2 id="beta-heading">Antes de começar</h2>
@@ -552,7 +599,10 @@ function Methodology({ navigate }: { navigate: (page: Page) => void }) {
     <main id="main-content" tabIndex={-1} className="methodology">
       <section className="page-intro">
         <p className="eyebrow">Metodologia v0.3 · Guarda local</p>
-        <h1>Como o Evidências fortalece uma evidência digital</h1>
+        <h1>
+          Como o Evidências fortalece uma evidência digital para a integridade
+          eleitoral
+        </h1>
         <p>
           A metodologia combina observação do navegador, encadeamento
           criptográfico, recibos assinados, fontes externas de tempo e

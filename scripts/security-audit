@@ -30,9 +30,6 @@ if [[ "${osv_status}" -gt 1 || ! -s "${osv_report}" ]]; then
   exit "${osv_status}"
 fi
 
-# OSV currently flattens the upstream advisory ranges into "<= 5.0.7" and
-# therefore flags 1.1.18. Upstream lists 1.1.17 as the patched 1.x release.
-# Keep this exception exact so any package, version or advisory change fails.
 unaccepted_vulnerabilities="$(
   jq '
     [
@@ -45,15 +42,6 @@ unaccepted_vulnerabilities="$(
             summary: .summary
           }
         }
-      | select(
-          (
-            .package.ecosystem == "npm"
-            and .package.name == "brace-expansion"
-            and .package.version == "1.1.18"
-            and .vulnerability.id == "GHSA-mh99-v99m-4gvg"
-          )
-          | not
-        )
     ]
   ' "${osv_report}"
 )"
@@ -62,22 +50,6 @@ if [[ "$(jq 'length' <<<"${unaccepted_vulnerabilities}")" -ne 0 ]]; then
   echo "OSV Scanner found unaccepted dependency vulnerabilities:" >&2
   jq . <<<"${unaccepted_vulnerabilities}" >&2
   exit 1
-fi
-
-if jq -e '
-  [
-    .results[]?.packages[]? as $finding
-    | $finding.vulnerabilities[]?
-    | select(
-        $finding.package.ecosystem == "npm"
-        and $finding.package.name == "brace-expansion"
-        and $finding.package.version == "1.1.18"
-        and .id == "GHSA-mh99-v99m-4gvg"
-      )
-  ]
-  | length > 0
-' "${osv_report}" >/dev/null; then
-  echo "OSV exception: GHSA-mh99-v99m-4gvg for patched brace-expansion 1.1.18"
 fi
 
 trivy filesystem \

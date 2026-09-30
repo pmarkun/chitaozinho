@@ -23,6 +23,34 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         await page.goto("http://127.0.0.1:4174/", {
           waitUntil: "domcontentloaded",
         });
+        for (const [label, id] of [
+          ["O que é", "o-que-e"],
+          ["Quem faz", "quem-faz"],
+        ]) {
+          const link = page
+            .getByRole("navigation", { name: "Sobre o projeto" })
+            .getByRole("link", { name: label, exact: true });
+          await link.focus();
+          await page.keyboard.press("Enter");
+          await expect(page).toHaveURL(new RegExp(`#${id}$`));
+          await expect(page.locator(`#${id}`)).toBeInViewport();
+        }
+        await expect(page.locator(".home-about").last()).toContainText(
+          "realizado pela CTRL+Z, com o apoio de Conectas Direitos Humanos",
+        );
+        const homeAudit = await page.evaluate(() =>
+          axe.run(document, {
+            runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] },
+          }),
+        );
+        expect(homeAudit.violations).toEqual([]);
+        expect(
+          await page.evaluate(
+            () =>
+              document.documentElement.scrollWidth <=
+              document.documentElement.clientWidth,
+          ),
+        ).toBe(true);
         await page
           .getByRole("link", { name: "Política de privacidade" })
           .click();

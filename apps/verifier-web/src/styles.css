@@ -695,6 +695,31 @@ footer {
   font-size: clamp(2.8rem, 5vw, 4.2rem);
   line-height: 1.08;
 }
+.home-section-links {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin: 2rem 0;
+}
+.home-section-links a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: #145c3d;
+  text-underline-offset: 0.2rem;
+}
+.home-about {
+  max-width: 760px;
+  margin-top: 3rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.home-about h2 {
+  scroll-margin-top: 1.5rem;
+  font-size: 2rem;
+  line-height: 1.3;
+}
 .capture-steps {
   list-style: none;
   padding: 0;
