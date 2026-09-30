@@ -135,7 +135,7 @@ function ExtensionDownload() {
       </p>
       <a
         className="primary button"
-        href="https://github.com/pmarkun/chitaozinho/releases/download/v0.1.5/chitaozinho-extension-0.1.5.zip"
+        href="https://github.com/pmarkun/chitaozinho/releases/download/v0.1.6/chitaozinho-extension-0.1.6.zip"
       >
         Baixar extensão beta · ZIP
       </a>
@@ -166,7 +166,7 @@ function ExtensionDownload() {
         </p>
       </details>
       <p className="extension-note">
-        Versão 0.1.5 · Beta para dados não críticos. Arquivos somente no seu
+        Versão 0.1.6 · Beta para dados não críticos. Arquivos somente no seu
         dispositivo; o servidor registra hashes, não uma cópia dos arquivos.
       </p>
     </section>
