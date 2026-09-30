@@ -42,6 +42,12 @@ export function Privacy() {
           endereço, título e eventos de rolagem e navegação durante a captura.
           No modo atual, os conteúdos e seu contexto são mantidos localmente.
         </li>
+        <li>
+          Na captura de tela ou janela, gravamos a imagem da fonte que você
+          escolhe no Chrome e o áudio que você autoriza compartilhar, quando
+          disponível. Esse modo não coleta o HTML, endereço ou navegação de uma
+          aba. A gravação permanece no seu dispositivo.
+        </li>
       </ul>
       <p>
         A captura começa por uma ação sua. Não lemos todo o histórico do

@@ -19,6 +19,7 @@ import {
 } from "./api";
 import { artifactObservation } from "./artifact-observation";
 import { describeCaptureCoverage } from "./capture-coverage";
+import { selectCaptureStream, type CaptureSource } from "./capture-source";
 import { advanceSession, nextEntry, signedEntry } from "./chain";
 import {
   allSessions,
@@ -76,7 +77,12 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   operationQueue = operationQueue
     .then(async () => {
       let session = await currentSession();
-      if (session?.tabId !== tabId || session.status !== "recording") return;
+      if (
+        session?.tabId !== tabId ||
+        session.status !== "recording" ||
+        session.captureSource === "desktop"
+      )
+        return;
       if (changeInfo.url) {
         session = await appendEvent(session, "navigation", {
           url: changeInfo.url,
@@ -160,9 +166,24 @@ async function handleMessage(message: ExtensionMessage): Promise<unknown> {
     }
     case "START_CAPTURE":
       if (!message.consent) throw new Error("consent is required");
-      return publicState(await startCapture());
+      if (
+        message.captureSource &&
+        !["tab", "desktop"].includes(message.captureSource)
+      )
+        throw new Error("invalid capture source");
+      return publicState(await startCapture(message.captureSource ?? "tab"));
     case "RESUME_CAPTURE":
       return publicState(await resumeCapture());
+    case "RECORDER_STOPPED": {
+      const session = await currentSession();
+      if (session?.status === "recording") {
+        session.status = "interrupted";
+        session.error =
+          "O compartilhamento foi encerrado. Retome a captura ou finalize os dados já gravados.";
+        await saveSession(session);
+      }
+      return undefined;
+    }
     case "RECORDER_CHUNK":
       if (!message.sessionId || !message.bytesBase64)
         throw new Error("invalid recorder chunk");
@@ -184,6 +205,7 @@ async function handleMessage(message: ExtensionMessage): Promise<unknown> {
     }
     case "SCROLL": {
       const session = requireActive(await currentSession());
+      if (session.captureSource === "desktop") return undefined;
       await appendEvent(session, "scroll", message.eventData ?? {});
       return undefined;
     }
@@ -225,7 +247,9 @@ async function recordOperationError(error: unknown): Promise<void> {
   }
 }
 
-async function startCapture(): Promise<SessionRecord> {
+async function startCapture(
+  captureSource: CaptureSource,
+): Promise<SessionRecord> {
   if (await currentSession()) throw new Error("a capture is already active");
   await chrome.storage.local.remove("dismissedSessionId");
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -261,6 +285,7 @@ async function startCapture(): Promise<SessionRecord> {
   const keyId = `client-${crypto.randomUUID()}`;
   await registerKey(sessionId, keyId, publicKey);
   let session: SessionRecord = {
+    captureSource,
     id: sessionId,
     evidenceMode,
     challenge: String(created.server_challenge),
@@ -274,8 +299,11 @@ async function startCapture(): Promise<SessionRecord> {
     tabId: tab.id,
     windowId: tab.windowId,
     startedAt: new Date().toISOString(),
-    pageTitle: tab.title?.trim() || undefined,
-    pageOrigin: safeOrigin(tab.url),
+    pageTitle:
+      captureSource === "tab"
+        ? tab.title?.trim() || undefined
+        : "Screen/window capture",
+    pageOrigin: captureSource === "tab" ? safeOrigin(tab.url) : undefined,
     status: "starting",
     uploadedParts: 0,
     durationMs: 0,
@@ -286,25 +314,42 @@ async function startCapture(): Promise<SessionRecord> {
   await saveSession(session);
   session = await appendEvent(session, "capture_started", {
     consent: true,
-    url: tab.url ?? null,
-    title: tab.title ?? null,
+    capture_source: captureSource,
+    url: captureSource === "tab" ? (tab.url ?? null) : null,
+    title: captureSource === "tab" ? (tab.title ?? null) : null,
     software: __CHITAOZINHO_BUILD__,
   });
-  await captureInitialArtifacts(session, tab);
+  if (captureSource === "tab") await captureInitialArtifacts(session, tab);
   session = (await getSession(session.id)) ?? session;
   try {
     await ensureOffscreenDocument();
-    const streamId = await chrome.tabCapture.getMediaStreamId({
-      targetTabId: tab.id,
-    });
+    const selected = await selectCaptureStream(captureSource, tab.id);
     const started = await chrome.runtime.sendMessage({
       type: "RECORDER_START",
-      streamId,
+      streamId: selected.streamId,
+      captureSource,
+      audio: selected.audio,
       sessionId,
     } satisfies ExtensionMessage);
     if (started?.error) throw new Error(String(started.error));
+    session.recordingAudio = Boolean(started?.result?.audio);
+    session = await appendEvent(session, "marker", {
+      kind: "recording_source",
+      capture_source: captureSource,
+      audio_track_present: session.recordingAudio,
+      audio_unavailable_reason: session.recordingAudio
+        ? null
+        : "Audio was not shared or is unavailable on this platform",
+      browser_context:
+        captureSource === "tab"
+          ? "selected tab"
+          : "not collected; screen/window chosen in Chrome picker",
+    });
+    if (!session.recordingAudio)
+      session.error = "Áudio não disponível. A gravação contém somente imagem.";
     session.recordingActive = true;
   } catch (error) {
+    if (captureSource === "desktop") throw error;
     await declareUnavailable(
       session.id,
       "recording",
@@ -342,15 +387,26 @@ async function resumeCapture(): Promise<SessionRecord> {
     reason: "capture resumed after browser or extension interruption",
   });
   await ensureOffscreenDocument();
-  const streamId = await chrome.tabCapture.getMediaStreamId({
-    targetTabId: tab.id,
-  });
+  const selected = await selectCaptureStream(
+    session.captureSource ?? "tab",
+    tab.id,
+  );
   const started = await chrome.runtime.sendMessage({
     type: "RECORDER_START",
-    streamId,
+    streamId: selected.streamId,
+    captureSource: selected.source,
+    audio: selected.audio,
     sessionId: session.id,
   } satisfies ExtensionMessage);
   if (started?.error) throw new Error(String(started.error));
+  session.recordingAudio = Boolean(started?.result?.audio);
+  session = await appendEvent(session, "marker", {
+    kind: "recording_source",
+    capture_source: selected.source,
+    audio_track_present: session.recordingAudio,
+  });
+  if (!session.recordingAudio)
+    session.error = "Áudio não disponível. A gravação contém somente imagem.";
   session.recordingActive = true;
   session.status = "recording";
   await saveSession(session);
@@ -482,6 +538,11 @@ async function captureScreenshot(
   session: SessionRecord,
   artifactId: string,
 ): Promise<void> {
+  if (session.captureSource === "desktop") {
+    throw new Error(
+      "Screenshots are only available for tab captures. The selected screen/window is recorded in the video.",
+    );
+  }
   try {
     const dataUrl = await chrome.tabs.captureVisibleTab(session.windowId, {
       format: "png",
@@ -648,7 +709,10 @@ async function stopCapture(
         "capture/recording.webm",
         "video/webm",
         "MediaRecorder",
-        ["offscreen", "tabCapture"],
+        [
+          "offscreen",
+          session.captureSource === "desktop" ? "desktopCapture" : "tabCapture",
+        ],
       );
     } else {
       await declareUnavailable(
@@ -658,7 +722,7 @@ async function stopCapture(
         "video/webm",
         "MediaRecorder",
         ["offscreen", "tabCapture"],
-        "tab recording produced no data",
+        "recording produced no data",
       );
     }
   }
@@ -858,6 +922,7 @@ async function installScrollObserver(tabId: number): Promise<void> {
 async function installScrollObserverOrWarn(
   session: SessionRecord,
 ): Promise<void> {
+  if (session.captureSource === "desktop") return;
   try {
     await installScrollObserver(session.tabId);
   } catch (error) {
@@ -900,6 +965,8 @@ function publicState(
   if (!session) return null;
   return {
     id: session.id,
+    captureSource: session.captureSource ?? "tab",
+    recordingAudio: session.recordingAudio,
     status: session.status,
     startedAt: session.startedAt,
     pageTitle: session.pageTitle,

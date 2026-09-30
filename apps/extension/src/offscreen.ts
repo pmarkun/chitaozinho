@@ -2,6 +2,7 @@ import type { ExtensionMessage } from "./types";
 import { encodeMessageBytes } from "./message-bytes";
 import { localPackageUrls } from "./local-package";
 import { preserveTabAudio } from "./audio";
+import { captureConstraints } from "./capture-source";
 
 let recorder: MediaRecorder | undefined;
 let stream: MediaStream | undefined;
@@ -29,8 +30,13 @@ chrome.runtime.onMessage.addListener(
       message.streamId &&
       message.sessionId
     ) {
-      void startRecording(message.streamId, message.sessionId)
-        .then(() => sendResponse({ ok: true }))
+      void startRecording(
+        message.streamId,
+        message.sessionId,
+        message.captureSource ?? "tab",
+        message.audio ?? true,
+      )
+        .then((result) => sendResponse({ ok: true, result }))
         .catch((error: unknown) => sendResponse({ error: String(error) }));
       return true;
     }
@@ -47,28 +53,19 @@ chrome.runtime.onMessage.addListener(
 async function startRecording(
   streamId: string,
   captureSessionId: string,
-): Promise<void> {
+  source: "tab" | "desktop",
+  audio: boolean,
+): Promise<{ audio: boolean }> {
   if (recorder?.state === "recording") {
     throw new Error("recorder is already active");
   }
   chunkError = undefined;
   sessionId = captureSessionId;
-  stream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      mandatory: {
-        chromeMediaSource: "tab",
-        chromeMediaSourceId: streamId,
-      },
-    } as MediaTrackConstraints,
-    video: {
-      mandatory: {
-        chromeMediaSource: "tab",
-        chromeMediaSourceId: streamId,
-      },
-    } as MediaTrackConstraints,
-  });
+  stream = await navigator.mediaDevices.getUserMedia(
+    captureConstraints(source, streamId, audio),
+  );
   try {
-    closeAudio = await preserveTabAudio(stream);
+    if (source === "tab") closeAudio = await preserveTabAudio(stream);
     recorder = new MediaRecorder(stream, {
       mimeType: preferredMimeType(),
       videoBitsPerSecond: 2_500_000,
@@ -98,6 +95,19 @@ async function startRecording(
       },
     );
     recorder.start(4_000);
+    stream.getVideoTracks().forEach((track) =>
+      track.addEventListener(
+        "ended",
+        () => {
+          if (recorder?.state === "recording") recorder.stop();
+          void chrome.runtime
+            .sendMessage({ type: "RECORDER_STOPPED" })
+            .catch(() => undefined);
+        },
+        { once: true },
+      ),
+    );
+    return { audio: stream.getAudioTracks().length > 0 };
   } catch (error) {
     await releaseMedia();
     recorder = undefined;

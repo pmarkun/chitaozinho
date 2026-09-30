@@ -1,4 +1,16 @@
 {
+  "audioUnavailable": {
+    "message": "Sem áudio compartilhado: a gravação contém somente imagem."
+  },
+  "captureSource": { "message": "O que gravar" },
+  "captureTab": { "message": "Aba atual com áudio" },
+  "captureDesktop": { "message": "Tela ou janela com áudio do sistema" },
+  "desktopAudioNotice": {
+    "message": "Escolha a tela ou janela no Chrome. Marque compartilhar áudio, se disponível. O suporte depende do computador. Tudo que aparecer e soar na fonte escolhida pode ser gravado, inclusive dados pessoais. DOM, URL, rolagem e capturas de imagem da aba não são coletados neste modo."
+  },
+  "tabAudioNotice": {
+    "message": "Grava imagem e som da aba atual, não de outros aplicativos."
+  },
   "hashOnly": { "message": "somente no seu dispositivo" },
   "hashOnlyNotice": {
     "message": "Guarde o ZIP: os arquivos ficam neste dispositivo. O servidor recebe hashes e dados técnicos, sem cópia para recuperação."

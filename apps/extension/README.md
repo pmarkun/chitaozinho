@@ -20,3 +20,12 @@ whole computer or microphone. An AudioContext restores local tab playback while
 MediaRecorder keeps the original audio/video stream. Playback resources and
 tracks are released on stop or startup failure. Validate audibility and the
 downloaded WebM with a real tone/video before releasing a new extension build.
+
+The screen/window mode uses Chrome's explicit desktopCapture picker. Audio is
+requested only when `canRequestAudioTrack` permits it, and absence of an audio
+track is shown in the popup and recorded in the signed event chain. System audio
+availability varies by OS, browser version and selected surface; it is not a
+cross-platform guarantee. Cancellation fails without falling back to a tab.
+This mode does not collect an unrelated tab's DOM, URL, scroll or screenshots.
+External sharing stop preserves chunks and marks the capture interrupted.
+The new desktopCapture permission needs justification in the Chrome Store.

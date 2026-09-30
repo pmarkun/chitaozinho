@@ -132,6 +132,13 @@ button {
   text-align: center;
   text-decoration: none;
 }
+select {
+  width: 100%;
+  max-width: 100%;
+  min-height: 44px;
+  margin-block: 8px;
+}
+
 input[type="email"] {
   width: 100%;
   min-height: 24px;

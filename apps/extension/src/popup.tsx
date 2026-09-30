@@ -9,6 +9,8 @@ import "./popup.css";
 document.documentElement.lang = documentLanguage(chrome.i18n.getUILanguage());
 
 interface PublicState {
+  captureSource?: "tab" | "desktop";
+  recordingAudio?: boolean;
   id: string;
   status: string;
   startedAt: string;
@@ -36,6 +38,7 @@ function App() {
   const [email, setEmail] = useState("");
   const [linkSent, setLinkSent] = useState(false);
   const [consent, setConsent] = useState(false);
+  const [captureSource, setCaptureSource] = useState<"tab" | "desktop">("tab");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [technicalError, setTechnicalError] = useState<string>();
@@ -254,6 +257,25 @@ function App() {
             {t("newCaptureTitle")}
           </h1>
           <p>{t("newCaptureBody")}</p>
+          <label>
+            {t("captureSource")}
+            <select
+              value={captureSource}
+              onChange={(event) =>
+                setCaptureSource(event.target.value as "tab" | "desktop")
+              }
+            >
+              <option value="tab">{t("captureTab")}</option>
+              <option value="desktop">{t("captureDesktop")}</option>
+            </select>
+          </label>
+          <p>
+            {t(
+              captureSource === "desktop"
+                ? "desktopAudioNotice"
+                : "tabAudioNotice",
+            )}
+          </p>
           <ol className="preparation-list">
             <li>{t("prepareContext")}</li>
             <li>{t("prepareNavigation")}</li>
@@ -273,7 +295,9 @@ function App() {
           </label>
           <button
             disabled={!consent || busy}
-            onClick={() => void act({ type: "START_CAPTURE", consent })}
+            onClick={() =>
+              void act({ type: "START_CAPTURE", consent, captureSource })
+            }
           >
             {t("startCapture")}
           </button>
@@ -374,6 +398,9 @@ function App() {
               <span aria-hidden="true">✓</span> {t("savingContinuously")}
             </p>
           )}
+          {capture.recordingAudio === false && (
+            <p role="status">{t("audioUnavailable")}</p>
+          )}
           {capture.unavailableArtifacts > 0 && (
             <p className="notice" role="status">
               {t("partialCapture")}
@@ -384,7 +411,7 @@ function App() {
               <div className="secondary-actions">
                 <button
                   className="secondary"
-                  disabled={busy}
+                  disabled={busy || capture.captureSource === "desktop"}
                   onClick={() => void act({ type: "ADD_SCREENSHOT" })}
                 >
                   {t("recordImage")}
@@ -422,6 +449,14 @@ function App() {
               onClick={() => void act({ type: "STOP_CAPTURE" })}
             >
               {t("retryFinalization")}
+            </button>
+          )}
+          {capture.status === "interrupted" && !capture.captureFinished && (
+            <button
+              disabled={busy}
+              onClick={() => void act({ type: "STOP_CAPTURE" })}
+            >
+              {t("finishEvidence")}
             </button>
           )}
           {["error", "interrupted"].includes(capture.status) &&
