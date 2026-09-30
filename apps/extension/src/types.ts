@@ -7,6 +7,8 @@ export type CaptureStatus =
   | "error";
 
 export interface SessionRecord {
+  captureSource?: "tab" | "desktop";
+  recordingAudio?: boolean;
   evidenceMode?: "remote" | "hash_only";
   localEvents?: { type: string; data: Record<string, unknown>; time: string }[];
   id: string;
@@ -106,6 +108,8 @@ export interface ExtensionMessage {
     | "BUILD_LOCAL_PACKAGE"
     | "SCROLL";
   consent?: boolean;
+  captureSource?: "tab" | "desktop";
+  audio?: boolean;
   streamId?: string;
   sessionId?: string;
   bytesBase64?: string;

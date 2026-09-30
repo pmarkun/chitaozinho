@@ -1,4 +1,10 @@
 export type MessageKey =
+  | "audioUnavailable"
+  | "captureSource"
+  | "captureTab"
+  | "captureDesktop"
+  | "desktopAudioNotice"
+  | "tabAudioNotice"
   | "hashOnly"
   | "hashOnlyNotice"
   | "accessLinkSent"

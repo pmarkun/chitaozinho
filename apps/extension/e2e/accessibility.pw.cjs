@@ -196,6 +196,41 @@ test("capture states have no automatic WCAG violations", async ({
   }
 });
 
+test("source selection and missing audio are accessible in tall and short popups", async ({
+  browser,
+}) => {
+  for (const height of [420, 640]) {
+    const page = await scenarioPage(
+      browser,
+      { authenticated: true, capture: null },
+      { width: 360, height },
+    );
+    await page.getByRole("button", { name: messages.newEvidence }).click();
+    const source = page.getByRole("combobox", { name: messages.captureSource });
+    await expect(source).toHaveValue("tab");
+    await source.selectOption("desktop");
+    await expect(page.getByText(messages.desktopAudioNotice)).toBeVisible();
+    await audit(page, `source selection ${height}`);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= globalThis.innerWidth,
+      ),
+    ).toBe(true);
+    await page.context().close();
+  }
+  const page = await scenarioPage(browser, {
+    authenticated: true,
+    capture: {
+      ...baseCapture,
+      captureSource: "desktop",
+      recordingAudio: false,
+    },
+  });
+  await expect(page.getByText(messages.audioUnavailable)).toBeVisible();
+  await audit(page, "desktop without audio");
+  await page.context().close();
+});
+
 async function auditScenario(browser, name, scenario) {
   const page = await scenarioPage(browser, scenario);
   await audit(page, name);

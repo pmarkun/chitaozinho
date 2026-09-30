@@ -1,4 +1,16 @@
 {
+  "audioUnavailable": {
+    "message": "No shared audio: the recording contains video only."
+  },
+  "captureSource": { "message": "Recording source" },
+  "captureTab": { "message": "Current tab with audio" },
+  "captureDesktop": { "message": "Screen or window with system audio" },
+  "desktopAudioNotice": {
+    "message": "Choose a screen or window in Chrome. Enable share audio if available; support depends on your computer. Everything visible and audible in the chosen source may be recorded, including personal data. Tab DOM, URL, scroll and screenshots are not collected in this mode."
+  },
+  "tabAudioNotice": {
+    "message": "Records video and sound from the current tab, not other applications."
+  },
   "hashOnly": { "message": "only on your device" },
   "hashOnlyNotice": {
     "message": "Keep the ZIP: evidence stays on this device. The server receives hashes and technical metadata, with no recovery copy."
