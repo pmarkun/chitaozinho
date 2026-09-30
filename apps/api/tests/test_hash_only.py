@@ -99,6 +99,20 @@ def test_hash_only_capture_never_stores_evidence(tmp_path: Path) -> None:
         "X-Entry-Signature": part["signature_hex"],
     }
     part_url = f"/v1/sessions/{sid}/artifacts/metadata/parts/0"
+    ambiguous_entry = b'{"session_id":"forged",' + canonical_bytes(part["entry"])[1:]
+    assert client.put(
+        part_url + "/hash",
+        json={"size": len(content), "part_hash": digest},
+        headers={**headers, "X-Entry-Json": base64url_encode(ambiguous_entry)},
+    ).status_code == 422
+    ambiguous_declaration = (
+        '{"size":0,"size":' + str(len(content)) + ',"part_hash":"' + digest + '"}'
+    )
+    assert client.put(
+        part_url + "/hash",
+        content=ambiguous_declaration,
+        headers={**headers, "Content-Type": "application/json"},
+    ).status_code == 422
     assert client.put(part_url, content=content, headers=headers).status_code == 409
     declaration = {"size": len(content), "part_hash": digest}
     registered = client.put(part_url + "/hash", json=declaration, headers=headers)

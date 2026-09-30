@@ -17,6 +17,7 @@ from chitaozinho_protocol import (
     base64url_decode,
     base64url_encode,
     canonical_bytes,
+    parse_strict_json,
     sha256_identifier,
     verify_canonical,
 )
@@ -674,7 +675,7 @@ def create_app(
         expected_part_hash = sha256_identifier(data)
         if hash_only:
             try:
-                declaration = json.loads(data)
+                declaration = parse_strict_json(data)
                 if not isinstance(declaration, dict) or set(declaration) != {"size", "part_hash"}:
                     raise ValueError()
                 total_size = declaration["size"]
@@ -712,7 +713,7 @@ def create_app(
                 else None
             )
             try:
-                replay_payload = json.loads(base64url_decode(x_entry_json))
+                replay_payload = parse_strict_json(base64url_decode(x_entry_json))
             except (ValueError, json.JSONDecodeError) as error:
                 raise HTTPException(
                     status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -774,7 +775,7 @@ def create_app(
                 "session exceeds total size limit",
             )
         try:
-            entry_payload = json.loads(base64url_decode(x_entry_json))
+            entry_payload = parse_strict_json(base64url_decode(x_entry_json))
         except (ValueError, json.JSONDecodeError) as error:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,

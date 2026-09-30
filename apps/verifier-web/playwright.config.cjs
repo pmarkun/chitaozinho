@@ -9,7 +9,7 @@ module.exports = defineConfig({
   workers: 1,
   use: {
     baseURL: externalBaseURL ?? "http://127.0.0.1:4174",
-    browserName: "chromium",
+    browserName: process.env.CHITAOZINHO_WEB_BROWSER ?? "chromium",
     headless: true,
     viewport: { width: 1280, height: 900 },
     ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH

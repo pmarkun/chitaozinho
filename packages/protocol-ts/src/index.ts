@@ -1,5 +1,6 @@
 import { sha256 } from "@noble/hashes/sha2.js";
 import { canonicalize } from "json-canonicalize";
+export { parseStrictJson } from "./strict-json.js";
 
 const encoder = new TextEncoder();
 const PKCS8_ED25519_PREFIX = hexToBytes("302e020100300506032b657004220420");

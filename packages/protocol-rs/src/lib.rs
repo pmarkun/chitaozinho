@@ -2,6 +2,8 @@ use base64::Engine;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+mod strict_json;
+pub use strict_json::parse_strict_json;
 
 pub const ENTRY_DOMAIN: &[u8] = b"CHITAOZINHO/ENTRY/v1";
 pub const RECEIPT_DOMAIN: &[u8] = b"CHITAOZINHO/RECEIPT/v1";
@@ -150,5 +152,22 @@ mod tests {
         assert_eq!(base64url_encode(&bytes), vector.encoded);
         assert_eq!(base64url_decode(&vector.encoded).unwrap(), bytes);
         assert!(base64url_decode("AAEC-_8=").is_err());
+    }
+
+    #[test]
+    fn strict_json_shared_vectors() {
+        let vectors: Vec<Value> =
+            serde_json::from_str(include_str!("../../../test-vectors/strict-json.json")).unwrap();
+        for vector in vectors {
+            let result = parse_strict_json(vector["json"].as_str().unwrap().as_bytes());
+            assert_eq!(
+                result.is_ok(),
+                vector["valid"].as_bool().unwrap(),
+                "{}",
+                vector["name"]
+            );
+        }
+        let deep = format!("{}0{}", "[".repeat(65), "]".repeat(65));
+        assert!(parse_strict_json(deep.as_bytes()).is_err());
     }
 }

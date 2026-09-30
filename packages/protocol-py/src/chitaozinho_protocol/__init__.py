@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 from typing import Any
 
 import rfc8785
@@ -26,6 +27,35 @@ DOMAINS = {
 
 def canonical_bytes(value: Any) -> bytes:
     return rfc8785.dumps(value)
+
+
+def parse_strict_json(source: str | bytes) -> Any:
+    def object_pairs(pairs: list[tuple[str, Any]]) -> dict:
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate JSON key")
+            result[key] = value
+        return result
+
+    def invalid_constant(value: str) -> Any:
+        raise ValueError("invalid JSON number")
+
+    def check_depth(value: Any, level: int = 0) -> None:
+        if isinstance(value, dict | list):
+            if level >= 64:
+                raise ValueError("JSON nesting limit exceeded")
+            for item in value.values() if isinstance(value, dict) else value:
+                check_depth(item, level + 1)
+
+    if isinstance(source, bytes):
+        source = source.decode("utf-8")
+    try:
+        result = json.loads(source, object_pairs_hook=object_pairs, parse_constant=invalid_constant)
+        check_depth(result)
+    except RecursionError as error:
+        raise ValueError("JSON nesting limit exceeded") from error
+    return result
 
 
 def sha256_bytes(data: bytes) -> bytes:
@@ -82,6 +112,7 @@ __all__ = [
     "base64url_encode",
     "canonical_bytes",
     "hash_canonical",
+    "parse_strict_json",
     "sha256_bytes",
     "sha256_identifier",
     "sign_canonical",

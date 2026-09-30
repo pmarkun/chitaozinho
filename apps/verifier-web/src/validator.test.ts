@@ -124,6 +124,183 @@ describe("web evidence verifier", () => {
       verifyEvidencePackage({ packageFile: fixture.file }),
     ).rejects.toThrow("Caminho inseguro");
   });
+
+  describe("adversarial audit: regression guards", () => {
+    it("rejects a duplicate unsigned index key without access to signing keys", async () => {
+      const fixture = await buildPackage({ duplicateIndexSession: true });
+      await expect(
+        verifyEvidencePackage({
+          packageFile: fixture.file,
+          trustedServerKeyHex: fixture.serverPublicKeyHex,
+        }),
+      ).rejects.toThrow("JSON inválido");
+    });
+
+    it("rejects a complete claim despite a signed known gap", async () => {
+      const fixture = await buildPackage({
+        knownGaps: ["Main DOM unavailable"],
+      });
+      await expect(
+        verifyEvidencePackage({
+          packageFile: fixture.file,
+          trustedServerKeyHex: fixture.serverPublicKeyHex,
+        }),
+      ).rejects.toThrow("Captura completa");
+    });
+
+    it("rejects an empty receipt chain for captured parts", async () => {
+      const fixture = await buildPackage({ omitReceipts: true });
+      await expect(
+        verifyEvidencePackage({
+          packageFile: fixture.file,
+          trustedServerKeyHex: fixture.serverPublicKeyHex,
+        }),
+      ).rejects.toThrow("Recibo obrigatório ausente");
+    });
+
+    it("rejects a signed receipt that names another session", async () => {
+      const fixture = await buildPackage({ receiptSession: "foreign-session" });
+      await expect(
+        verifyEvidencePackage({
+          packageFile: fixture.file,
+          trustedServerKeyHex: fixture.serverPublicKeyHex,
+        }),
+      ).rejects.toThrow("Sessão do recibo");
+    });
+
+    it("rejects root certification when an explicit operational anchor disagrees", async () => {
+      const fixture = await buildPackage({ rootCertified: true });
+      await expect(
+        verifyEvidencePackage({
+          packageFile: fixture.file,
+          trustedRoot: fixture.trustedRoot!,
+          trustedServerKeyHex: "00".repeat(32),
+        }),
+      ).rejects.toThrow("chave confiável");
+    });
+
+    it("accepts a matching explicit anchor along with root certification", async () => {
+      const fixture = await buildPackage({ rootCertified: true });
+      const report = await verifyEvidencePackage({
+        packageFile: fixture.file,
+        trustedRoot: fixture.trustedRoot!,
+        trustedServerKeyHex: fixture.serverPublicKeyHex,
+      });
+      expect(report.trustMode).toBe("root_certified");
+    });
+
+    it("preserves explicitly incomplete captures with known gaps", async () => {
+      const fixture = await buildPackage({
+        knownGaps: ["Main DOM unavailable"],
+        status: "incomplete",
+      });
+      const report = await verifyEvidencePackage({ packageFile: fixture.file });
+      expect(report.result).toBe("integral_but_incomplete");
+    });
+
+    it("rejects complete captures with unavailable artifacts", async () => {
+      const fixture = await buildPackage({ unavailableArtifact: true });
+      await expect(
+        verifyEvidencePackage({ packageFile: fixture.file }),
+      ).rejects.toThrow("Captura completa");
+    });
+
+    it("preserves incomplete captures with unavailable artifacts", async () => {
+      const fixture = await buildPackage({
+        unavailableArtifact: true,
+        status: "incomplete",
+      });
+      const report = await verifyEvidencePackage({ packageFile: fixture.file });
+      expect(report.result).toBe("integral_but_incomplete");
+    });
+
+    it("does not assert valid custody when an event-only capture has no receipts", async () => {
+      const fixture = await buildPackage({ noParts: true, omitReceipts: true });
+      const report = await verifyEvidencePackage({ packageFile: fixture.file });
+      expect(
+        report.checks.find((check) => check.id === "receipt_chain")?.status,
+      ).toBe("info");
+    });
+
+    it("rejects silently downgrading an explicitly required root", async () => {
+      const fixture = await buildPackage();
+      await expect(
+        verifyEvidencePackage({
+          packageFile: fixture.file,
+          trustedRoot: {
+            key_id: "required-root",
+            algorithm: "Ed25519",
+            public_key_hex: "00".repeat(32),
+          },
+        }),
+      ).rejects.toThrow("raiz confiável");
+    });
+
+    it("rejects incomplete root delegation instead of falling back to self-declared trust", async () => {
+      const fixture = await buildPackage({
+        rootCertified: true,
+        missingRevocationReference: true,
+      });
+      await expect(
+        verifyEvidencePackage({ packageFile: fixture.file }),
+      ).rejects.toThrow("Delegação pela raiz incompleta");
+    });
+
+    for (const receiptBinding of [
+      "artifact_id",
+      "part_number",
+      "part_hash",
+    ] as const) {
+      it(`rejects correctly signed receipt with wrong ${receiptBinding}`, async () => {
+        const fixture = await buildPackage({ receiptBinding });
+        await expect(
+          verifyEvidencePackage({ packageFile: fixture.file }),
+        ).rejects.toThrow("Vínculo de recibo");
+      });
+    }
+
+    it("rejects duplicate keys nested in signed JSONL", async () => {
+      const fixture = await buildPackage({ duplicateEntryKey: true });
+      await expect(
+        verifyEvidencePackage({ packageFile: fixture.file }),
+      ).rejects.toThrow("JSONL inválido");
+    });
+
+    it("accepts attacker-generated keys by default, with a trust warning", async () => {
+      const fixture = await buildPackage();
+      const report = await verifyEvidencePackage({ packageFile: fixture.file });
+      expect(report.result).toBe("integral");
+      expect(report.trustMode).toBe("self_declared");
+      expect(report.checks.find((check) => check.id === "trust")?.status).toBe(
+        "warning",
+      );
+      await expect(
+        verifyEvidencePackage({
+          packageFile: fixture.file,
+          trustedServerKeyHex: "00".repeat(32),
+        }),
+      ).rejects.toThrow("chave confiável");
+    });
+
+    for (const unsignedMutation of [
+      "artifact",
+      "remove",
+      "extra",
+      "index",
+      "signature",
+      "client_key",
+    ] as const) {
+      it(`rejects post-signing mutation: ${unsignedMutation}`, async () => {
+        const fixture = await buildPackage({ unsignedMutation });
+        await expect(
+          verifyEvidencePackage({
+            packageFile: fixture.file,
+            trustedServerKeyHex: fixture.serverPublicKeyHex,
+          }),
+        ).rejects.toThrow();
+      });
+    }
+  });
 });
 
 async function buildPackage(
@@ -132,6 +309,18 @@ async function buildPackage(
     unsafePath?: boolean;
     methodologyVersion?: "0.1" | "0.2";
     rootCertified?: boolean;
+    missingRevocationReference?: boolean;
+    duplicateIndexSession?: boolean;
+    knownGaps?: string[];
+    omitReceipts?: boolean;
+    receiptSession?: string;
+    receiptBinding?: "artifact_id" | "part_number" | "part_hash";
+    duplicateEntryKey?: boolean;
+    status?: "complete" | "incomplete";
+    unavailableArtifact?: boolean;
+    noParts?: boolean;
+    unsignedMutation?:
+      "artifact" | "remove" | "extra" | "index" | "signature" | "client_key";
   } = {},
 ): Promise<{
   file: File;
@@ -146,7 +335,10 @@ async function buildPackage(
   const methodologyPath = `methodology/methodology-v${options.methodologyVersion ?? "0.1"}.md`;
   const entry = {
     protocol_version: "0.1.0",
-    entry_type: "capture_started",
+    entry_type: options.noParts ? "capture_started" : "artifact_part",
+    artifact_id: "note",
+    part_number: 0,
+    part_hash: sha256Identifier(encode("synthetic captured bytes")),
     session_id: sessionId,
     sequence: 0,
     previous_entry_hash: null,
@@ -155,6 +347,10 @@ async function buildPackage(
     client_wall_time: "2026-07-30T10:00:00-03:00",
     server_challenge: "c3ludGhldGlj",
   };
+  if (options.noParts) {
+    for (const field of ["artifact_id", "part_number", "part_hash"])
+      delete (entry as Record<string, unknown>)[field];
+  }
   const entryHash = sha256Identifier(canonicalBytes(entry));
   const entrySignature = await signCanonicalWithKey(
     DOMAINS.entry,
@@ -163,16 +359,19 @@ async function buildPackage(
   );
   const receipt = {
     protocol_version: "0.1.0",
-    session_id: sessionId,
+    session_id: options.receiptSession ?? sessionId,
     sequence: 0,
     entry_hash: entryHash,
-    artifact_id: null,
-    part_number: null,
-    part_hash: null,
+    artifact_id: options.noParts ? null : "note",
+    part_number: options.noParts ? null : 0,
+    part_hash: options.noParts ? null : entry.part_hash,
     previous_receipt_hash: null,
     server_time: "2026-07-30T13:00:01Z",
     persistence_state: "durable_staging",
   };
+  if (options.receiptBinding) {
+    Object.assign(receipt, { [options.receiptBinding]: "forged" });
+  }
   const receiptHash = sha256Identifier(canonicalBytes(receipt));
   const receiptSignature = await signCanonicalWithKey(
     DOMAINS.receipt,
@@ -187,6 +386,12 @@ async function buildPackage(
     status: "captured",
     artifact_hash: sha256Identifier(artifactContent),
   };
+  if (options.unavailableArtifact)
+    Object.assign(artifact, {
+      status: "unavailable",
+      artifact_hash: undefined,
+      reason: "Capture permission denied",
+    });
   const close = {
     protocol_version: "0.1.0",
     session_id: sessionId,
@@ -194,7 +399,7 @@ async function buildPackage(
     last_entry_hash: entryHash,
     entry_count: 1,
     artifacts: [artifact],
-    known_gaps: [],
+    known_gaps: options.knownGaps ?? [],
     client_key_id: "client-synthetic",
     client_public_key: base64UrlEncode(client.publicKey),
   };
@@ -206,7 +411,7 @@ async function buildPackage(
   const manifest = {
     schema_version: "0.1.0",
     session_id: sessionId,
-    status: "complete",
+    status: options.status ?? "complete",
     capture: {
       started_at_client: "2026-07-30T10:00:00-03:00",
       ended_at_client: "2026-07-30T10:01:00-03:00",
@@ -300,6 +505,8 @@ async function buildPackage(
       ],
     );
   }
+  if (options.missingRevocationReference)
+    delete serverRecord.revocation_list_path;
   const members = new Map<string, Uint8Array>([
     ["README.txt", encode("Synthetic evidence package\n")],
     [
@@ -319,11 +526,13 @@ async function buildPackage(
     ],
     [
       "chain/receipts.jsonl",
-      line({
-        receipt,
-        receipt_hash: receiptHash,
-        signature_hex: bytesToHex(receiptSignature),
-      }),
+      options.omitReceipts
+        ? new Uint8Array()
+        : line({
+            receipt,
+            receipt_hash: receiptHash,
+            signature_hex: bytesToHex(receiptSignature),
+          }),
     ],
     [
       "signatures/capture-close.client.sig",
@@ -347,6 +556,20 @@ async function buildPackage(
     ],
     ...trustMembers,
   ]);
+  if (options.duplicateEntryKey) {
+    const original = new TextDecoder().decode(
+      members.get("chain/entries.jsonl"),
+    );
+    members.set(
+      "chain/entries.jsonl",
+      encode(
+        original.replace(
+          '"entry":{',
+          '"entry":{"session_id":"forged-first-value",',
+        ),
+      ),
+    );
+  }
   const packageIndex = {
     schema_version: "0.1.0",
     session_id: sessionId,
@@ -378,6 +601,42 @@ async function buildPackage(
       methodologyPath,
       encode("Changed after the package index was signed.\n"),
     );
+  }
+  // Everything below happens after signing, without using either private key.
+  if (options.duplicateIndexSession) {
+    const original = new TextDecoder().decode(
+      members.get("package-index.json"),
+    );
+    members.set(
+      "package-index.json",
+      encode('{"session_id":"forged-first-value",' + original.slice(1)),
+    );
+  }
+  switch (options.unsignedMutation) {
+    case "artifact":
+      members.set("capture/note.txt", encode("fabricated captured bytes"));
+      break;
+    case "remove":
+      members.delete("capture/note.txt");
+      break;
+    case "extra":
+      members.set("capture/unindexed.txt", encode("unindexed"));
+      break;
+    case "index":
+      members.set(
+        "package-index.json",
+        canonicalBytes({ ...packageIndex, session_id: "forged" }),
+      );
+      break;
+    case "signature":
+      members.set(
+        "signatures/package-index.server.sig",
+        encode("00".repeat(64)),
+      );
+      break;
+    case "client_key":
+      members.set("signatures/public-keys.json", encode("{}"));
+      break;
   }
 
   const writer = new ZipWriter(new BlobWriter("application/zip"), {
