@@ -55,7 +55,7 @@ o override de porta agora suportado pelo arquivo de configuração do projeto.
 
 ## Limites
 
-Não houve deploy, merge nem envio à Chrome Web Store. Safari/iOS, Android,
+Não houve merge nem envio à Chrome Web Store. Safari/iOS, Android,
 Windows/Edge e outros dispositivos físicos não foram testados. A verificação
 do ZIP usa captura sintética, sem validar Zoom ou áudio de dispositivos reais.
 Nenhuma mudança de protocolo, migração, segredo ou retenção foi realizada.
@@ -64,4 +64,30 @@ de produção não foi construída nesta validação local.
 A nova rota foi incluída no seletor da Content-Security-Policy. O comando
 `nix develop --command caddy validate --config infra/railway/verifier-web.Caddyfile --adapter caddyfile`
 não pôde rodar porque o ambiente não fornece `caddy`. A configuração do servidor
-e o build da imagem precisam ser validados antes de publicar.
+e o build da imagem foram validados pela publicação registrada abaixo.
+
+## Publicação — 2026-10-01
+
+- Commit publicado: `cfaa29e578bf9731ffa994725eb34a29cce22d29`.
+- CI `36936433042`: segurança, checks, reprodução OCI e reprodução do
+  verificador passaram. GitPython atualizado para 3.1.62 após o aviso
+  GHSA-59cr-6r3x-644w; 140 testes Python passaram, 4 opcionais ignorados.
+- Release `v0.1.8`, workflow `36936861522`, concluída com sucesso. ZIP da
+  extensão baixado do GitHub: checksum aprovado, manifest 0.1.8, termos
+  empacotados e assinatura Sigstore com identidade do workflow verificada.
+  A 0.1.7 foi sinalizada como substituída, preservando tag e artefatos.
+- Railway `verifier-web`, deploy `580a0abf-3861-4cc1-b75b-872acfff61f3`:
+  `SUCCESS`. Upload de exportação limpa do commit, sem alterações locais
+  anteriores. API, banco, workers, secrets e retenção preservados.
+- `https://beta.evidencias.org.br/`: versão 0.1.8, download correto e seis
+  logos carregados. Termos acessíveis pelo rodapé e em
+  `https://evidencias.org.br/termos-de-uso`; ambas as rotas retornam 200 com
+  a CSP esperada. Health `/health` retornou `ok`; API `/readyz` retornou ready.
+- Chrome conectado em produção: home e termos conferidos a 1440 × 900 e
+  390 × 844, sem overflow horizontal ou imagens quebradas.
+- Console público registra beacon de analytics da Cloudflare bloqueado por
+  `script-src 'self'`. Não houve alteração de CSP para autorizar esse script;
+  o conteúdo e a navegação funcionam.
+- UptimeRobot permanece pendente de verificação: dashboard solicita login.
+  Não foi possível confirmar monitores ativos nem alertas de queda/recuperação
+  para `pedro@markun.com.br`.
