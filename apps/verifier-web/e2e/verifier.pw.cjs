@@ -98,7 +98,7 @@ test("Evidências presents the electoral project and separates capture from vali
   await expect(page.locator(".beta-notice")).toContainText(
     "Não guardamos uma cópia para recuperação no servidor.",
   );
-  await expect(page.locator(".extension-note")).toContainText("Versão 0.1.7");
+  await expect(page.locator(".extension-note")).toContainText("Versão 0.1.8");
   await expect(page.locator("main")).not.toContainText("30 dias");
   await page
     .locator(".hero-actions")
@@ -122,7 +122,7 @@ test("beta download and keyboard installation instructions work", async ({
     });
     await expect(download).toHaveAttribute(
       "href",
-      "https://github.com/pmarkun/chitaozinho/releases/download/v0.1.7/chitaozinho-extension-0.1.7.zip",
+      "https://github.com/pmarkun/chitaozinho/releases/download/v0.1.8/chitaozinho-extension-0.1.8.zip",
     );
     const instructions = page.locator(".extension-download summary");
     await instructions.focus();

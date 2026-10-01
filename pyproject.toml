@@ -1,11 +1,11 @@
 [project]
 name = "chitaozinho-workspace"
-version = "0.1.7"
+version = "0.1.8"
 requires-python = ">=3.13"
 dependencies = []
 
 [tool.uv]
-constraint-dependencies = ["urllib3>=2.8.0"]
+constraint-dependencies = ["urllib3>=2.8.0", "gitpython>=3.1.62"]
 
 [tool.uv.workspace]
 members = [

@@ -6,6 +6,12 @@ Mudanças relevantes do Chitãozinho são registradas aqui. As versões seguem
 
 ## Unreleased
 
+## 0.1.8 — 2026-10-01
+
+- Substitui a 0.1.7 após o check de segurança, preservando os créditos, logos
+  e Termos de Uso aprovados.
+- Atualiza GitPython para corrigir GHSA-59cr-6r3x-644w.
+
 ## 0.1.7 — 2026-10-01
 
 - Atualiza os realizadores e a parceria com Conectas, com logos institucionais.
