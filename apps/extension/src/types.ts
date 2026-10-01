@@ -110,6 +110,7 @@ export interface ExtensionMessage {
     | "BUILD_LOCAL_PACKAGE"
     | "SCROLL";
   consent?: boolean;
+  termsVersion?: string;
   microphone?: boolean;
   captureSource?: "tab" | "desktop";
   audio?: boolean;

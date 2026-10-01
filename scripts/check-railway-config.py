@@ -120,6 +120,7 @@ def validate_graph(graph: dict[str, Any]) -> None:
             "/pnpm-workspace.yaml",
             "/apps/verifier-web/**",
             "/packages/protocol-ts/**",
+            "/packages/project-content/**",
             "/infra/railway/verifier-web.Caddyfile",
         },
     }

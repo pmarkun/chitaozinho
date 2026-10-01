@@ -1,4 +1,4 @@
-const CACHE_NAME = "chitaozinho-verifier-v0.3.1";
+const CACHE_NAME = "chitaozinho-verifier-v0.3.2";
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {

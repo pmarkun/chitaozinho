@@ -26,6 +26,65 @@ const baseCapture = {
   captureFinished: false,
 };
 
+test("capture requires separate consent and acceptance of the current terms", async ({
+  browser,
+}) => {
+  const page = await scenarioPage(
+    browser,
+    { authenticated: true, capture: null },
+    { width: 360, height: 420 },
+  );
+  await page.getByRole("button", { name: messages.newEvidence }).click();
+  const start = page.getByRole("button", {
+    name: messages.startCapture,
+    exact: true,
+  });
+  const consent = page.getByRole("checkbox", {
+    name: messages.captureConsent,
+    exact: true,
+  });
+  const terms = page.getByRole("checkbox", {
+    name: messages.termsAcceptance,
+    exact: true,
+  });
+  await expect(start).toBeDisabled();
+  await consent.check();
+  await expect(start).toBeDisabled();
+  await terms.check();
+  await expect(start).toBeEnabled();
+  await consent.uncheck();
+  await expect(start).toBeDisabled();
+  await consent.check();
+  await terms.uncheck();
+  await expect(start).toBeDisabled();
+  const [termsPage] = await Promise.all([
+    page.context().waitForEvent("page"),
+    page.getByRole("link", { name: messages.readTerms }).click(),
+  ]);
+  await expect(termsPage).toHaveTitle("Termos de Uso — Evidências");
+  await expect(termsPage.locator("main ol li")).toHaveCount(4);
+  await audit(termsPage, "offline terms");
+  await termsPage.close();
+  await terms.focus();
+  await page.keyboard.press("Space");
+  await expect(terms).toBeChecked();
+  await start.click();
+  expect(
+    await page.evaluate(() =>
+      globalThis.sentMessages.find(
+        (message) => message.type === "START_CAPTURE",
+      ),
+    ),
+  ).toMatchObject({ consent: true, termsVersion: "2026-10-01" });
+  await page.getByRole("button", { name: messages.newEvidence }).click();
+  await expect(
+    page.getByRole("checkbox", { name: messages.termsAcceptance, exact: true }),
+  ).not.toBeChecked();
+  await expect(start).toBeDisabled();
+  await audit(page, "terms acceptance in short popup");
+  await page.context().close();
+});
+
 test("anonymous beta opens directly without requesting email", async ({
   browser,
 }) => {
@@ -256,6 +315,7 @@ async function scenarioPage(
   });
   await context.addInitScript(
     ({ localizedMessages, state }) => {
+      globalThis.sentMessages = [];
       globalThis.chrome = {
         i18n: {
           getUILanguage: () => "pt-BR",
@@ -263,6 +323,7 @@ async function scenarioPage(
         },
         runtime: {
           sendMessage: async (message) => {
+            globalThis.sentMessages.push(message);
             if (message.type === "GET_STATE") {
               return { ok: true, result: state.capture ?? null };
             }

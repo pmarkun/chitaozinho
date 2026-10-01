@@ -5,6 +5,7 @@ import { authStatus, requestMagicLink } from "./api";
 import { documentLanguage, t } from "./i18n";
 import type { ExtensionMessage } from "./types";
 import "./popup.css";
+import terms from "../../../packages/project-content/terms.json";
 
 document.documentElement.lang = documentLanguage(chrome.i18n.getUILanguage());
 
@@ -39,6 +40,7 @@ function App() {
   const [email, setEmail] = useState("");
   const [linkSent, setLinkSent] = useState(false);
   const [consent, setConsent] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [captureSource, setCaptureSource] = useState<"tab" | "desktop">("tab");
   const [microphone, setMicrophone] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -233,6 +235,7 @@ function App() {
             onClick={() => {
               setMicrophone(false);
               setConsent(false);
+              setTermsAccepted(false);
               setScreen("new");
             }}
           >
@@ -327,12 +330,25 @@ function App() {
             />
             {t("captureConsent")}
           </label>
+          <label className="consent">
+            <input
+              type="checkbox"
+              checked={termsAccepted}
+              disabled={busy}
+              onChange={(event) => setTermsAccepted(event.target.checked)}
+            />
+            {t("termsAcceptance")}
+          </label>
+          <a href="terms.html" target="_blank" rel="noopener noreferrer">
+            {t("readTerms")}
+          </a>
           <button
-            disabled={!consent || busy}
+            disabled={!consent || !termsAccepted || busy}
             onClick={() =>
               void act({
                 type: "START_CAPTURE",
                 consent,
+                termsVersion: termsAccepted ? terms.version : undefined,
                 captureSource,
                 microphone,
               })
