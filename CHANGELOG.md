@@ -6,6 +6,14 @@ Mudanças relevantes do Chitãozinho são registradas aqui. As versões seguem
 
 ## Unreleased
 
+## 0.1.7 — 2026-10-01
+
+- Atualiza os realizadores e a parceria com Conectas, com logos institucionais.
+- Publica os Termos de Uso no site e na página offline da extensão.
+- Exige aceite explícito da versão atual antes de cada nova captura e registra
+  a versão nos dados locais da coleta.
+- Incorpora correções de segurança do verificador já implantadas no beta.
+
 ## 0.1.6 — 2026-09-30
 
 - Preserva a reprodução do áudio da aba durante a gravação.

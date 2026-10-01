@@ -37,6 +37,7 @@ const verifierWatchPatterns = [
   "/pnpm-workspace.yaml",
   "/apps/verifier-web/**",
   "/packages/protocol-ts/**",
+  "/packages/project-content/**",
   "/infra/railway/verifier-web.Caddyfile",
 ];
 
