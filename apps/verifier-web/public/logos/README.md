@@ -9,5 +9,7 @@ https://drive.proton.me/urls/FAKYSEJBB8#gJnXRzqJIdlf
 - `conectas.png`: `marca_conectas_positiva (1).png`.
 - `sleeping-giants.png`: `SGBR-COMPLETO-COR-PRETO.png`, do ZIP Sleeping Giants Brasil.
 
-Os arquivos foram copiados sem alteração dos bytes. O logo da CTRL+Z não
-constava na pasta; o site mantém o nome como crédito textual.
+Os arquivos foram copiados sem alteração dos bytes.
+
+`ctrlz.png` foi obtido no site oficial https://ctrlz.org.br/, que utiliza:
+https://ctrlz.org.br/wp-content/uploads/2026/03/logos_ctrlz-01.png

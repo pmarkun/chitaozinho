@@ -6,9 +6,14 @@ Atualizações aprovadas do Google Docs: realizadores e parceria com Conectas,
 logos fornecidos, ajustes editoriais, página `/termos-de-uso` e aceite separado
 antes de cada nova captura. Texto dos termos compartilhado com a página offline
 da extensão; versão 2026-10-01 registrada no evento local `capture_started`.
-CTRL+Z permanece como crédito textual porque seu logo não veio na pasta.
+O logo da CTRL+Z foi obtido no site oficial após indicação do usuário.
 
 ## Resultados
+
+Após incluir o logo oficial da CTRL+Z, lint e build passaram novamente, assim
+como os 7 testes de créditos/termos/privacidade em Chromium, Firefox e WebKit.
+Chrome conectado conferiu o logo em 1440 × 900 e 390 × 844, sem overflow ou
+erros de console.
 
 - Formatação, lint, TypeScript e builds do site e da extensão passaram em Nix.
 - Unitários: site 35 passaram; extensão 37 passaram, 1 ignorado.

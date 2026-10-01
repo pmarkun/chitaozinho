@@ -745,10 +745,6 @@ footer {
   max-width: 100%;
   object-fit: contain;
 }
-.organization-wordmark {
-  color: #15251e;
-  font-size: 2rem;
-}
 .capture-steps {
   list-style: none;
   padding: 0;

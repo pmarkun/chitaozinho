@@ -40,7 +40,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
         );
         await expect(
           page.getByRole("list", { name: "Realizadores" }).getByRole("img"),
-        ).toHaveCount(4);
+        ).toHaveCount(5);
         for (const logo of await page
           .locator(".organization-logos img")
           .all()) {

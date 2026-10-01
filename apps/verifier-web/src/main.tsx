@@ -287,7 +287,7 @@ function Home({ navigate }: { navigate: (page: Page) => void }) {
         </p>
         <ul className="organization-logos" aria-label="Realizadores">
           <li>
-            <strong className="organization-wordmark">CTRL+Z</strong>
+            <img src="/logos/ctrlz.png" alt="CTRL+Z" width="180" height="100" />
           </li>
           <li>
             <img

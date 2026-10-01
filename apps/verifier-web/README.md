@@ -11,7 +11,7 @@ O rodapé apresenta o nome do produto e links para privacidade e termos de uso.
 A home do beta apresenta CTRL+Z, Coding Rights, Instituto da Hora, Sleeping
 Giants e Neisser & Advogados Associados como realizadores, em parceria com
 Conectas Direitos Humanos. Os logos fornecidos estão em `public/logos/`;
-CTRL+Z permanece como crédito textual, pois seu logo não veio na pasta.
+O logo da CTRL+Z foi obtido diretamente no site oficial da organização.
 O domínio principal mantém a página em construção, com as páginas públicas
 de privacidade e `/termos-de-uso` acessíveis.
 Nomes internos, identificadores e formatos assinados continuam compatíveis.
