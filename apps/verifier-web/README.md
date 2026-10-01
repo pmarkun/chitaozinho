@@ -7,11 +7,13 @@ Ao atualizar a versão, atualize também o link, o texto e o teste de download.
 Essa release exibe Evidências e suporta guarda local: o servidor registra hashes,
 enquanto a extensão monta o pacote com os arquivos locais.
 
-O rodapé apresenta apenas o nome do produto e o link para a política de
-privacidade. A home do beta apresenta as seções “O que é” e “Quem faz”, com
-CTRL+Z como realizadora e Conectas Direitos Humanos como apoiadora.
-Novos parceiros entram nos créditos após confirmação; não há placeholders
-publicados. O domínio principal mantém a página em construção.
+O rodapé apresenta o nome do produto e links para privacidade e termos de uso.
+A home do beta apresenta CTRL+Z, Coding Rights, Instituto da Hora, Sleeping
+Giants e Neisser & Advogados Associados como realizadores, em parceria com
+Conectas Direitos Humanos. Os logos fornecidos estão em `public/logos/`;
+CTRL+Z permanece como crédito textual, pois seu logo não veio na pasta.
+O domínio principal mantém a página em construção, com as páginas públicas
+de privacidade e `/termos-de-uso` acessíveis.
 Nomes internos, identificadores e formatos assinados continuam compatíveis.
 
 O mesmo build estático funciona pelo link público e offline após a primeira

@@ -68,6 +68,13 @@ test("real extension captures locally, sends no content, and downloads a verifia
       context.serviceWorkers()[0] ??
       (await context.waitForEvent("serviceworker"));
     const id = new URL(worker.url()).host;
+    await context.setOffline(true);
+    const termsPage = await context.newPage();
+    await termsPage.goto(`chrome-extension://${id}/terms.html`);
+    await expect(termsPage).toHaveTitle("Termos de Uso — Evidências");
+    await expect(termsPage.locator("main ol li")).toHaveCount(4);
+    await termsPage.close();
+    await context.setOffline(false);
     const page = await context.newPage();
     await page.goto("http://127.0.0.1:8000/healthz");
     await page.setContent(
@@ -84,15 +91,53 @@ test("real extension captures locally, sends no content, and downloads a verifia
           headers: request.headers(),
         });
     });
+    for (const termsVersion of [undefined, "obsolete"]) {
+      const rejected = await popup.evaluate(
+        (version) =>
+          chrome.runtime.sendMessage({
+            type: "START_CAPTURE",
+            consent: true,
+            termsVersion: version,
+          }),
+        termsVersion,
+      );
+      expect(rejected.ok).toBe(false);
+      expect(rejected.error).toContain(
+        "acceptance of current terms is required",
+      );
+    }
+    expect(requests).toHaveLength(0);
     const started = await popup.evaluate(async () => {
       const tabs = await chrome.tabs.query({ url: "http://127.0.0.1:8000/*" });
       await chrome.tabs.update(tabs[0].id, { active: true });
       return chrome.runtime.sendMessage({
         type: "START_CAPTURE",
+        termsVersion: "2026-10-01",
         consent: true,
       });
     });
     expect(started.ok, JSON.stringify(started)).toBe(true);
+    const acceptance = await popup.evaluate(async () => {
+      const request = globalThis.indexedDB.open("chitaozinho");
+      return await new Promise((resolve) => {
+        request.onsuccess = () => {
+          const records = request.result
+            .transaction("sessions")
+            .objectStore("sessions")
+            .getAll();
+          records.onsuccess = () =>
+            resolve(
+              records.result[0]?.localEvents?.find(
+                (event) => event.type === "capture_started",
+              )?.data,
+            );
+        };
+      });
+    });
+    expect(acceptance).toMatchObject({
+      terms_accepted: true,
+      terms_version: "2026-10-01",
+    });
     const stopped = await popup.evaluate(() =>
       chrome.runtime.sendMessage({ type: "STOP_CAPTURE" }),
     );

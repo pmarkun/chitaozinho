@@ -36,8 +36,48 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
           await expect(page.locator(`#${id}`)).toBeInViewport();
         }
         await expect(page.locator(".home-about").last()).toContainText(
-          "realizado pela CTRL+Z, com o apoio de Conectas Direitos Humanos",
+          "em parceria com a Conectas Direitos Humanos",
         );
+        await expect(
+          page.getByRole("list", { name: "Realizadores" }).getByRole("img"),
+        ).toHaveCount(4);
+        for (const logo of await page
+          .locator(".organization-logos img")
+          .all()) {
+          expect(
+            await logo.evaluate((img) => img.complete && img.naturalWidth > 0),
+          ).toBe(true);
+        }
+        await page
+          .getByRole("link", { name: "Termos de Uso", exact: true })
+          .click();
+        await expect(page).toHaveURL(/\/termos-de-uso$/);
+        await expect(page).toHaveTitle("Termos de Uso — Evidências");
+        await expect(page.locator("main")).toBeFocused();
+        await expect(page.locator("main ol li")).toHaveCount(4);
+        await expect(page.locator("main")).toContainText(
+          "única e integralmente responsável",
+        );
+        expect(
+          await page.evaluate(
+            () =>
+              document.documentElement.scrollWidth <=
+              document.documentElement.clientWidth,
+          ),
+        ).toBe(true);
+        expect(
+          (
+            await page.evaluate(() =>
+              axe.run(document, {
+                runOnly: {
+                  type: "tag",
+                  values: ["wcag2a", "wcag2aa", "wcag21aa"],
+                },
+              }),
+            )
+          ).violations,
+        ).toEqual([]);
+        await page.goBack({ waitUntil: "domcontentloaded" });
         const homeAudit = await page.evaluate(() =>
           axe.run(document, {
             runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] },
@@ -95,3 +135,23 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
     });
   }
 }
+
+test("terms are readable on the public construction host", async ({ page }) => {
+  await page.route("https://evidencias.org.br/**", async (route) => {
+    const url = new URL(route.request().url());
+    const response = await route.fetch({
+      url: `http://127.0.0.1:4174${url.pathname}`,
+    });
+    await route.fulfill({ response });
+  });
+  await page.goto("https://evidencias.org.br/termos-de-uso");
+  await expect(page).toHaveTitle("Termos de Uso — Evidências");
+  await expect(page.locator("main ol li")).toHaveCount(4);
+  await page.getByRole("link", { name: "Voltar ao início" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Evidências",
+  );
+  await expect(
+    page.getByText("SITE EM CONSTRUÇÃO", { exact: true }),
+  ).toBeVisible();
+});
