@@ -193,5 +193,9 @@
   "statusInterrupted": { "message": "Interrupted" },
   "statusError": { "message": "Error" },
   "loading": { "message": "Loading…" },
-  "working": { "message": "Working…" }
+  "working": { "message": "Working…" },
+  "termsAcceptance": { "message": "I have read and accept the Terms of Use." },
+  "readTerms": {
+    "message": "Read Terms of Use (Portuguese, opens in a new tab)"
+  }
 }

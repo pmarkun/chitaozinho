@@ -1,19 +1,21 @@
 # Evidências
 
 Evidências (codinome interno: Chitãozinho) é uma plataforma aberta para capturar, preservar e verificar
-evidências digitais. A extensão Chromium registra a navegação; a API recebe os
-artefatos e emite recibos; os verificadores conferem o pacote sem depender do
+evidências digitais. A extensão Chromium registra a navegação; a API recebe hashes
+e emite recibos; os verificadores conferem o pacote sem depender do
 backend que o produziu.
 
-O ambiente público atual é um **beta para dados não críticos**. Os objetos legados são
-armazenados por 30 dias no Railway Bucket, sem Object Lock ou garantia de
-imutabilidade. O estado correto nesse ambiente é `stored`, nunca `locked`.
+O site público é <https://evidencias.org.br>; o endereço antigo do beta
+redireciona para ele. A versão atual mantém os arquivos no dispositivo, sem
+Object Lock ou garantia de armazenamento imutável. A promoção do domínio não
+muda essas garantias nem recria a infraestrutura Railway.
 
-O novo modo `CHITAOZINHO_EVIDENCE_MODE=hash_only` mantém arquivos e ZIP no
+O modo ativo `CHITAOZINHO_EVIDENCE_MODE=hash_only` mantém arquivos e ZIP no
 dispositivo. A API registra hashes e metadados técnicos, sem receber o conteúdo.
 O modo `remote` preserva a integração opcional de armazenamento. A configuração
-declarativa do próximo deploy usa `hash_only`; isso só entra em vigor ao publicar
-API e extensão compatíveis. Veja a transição em [deploy](docs/deployment-railway.md).
+declarativa usa `hash_only` e autenticação anônima. O perfil remoto mantém
+compatibilidade com objetos legados, sem reinterpretar seus recibos como
+imutabilidade. Veja os perfis e o rollback em [deploy](docs/deployment-railway.md).
 
 - [Especificação normativa](SPEC.md)
 - [Decisões e critérios de aceite](ACEITE.md)
@@ -61,7 +63,7 @@ banco de desenvolvimento.
 | `packages/` | Schemas e implementações compartilhadas do protocolo |
 | `test-vectors/` | Vetores criptográficos entre linguagens |
 | `infra/` | OpenBao, Ceph, monitoramento e apoio ao deploy |
-| `.railway/railway.ts` | Topologia declarativa do beta no Railway |
+| `.railway/railway.ts` | Topologia declarativa no Railway |
 | `scripts/` | Entrada para testes, operação, release e manutenção |
 
 ## Fluxos principais
@@ -70,7 +72,7 @@ banco de desenvolvimento.
   [operações](docs/operations.md).
 - Para o modo anônimo atual e a autenticação opcional por magic link, veja
   [autenticação](docs/authentication.md).
-- Para publicar ou recuperar o beta, veja
+- Para publicar ou recuperar o serviço, veja
   [deploy no Railway](docs/deployment-railway.md).
 - Para conferir um pacote, veja [verificação](docs/verification.md).
 - Para revisar ameaças e limites das garantias, veja

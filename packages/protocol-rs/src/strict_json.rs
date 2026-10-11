@@ -1,0 +1,77 @@
+use serde::de::{self, MapAccess, SeqAccess, Visitor};
+use serde::{Deserialize, Deserializer};
+use serde_json::Value;
+use std::fmt;
+
+struct StrictValue(Value);
+
+impl<'de> Deserialize<'de> for StrictValue {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserializer.deserialize_any(StrictVisitor)
+    }
+}
+
+struct StrictVisitor;
+
+impl<'de> Visitor<'de> for StrictVisitor {
+    type Value = StrictValue;
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("JSON without duplicate object keys")
+    }
+    fn visit_bool<E: de::Error>(self, value: bool) -> Result<Self::Value, E> {
+        Ok(StrictValue(Value::Bool(value)))
+    }
+    fn visit_i64<E: de::Error>(self, value: i64) -> Result<Self::Value, E> {
+        Ok(StrictValue(value.into()))
+    }
+    fn visit_u64<E: de::Error>(self, value: u64) -> Result<Self::Value, E> {
+        Ok(StrictValue(value.into()))
+    }
+    fn visit_f64<E: de::Error>(self, value: f64) -> Result<Self::Value, E> {
+        serde_json::Number::from_f64(value)
+            .map(|number| StrictValue(Value::Number(number)))
+            .ok_or_else(|| E::custom("invalid JSON number"))
+    }
+    fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
+        Ok(StrictValue(Value::String(value.to_owned())))
+    }
+    fn visit_unit<E: de::Error>(self) -> Result<Self::Value, E> {
+        Ok(StrictValue(Value::Null))
+    }
+    fn visit_seq<A: SeqAccess<'de>>(self, mut sequence: A) -> Result<Self::Value, A::Error> {
+        let mut values = Vec::new();
+        while let Some(StrictValue(value)) = sequence.next_element()? {
+            values.push(value);
+        }
+        Ok(StrictValue(Value::Array(values)))
+    }
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+        let mut values = serde_json::Map::new();
+        while let Some(key) = map.next_key::<String>()? {
+            if values.contains_key(&key) {
+                return Err(de::Error::custom("duplicate JSON key"));
+            }
+            let StrictValue(value) = map.next_value()?;
+            values.insert(key, value);
+        }
+        Ok(StrictValue(Value::Object(values)))
+    }
+}
+
+pub fn parse_strict_json(bytes: &[u8]) -> Result<Value, serde_json::Error> {
+    let StrictValue(value) = serde_json::from_slice(bytes)?;
+    // Match the protocol's browser nesting bound, independently of serde's limit.
+    fn depth(value: &Value, level: usize) -> bool {
+        match value {
+            Value::Array(items) => level < 64 && items.iter().all(|item| depth(item, level + 1)),
+            Value::Object(items) => level < 64 && items.values().all(|item| depth(item, level + 1)),
+            _ => true,
+        }
+    }
+    if !depth(&value, 0) {
+        return Err(<serde_json::Error as de::Error>::custom(
+            "JSON nesting limit exceeded",
+        ));
+    }
+    Ok(value)
+}

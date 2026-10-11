@@ -1,7 +1,15 @@
-const CACHE_NAME = "chitaozinho-verifier-v0.3.1";
+const CACHE_NAME = "evidencias-verifier-v0.1.9";
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest"];
+const LEGACY_HOST = [
+  "beta.evidencias.org.br",
+  "www.evidencias.org.br",
+].includes(self.location.hostname);
 
 self.addEventListener("install", (event) => {
+  if (LEGACY_HOST) {
+    self.skipWaiting();
+    return;
+  }
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)),
   );
@@ -9,6 +17,34 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
+  if (LEGACY_HOST) {
+    event.waitUntil(
+      (async () => {
+        const names = await caches.keys();
+        await Promise.all(
+          names
+            .filter(
+              (name) =>
+                name.startsWith("evidencias-verifier-") ||
+                name.startsWith("chitaozinho-verifier-"),
+            )
+            .map((name) => caches.delete(name)),
+        );
+        await self.registration.unregister();
+        const clients = await self.clients.matchAll({ type: "window" });
+        await Promise.all(
+          clients.map((client) => {
+            const url = new URL(client.url);
+            if (url.origin !== self.location.origin) return;
+            return client.navigate(
+              `https://evidencias.org.br${url.pathname}${url.search}${url.hash}`,
+            );
+          }),
+        );
+      })(),
+    );
+    return;
+  }
   event.waitUntil(
     caches
       .keys()
@@ -24,6 +60,7 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+  if (LEGACY_HOST) return;
   if (event.request.method !== "GET") return;
   if (event.request.mode === "navigate") {
     event.respondWith(

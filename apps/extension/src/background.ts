@@ -18,6 +18,7 @@ import {
   sendEvent,
 } from "./api";
 import { artifactObservation } from "./artifact-observation";
+import terms from "../../../packages/project-content/terms.json";
 import { describeCaptureCoverage } from "./capture-coverage";
 import { selectCaptureStream, type CaptureSource } from "./capture-source";
 import { advanceSession, nextEntry, signedEntry } from "./chain";
@@ -166,6 +167,8 @@ async function handleMessage(message: ExtensionMessage): Promise<unknown> {
     }
     case "START_CAPTURE":
       if (!message.consent) throw new Error("consent is required");
+      if (message.termsVersion !== terms.version)
+        throw new Error("acceptance of current terms is required");
       if (
         message.captureSource &&
         !["tab", "desktop"].includes(message.captureSource)
@@ -321,6 +324,8 @@ async function startCapture(
   await saveSession(session);
   session = await appendEvent(session, "capture_started", {
     consent: true,
+    terms_accepted: true,
+    terms_version: terms.version,
     capture_source: captureSource,
     microphone_requested: microphone,
     url: captureSource === "tab" ? (tab.url ?? null) : null,

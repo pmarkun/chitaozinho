@@ -15,6 +15,7 @@ RUN pnpm install --frozen-lockfile --filter @chitaozinho/verifier-web...
 
 COPY apps/verifier-web apps/verifier-web
 COPY packages/protocol-ts packages/protocol-ts
+COPY packages/project-content packages/project-content
 RUN pnpm --filter @chitaozinho/verifier-web build
 
 FROM caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 AS runtime

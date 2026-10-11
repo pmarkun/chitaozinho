@@ -1,0 +1,15 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #15251e;
+  background: #fff;
+  line-height: 1.7;
+}
+main {
+  max-width: 760px;
+  margin: 2rem auto;
+  padding: 0 1.5rem;
+  overflow-wrap: anywhere;
+}
+li {
+  margin-bottom: 1rem;
+}

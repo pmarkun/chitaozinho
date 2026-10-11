@@ -4,6 +4,7 @@ import {
   bytesToHex,
   canonicalBytes,
   hexToBytes,
+  parseStrictJson,
   sha256Identifier,
   verifyCanonical,
 } from "@chitaozinho/protocol";
@@ -211,6 +212,7 @@ export async function verifyEvidencePackage(
       serverKey,
       Date.parse(packageIndex.created_at),
       input.trustedRoot ?? OFFICIAL_ROOT,
+      input.trustedRoot !== undefined,
     );
     checks.push(
       valid(
@@ -275,10 +277,12 @@ export async function verifyEvidencePackage(
     );
     const receipts = await verifyReceiptChain(archive, entries, serverKey);
     checks.push(
-      valid(
+      (receipts.count > 0 ? valid : info)(
         "receipt_chain",
         "Recibos do servidor",
-        `${receipts.count} recibos estão íntegros e assinados.`,
+        receipts.count > 0
+          ? `${receipts.count} recibos estão íntegros e assinados.`
+          : "A captura não contém partes com recibos de custódia.",
       ),
     );
     if (receipts.hashOnly)
@@ -533,9 +537,21 @@ async function validateOperationalTrust(
   packaged: Uint8Array,
   signedAt: number,
   root: TrustRoot,
+  requireRoot: boolean,
 ): Promise<VerificationReport["trustMode"]> {
   const server = publicKeys.server;
-  if (server.certificate_path && server.revocation_list_path) {
+  if (configured?.trim()) {
+    const explicit = decodeHex(configured.trim(), 32, "chave confiável");
+    ensure(
+      bytesToHex(explicit) === bytesToHex(packaged),
+      "A chave do pacote difere da chave confiável informada.",
+    );
+  }
+  if (server.certificate_path || server.revocation_list_path) {
+    ensure(
+      server.certificate_path && server.revocation_list_path,
+      "Delegação pela raiz incompleta: certificado e revogações são obrigatórios.",
+    );
     const certificate = await readJson<SignedTrustDocument>(
       archive,
       server.certificate_path,
@@ -547,22 +563,11 @@ async function validateOperationalTrust(
     await validateRootTrust(certificate, revocations, server, signedAt, root);
     return "root_certified";
   }
-  if (!configured?.trim()) return "self_declared";
-  let trusted: Uint8Array;
-  try {
-    trusted = hexToBytes(configured.trim());
-  } catch (error) {
-    throw validationError(
-      "A chave pública confiável não é hexadecimal válida.",
-      error,
-    );
-  }
-  ensure(trusted.length === 32, "A chave pública confiável deve ter 32 bytes.");
   ensure(
-    bytesToHex(trusted) === bytesToHex(packaged),
-    "A chave do pacote difere da chave confiável informada.",
+    !requireRoot,
+    "A raiz confiável informada exige certificado e revogações.",
   );
-  return "custom_operational_key";
+  return configured?.trim() ? "custom_operational_key" : "self_declared";
 }
 
 interface SignedTrustDocument {
@@ -776,14 +781,14 @@ async function verifyEntryChain(
   archive: Archive,
   manifest: CaptureManifest,
   clientKey: Uint8Array,
-): Promise<Map<number, string>> {
+): Promise<Map<number, ChainRecord>> {
   const records = await readJsonLines<ChainRecord>(archive, ENTRIES_PATH);
   ensure(
     records.length === manifest.chain.entry_count,
     "Contagem da cadeia diverge do manifesto.",
   );
   ensure(records.length > 0, "A cadeia de eventos está vazia.");
-  const entries = new Map<number, string>();
+  const entries = new Map<number, ChainRecord>();
   let previous: string | null = null;
   for (const [index, record] of records.entries()) {
     const sequence = integerField(record.entry, "sequence");
@@ -810,7 +815,7 @@ async function verifyEntryChain(
       ),
       `Assinatura inválida na sequência ${index}.`,
     );
-    entries.set(sequence, entryHash);
+    entries.set(sequence, record);
     previous = entryHash;
   }
   const first = records[0];
@@ -830,11 +835,14 @@ async function verifyEntryChain(
 
 async function verifyReceiptChain(
   archive: Archive,
-  entries: Map<number, string>,
+  entries: Map<number, ChainRecord>,
   serverKey: Uint8Array,
 ): Promise<{ count: number; hashOnly: boolean }> {
   const records = await readJsonLines<ReceiptRecord>(archive, RECEIPTS_PATH);
   let previous: string | null = null;
+  const seen = new Set<number>();
+  let previousSequence = -1;
+  let custodyMode: boolean | undefined;
   for (const record of records) {
     ensure(
       (record.receipt.protocol_version === "0.2.0" &&
@@ -846,10 +854,34 @@ async function verifyReceiptChain(
       "Modo de recibo não suportado.",
     );
     const sequence = integerField(record.receipt, "sequence");
+    const entry = entries.get(sequence);
     ensure(
-      entries.get(sequence) === stringField(record.receipt, "entry_hash"),
+      entry?.entry_hash === stringField(record.receipt, "entry_hash"),
       `Recibo referencia entrada desconhecida na sequência ${sequence}.`,
     );
+    ensure(entry !== undefined, "Entrada do recibo ausente.");
+    ensure(
+      record.receipt.session_id === entry.entry.session_id,
+      "Sessão do recibo diverge da entrada.",
+    );
+    ensure(
+      sequence > previousSequence,
+      "Sequência de recibos duplicada ou fora de ordem.",
+    );
+    previousSequence = sequence;
+    seen.add(sequence);
+    for (const field of ["artifact_id", "part_number", "part_hash"]) {
+      ensure(
+        (record.receipt[field] ?? null) === (entry.entry[field] ?? null),
+        `Vínculo de recibo divergente: ${field}.`,
+      );
+    }
+    const hashOnly = record.receipt.persistence_state === "hash_registered";
+    ensure(
+      custodyMode === undefined || custodyMode === hashOnly,
+      "Modos de custódia misturados.",
+    );
+    custodyMode = hashOnly;
     ensure(
       record.receipt.previous_receipt_hash === previous,
       `Cadeia de recibos diverge na sequência ${sequence}.`,
@@ -869,6 +901,12 @@ async function verifyReceiptChain(
       `Assinatura de recibo inválida na sequência ${sequence}.`,
     );
     previous = receiptHash;
+  }
+  for (const [sequence, entry] of entries) {
+    ensure(
+      entry.entry.entry_type !== "artifact_part" || seen.has(sequence),
+      `Recibo obrigatório ausente para parte na sequência ${sequence}.`,
+    );
   }
   return {
     count: records.length,
@@ -914,6 +952,19 @@ async function verifyCaptureClose(
     bytesToHex(canonicalBytes(close.artifacts)) ===
       bytesToHex(canonicalBytes(manifest.artifacts.map(closeArtifact))),
     "Artefatos do encerramento divergem do manifesto.",
+  );
+  ensure(
+    Array.isArray(close.known_gaps) &&
+      close.known_gaps.every(
+        (gap: unknown) => typeof gap === "string" && gap.trim().length > 0,
+      ),
+    "Lacunas do encerramento inválidas.",
+  );
+  ensure(
+    manifest.status !== "complete" ||
+      (close.known_gaps.length === 0 &&
+        manifest.artifacts.every((artifact) => artifact.status === "captured")),
+    "Captura completa contradiz lacunas ou artefatos ausentes.",
   );
   const signature = await readHex(
     archive,
@@ -1043,7 +1094,7 @@ async function readJson<T>(archive: Archive, path: string): Promise<T> {
     `JSON grande demais: ${path}`,
   );
   try {
-    const value: unknown = JSON.parse(decoder.decode(content));
+    const value: unknown = parseStrictJson(decoder.decode(content));
     validateJsonComplexity(value);
     return value as T;
   } catch (error) {
@@ -1063,7 +1114,7 @@ async function readJsonLines<T>(archive: Archive, path: string): Promise<T[]> {
       .split("\n")
       .filter((line) => line.length > 0)
       .map((line) => {
-        const value: unknown = JSON.parse(line);
+        const value: unknown = parseStrictJson(line);
         validateJsonComplexity(value);
         return value as T;
       });

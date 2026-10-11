@@ -1,0 +1,20 @@
+[
+  {"name":"top-level duplicate","json":"{\"id\":1,\"id\":2}","valid":false},
+  {"name":"nested duplicate","json":"{\"nested\":{\"id\":1,\"id\":2}}","valid":false},
+  {"name":"array duplicate","json":"[{\"id\":1,\"id\":2}]","valid":false},
+  {"name":"escaped duplicate","json":"{\"id\":1,\"\\u0069d\":2}","valid":false},
+  {"name":"escaped backslash duplicate","json":"{\"a\\\\b\":1,\"a\\u005cb\":2}","valid":false},
+  {"name":"prototype duplicate","json":"{\"__proto__\":1,\"__proto__\":2}","valid":false},
+  {"name":"empty key duplicate","json":"{\"\":1,\"\":2}","valid":false},
+  {"name":"same value duplicate","json":"{\"id\":1,\"id\":1}","valid":false},
+  {"name":"separate objects","json":"[{\"id\":1},{\"id\":2}]","valid":true},
+  {"name":"nested reuse","json":"{\"id\":1,\"nested\":{\"id\":2}}","valid":true},
+  {"name":"strings are not keys","json":"{\"id\":\"id\",\"text\":\"{\\\"id\\\":1,\\\"id\\\":2}\"}","valid":true},
+  {"name":"scalar","json":"1.25e-2","valid":true},
+  {"name":"primitives","json":"[true,false,null,-1,\"x\\\"y\"]","valid":true},
+  {"name":"prototype as ordinary property","json":"{\"__proto__\":{\"safe\":true}}","valid":true},
+  {"name":"trailing document","json":"{}{}","valid":false},
+  {"name":"trailing comma","json":"{\"id\":1,}","valid":false},
+  {"name":"unclosed string","json":"{\"id\":\"x}","valid":false},
+  {"name":"invalid number","json":"NaN","valid":false}
+]

@@ -193,5 +193,7 @@
   "statusInterrupted": { "message": "Interrompida" },
   "statusError": { "message": "Erro" },
   "loading": { "message": "Carregando…" },
-  "working": { "message": "Processando…" }
+  "working": { "message": "Processando…" },
+  "termsAcceptance": { "message": "Li e aceito os Termos de Uso." },
+  "readTerms": { "message": "Ler Termos de Uso (português, abre em nova aba)" }
 }

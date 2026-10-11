@@ -8,8 +8,8 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use chitaozinho_protocol::{
     ATTESTATION_DOMAIN, CAPTURE_CLOSE_DOMAIN, ENTRY_DOMAIN, KEY_CERTIFICATE_DOMAIN,
     KEY_REVOCATION_LIST_DOMAIN, MANIFEST_DOMAIN, PACKAGE_INDEX_DOMAIN, PROOF_BUNDLE_INDEX_DOMAIN,
-    RECEIPT_DOMAIN, base64url_decode, canonical_bytes, sha256_identifier, sign_canonical,
-    verify_canonical,
+    RECEIPT_DOMAIN, base64url_decode, canonical_bytes, parse_strict_json, sha256_identifier,
+    sign_canonical, verify_canonical,
 };
 use chrono::{SecondsFormat, Utc};
 use ed25519_dalek::SigningKey;
@@ -301,8 +301,8 @@ pub fn pack(source: &Path, output: &Path, server_seed: &[u8; 32]) -> Result<Pack
     let manifest_path = temporary.path().join(MANIFEST_PATH);
     let manifest_bytes = fs::read(&manifest_path)
         .with_context(|| format!("read required {}", manifest_path.display()))?;
-    let manifest: CaptureManifest =
-        serde_json::from_slice(&manifest_bytes).context("parse capture manifest")?;
+    let manifest: CaptureManifest = serde_json::from_value(parse_strict_json(&manifest_bytes)?)
+        .context("parse capture manifest")?;
     validate_manifest_header(&manifest)?;
 
     let public_keys_path = temporary.path().join(PUBLIC_KEYS_PATH);
@@ -318,7 +318,7 @@ pub fn pack(source: &Path, output: &Path, server_seed: &[u8; 32]) -> Result<Pack
     );
 
     let canonical_manifest: serde_json::Value =
-        serde_json::from_slice(&manifest_bytes).context("parse manifest for signing")?;
+        parse_strict_json(&manifest_bytes).context("parse manifest for signing")?;
     let manifest_signature = sign_canonical(MANIFEST_DOMAIN, &canonical_manifest, server_seed)?;
     write_hex_file(
         &temporary.path().join(MANIFEST_SIGNATURE_PATH),
@@ -516,10 +516,10 @@ fn verify_internal(
             "artifact_hashes",
             "entry_chain",
             "receipt_chain",
-            if hash_only {
-                "hash_only_custody"
-            } else {
-                "remote_custody_receipts"
+            match hash_only {
+                Some(true) => "hash_only_custody",
+                Some(false) => "remote_custody_receipts",
+                None => "no_artifact_custody_receipts",
             },
             "capture_close_signature",
             if proof_result.is_some() {
@@ -804,8 +804,17 @@ fn verify_capture_close(
         "capture close client public key does not match packaged key"
     );
     ensure!(
-        close.known_gaps.iter().all(|gap| !gap.is_empty()),
+        close.known_gaps.iter().all(|gap| !gap.trim().is_empty()),
         "capture close contains an empty known gap"
+    );
+    ensure!(
+        manifest.status != "complete"
+            || (close.known_gaps.is_empty()
+                && manifest
+                    .artifacts
+                    .iter()
+                    .all(|artifact| artifact.status == "captured")),
+        "complete capture contradicts known gaps or unavailable artifacts"
     );
     let signature = read_hex_array::<64>(&signature_path)?;
     verify_canonical(CAPTURE_CLOSE_DOMAIN, &close_value, &signature, &public_key)
@@ -816,7 +825,7 @@ fn verify_chain(
     root: &Path,
     manifest: &CaptureManifest,
     public_keys: &PublicKeys,
-) -> Result<BTreeMap<u64, String>> {
+) -> Result<BTreeMap<u64, ChainRecord>> {
     let records: Vec<ChainRecord> = read_json_lines(&root.join(ENTRIES_PATH))?;
     ensure!(
         records.len() as u64 == manifest.chain.entry_count,
@@ -847,9 +856,7 @@ fn verify_chain(
         verify_canonical(ENTRY_DOMAIN, &record.entry, &signature, &client_key)
             .with_context(|| format!("invalid entry signature at sequence {sequence}"))?;
         ensure!(
-            by_sequence
-                .insert(sequence, record.entry_hash.clone())
-                .is_none(),
+            by_sequence.insert(sequence, record.clone()).is_none(),
             "duplicate entry sequence"
         );
         previous = Some(record.entry_hash.clone());
@@ -867,17 +874,18 @@ fn verify_chain(
 
 fn verify_receipts(
     root: &Path,
-    entries: &BTreeMap<u64, String>,
+    entries: &BTreeMap<u64, ChainRecord>,
     public_keys: &PublicKeys,
-) -> Result<bool> {
+) -> Result<Option<bool>> {
     let records: Vec<ReceiptRecord> = read_json_lines(&root.join(RECEIPTS_PATH))?;
     let server_key = decode_array::<32>(&public_keys.server.public_key_hex, "server public key")?;
     let mut previous: Option<String> = None;
-    let mut hash_only = false;
+    let mut seen = BTreeSet::new();
+    let mut previous_sequence = None;
+    let mut custody_mode = None;
     for record in records {
         let version = json_string(&record.receipt, "protocol_version")?;
         let custody = json_string(&record.receipt, "persistence_state")?;
-        hash_only |= custody == "hash_registered";
         ensure!(
             (version == "0.2.0" && custody == "hash_registered")
                 || (version == "0.1.0"
@@ -887,9 +895,39 @@ fn verify_receipts(
         let sequence = json_u64(&record.receipt, "sequence")?;
         let entry_hash = json_string(&record.receipt, "entry_hash")?;
         ensure!(
-            entries.get(&sequence).map(String::as_str) == Some(entry_hash),
+            entries
+                .get(&sequence)
+                .map(|entry| entry.entry_hash.as_str())
+                == Some(entry_hash),
             "receipt references unknown entry"
         );
+        let entry = &entries[&sequence].entry;
+        ensure!(
+            record.receipt.get("session_id") == entry.get("session_id"),
+            "receipt session mismatch"
+        );
+        ensure!(
+            previous_sequence.is_none_or(|last| sequence > last),
+            "receipt sequence duplicated or out of order"
+        );
+        previous_sequence = Some(sequence);
+        seen.insert(sequence);
+        for field in ["artifact_id", "part_number", "part_hash"] {
+            ensure!(
+                record
+                    .receipt
+                    .get(field)
+                    .unwrap_or(&serde_json::Value::Null)
+                    == entry.get(field).unwrap_or(&serde_json::Value::Null),
+                "receipt binding mismatch: {field}"
+            );
+        }
+        let mode = custody == "hash_registered";
+        ensure!(
+            custody_mode.is_none_or(|previous| previous == mode),
+            "mixed receipt custody modes"
+        );
+        custody_mode = Some(mode);
         match (&previous, record.receipt.get("previous_receipt_hash")) {
             (None, Some(serde_json::Value::Null)) => {}
             (Some(expected), Some(serde_json::Value::String(actual))) if expected == actual => {}
@@ -905,7 +943,18 @@ fn verify_receipts(
             .with_context(|| format!("invalid receipt signature at sequence {sequence}"))?;
         previous = Some(record.receipt_hash);
     }
-    Ok(hash_only)
+    for (sequence, entry) in entries {
+        ensure!(
+            entry
+                .entry
+                .get("entry_type")
+                .and_then(serde_json::Value::as_str)
+                != Some("artifact_part")
+                || seen.contains(sequence),
+            "missing required part receipt at sequence {sequence}"
+        );
+    }
+    Ok(custody_mode)
 }
 
 fn verify_manifest_artifacts(root: &Path, manifest: &CaptureManifest) -> Result<()> {
@@ -1444,7 +1493,8 @@ fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T> {
         path.display()
     );
     let bytes = fs::read(path).with_context(|| format!("read {}", path.display()))?;
-    serde_json::from_slice(&bytes).with_context(|| format!("parse {}", path.display()))
+    serde_json::from_value(parse_strict_json(&bytes)?)
+        .with_context(|| format!("parse {}", path.display()))
 }
 
 fn read_json_lines<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Vec<T>> {
@@ -1461,7 +1511,7 @@ fn read_json_lines<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Vec<T>> 
         .map(|(index, line)| {
             let line = line?;
             ensure!(!line.trim().is_empty(), "blank JSONL line at {}", index + 1);
-            serde_json::from_str(&line)
+            serde_json::from_value(parse_strict_json(line.as_bytes())?)
                 .with_context(|| format!("parse {} line {}", path.display(), index + 1))
         })
         .collect()
@@ -2221,6 +2271,240 @@ mod tests {
 
         let error = pack(&source, &package_path, &seed).unwrap_err().to_string();
         assert!(error.contains("entry sequence has a gap"), "{error}");
+    }
+
+    // Adversarial regression guards, including correctly signed but inconsistent packages.
+    // These cases assume a faulty/compromised producer, not a keyless ZIP editor.
+    #[test]
+    fn adversarial_audit_rejects_complete_with_signed_gap() {
+        let temporary = tempfile::tempdir().unwrap();
+        let source = temporary.path().join("source");
+        let seed = [41_u8; 32];
+        let key = SigningKey::from_bytes(&seed).verifying_key().to_bytes();
+        create_fixture(&source, &seed, &key);
+        let path = source.join("chain/capture-close.json");
+        let mut close: serde_json::Value = read_json(&path).unwrap();
+        close["known_gaps"] = json!(["Main DOM unavailable"]);
+        fs::write(&path, canonical_bytes(&close).unwrap()).unwrap();
+        write_hex_file(
+            &source.join("signatures/capture-close.client.sig"),
+            &sign_canonical(CAPTURE_CLOSE_DOMAIN, &close, &seed).unwrap(),
+        )
+        .unwrap();
+        let output = temporary.path().join("gap.zip");
+        assert!(pack(&source, &output, &seed).is_err());
+        audit_pack_unchecked(&source, &output, &seed);
+        assert!(
+            verify(&output, &key)
+                .unwrap_err()
+                .to_string()
+                .contains("complete capture contradicts")
+        );
+    }
+
+    #[test]
+    fn adversarial_audit_rejects_empty_receipts() {
+        let temporary = tempfile::tempdir().unwrap();
+        let source = temporary.path().join("source");
+        let seed = [42_u8; 32];
+        let key = SigningKey::from_bytes(&seed).verifying_key().to_bytes();
+        create_fixture(&source, &seed, &key);
+        fs::write(source.join(RECEIPTS_PATH), b"").unwrap();
+        let output = temporary.path().join("no-receipts.zip");
+        assert!(pack(&source, &output, &seed).is_err());
+        audit_pack_unchecked(&source, &output, &seed);
+        assert!(
+            verify(&output, &key)
+                .unwrap_err()
+                .to_string()
+                .contains("missing required part receipt")
+        );
+    }
+
+    #[test]
+    fn adversarial_audit_rejects_receipt_naming_another_session() {
+        let temporary = tempfile::tempdir().unwrap();
+        let source = temporary.path().join("source");
+        let seed = [43_u8; 32];
+        let key = SigningKey::from_bytes(&seed).verifying_key().to_bytes();
+        create_fixture(&source, &seed, &key);
+        let mut records: Vec<ReceiptRecord> = read_json_lines(&source.join(RECEIPTS_PATH)).unwrap();
+        records[0].receipt["session_id"] = json!("foreign-session");
+        records[0].receipt_hash = sha256_identifier(&canonical_bytes(&records[0].receipt).unwrap());
+        records[0].signature_hex =
+            hex::encode(sign_canonical(RECEIPT_DOMAIN, &records[0].receipt, &seed).unwrap());
+        write_json_lines(&source.join(RECEIPTS_PATH), &records);
+        let output = temporary.path().join("foreign-receipt.zip");
+        assert!(pack(&source, &output, &seed).is_err());
+        audit_pack_unchecked(&source, &output, &seed);
+        assert!(
+            verify(&output, &key)
+                .unwrap_err()
+                .to_string()
+                .contains("receipt session mismatch")
+        );
+    }
+
+    #[test]
+    fn adversarial_audit_rejects_duplicate_index_json_key() {
+        let temporary = tempfile::tempdir().unwrap();
+        let source = temporary.path().join("source");
+        let seed = [44_u8; 32];
+        let key = SigningKey::from_bytes(&seed).verifying_key().to_bytes();
+        create_fixture(&source, &seed, &key);
+        let original = temporary.path().join("original.zip");
+        pack(&source, &original, &seed).unwrap();
+        let extracted = extract_safely(&original).unwrap();
+        let index_path = extracted.path().join(PACKAGE_INDEX_PATH);
+        let original_json = fs::read_to_string(&index_path).unwrap();
+        fs::write(
+            &index_path,
+            format!(
+                "{{\"session_id\":\"forged-first-value\",{}",
+                &original_json[1..]
+            ),
+        )
+        .unwrap();
+        let altered = temporary.path().join("duplicate-key.zip");
+        create_zip(extracted.path(), &altered).unwrap();
+        let error = verify(&altered, &key).unwrap_err();
+        assert!(format!("{error:#}").contains("duplicate JSON key"));
+    }
+
+    // Deliberately bypass producer validation to test the independent verifier.
+    fn audit_pack_unchecked(source: &Path, output: &Path, seed: &[u8; 32]) {
+        let manifest: serde_json::Value = read_json(&source.join(MANIFEST_PATH)).unwrap();
+        write_hex_file(
+            &source.join(MANIFEST_SIGNATURE_PATH),
+            &sign_canonical(MANIFEST_DOMAIN, &manifest, seed).unwrap(),
+        )
+        .unwrap();
+        let index = PackageIndex {
+            schema_version: "0.1.0".to_owned(),
+            session_id: "session-test".to_owned(),
+            created_at: Utc::now().to_rfc3339(),
+            members: collect_members(source, &[PACKAGE_INDEX_PATH, PACKAGE_INDEX_SIGNATURE_PATH])
+                .unwrap(),
+        };
+        fs::write(
+            source.join(PACKAGE_INDEX_PATH),
+            canonical_bytes(&index).unwrap(),
+        )
+        .unwrap();
+        write_hex_file(
+            &source.join(PACKAGE_INDEX_SIGNATURE_PATH),
+            &sign_canonical(PACKAGE_INDEX_DOMAIN, &index, seed).unwrap(),
+        )
+        .unwrap();
+        create_zip(source, output).unwrap();
+    }
+
+    #[test]
+    fn second_round_receipt_attacks() {
+        let temporary = tempfile::tempdir().unwrap();
+        let source = temporary.path().join("source");
+        let seed = [45_u8; 32];
+        let key = SigningKey::from_bytes(&seed).verifying_key().to_bytes();
+        create_fixture(&source, &seed, &key);
+        let template: ChainRecord = read_json_lines(&source.join(ENTRIES_PATH))
+            .unwrap()
+            .remove(0);
+        let receipt_template: ReceiptRecord = read_json_lines(&source.join(RECEIPTS_PATH))
+            .unwrap()
+            .remove(0);
+        let keys: PublicKeys = read_json(&source.join(PUBLIC_KEYS_PATH)).unwrap();
+        let mut entries = BTreeMap::new();
+        let mut receipts = Vec::new();
+        for sequence in 0..3 {
+            let mut entry = template.clone();
+            entry.entry["sequence"] = json!(sequence);
+            entry.entry["part_number"] = json!(sequence);
+            entry.entry_hash = sha256_identifier(&canonical_bytes(&entry.entry).unwrap());
+            let mut receipt = receipt_template.receipt.clone();
+            receipt["sequence"] = json!(sequence);
+            receipt["part_number"] = json!(sequence);
+            receipt["entry_hash"] = json!(entry.entry_hash);
+            entries.insert(sequence, entry);
+            receipts.push(ReceiptRecord {
+                receipt,
+                receipt_hash: String::new(),
+                signature_hex: String::new(),
+            });
+        }
+        fn resign(records: &mut [ReceiptRecord], seed: &[u8; 32]) {
+            let mut previous = None;
+            for record in records {
+                record.receipt["previous_receipt_hash"] = json!(previous);
+                record.receipt_hash = sha256_identifier(&canonical_bytes(&record.receipt).unwrap());
+                record.signature_hex =
+                    hex::encode(sign_canonical(RECEIPT_DOMAIN, &record.receipt, seed).unwrap());
+                previous = Some(record.receipt_hash.clone());
+            }
+        }
+        resign(&mut receipts, &seed);
+        write_json_lines(&source.join(RECEIPTS_PATH), &receipts);
+        assert_eq!(
+            verify_receipts(&source, &entries, &keys).unwrap(),
+            Some(false)
+        );
+        for attack in [
+            "prefix",
+            "suffix",
+            "middle",
+            "duplicate",
+            "reorder",
+            "mixed",
+            "artifact_id",
+            "part_number",
+            "part_hash",
+        ] {
+            let mut altered: Vec<ReceiptRecord> =
+                read_json_lines(&source.join(RECEIPTS_PATH)).unwrap();
+            match attack {
+                "prefix" => {
+                    altered.remove(0);
+                }
+                "suffix" => {
+                    altered.pop();
+                }
+                "middle" => {
+                    altered.remove(1);
+                }
+                "duplicate" => {
+                    altered.insert(
+                        1,
+                        ReceiptRecord {
+                            receipt: altered[0].receipt.clone(),
+                            receipt_hash: String::new(),
+                            signature_hex: String::new(),
+                        },
+                    );
+                }
+                "reorder" => altered.swap(0, 1),
+                "mixed" => {
+                    altered[1].receipt["protocol_version"] = json!("0.2.0");
+                    altered[1].receipt["persistence_state"] = json!("hash_registered");
+                }
+                field => altered[1].receipt[field] = json!("forged"),
+            }
+            resign(&mut altered, &seed);
+            write_json_lines(&source.join(RECEIPTS_PATH), &altered);
+            assert!(
+                verify_receipts(&source, &entries, &keys).is_err(),
+                "accepted {attack}"
+            );
+            write_json_lines(&source.join(RECEIPTS_PATH), &receipts);
+        }
+        for record in &mut receipts {
+            record.receipt["protocol_version"] = json!("0.2.0");
+            record.receipt["persistence_state"] = json!("hash_registered");
+        }
+        resign(&mut receipts, &seed);
+        write_json_lines(&source.join(RECEIPTS_PATH), &receipts);
+        assert_eq!(
+            verify_receipts(&source, &entries, &keys).unwrap(),
+            Some(true)
+        );
     }
 
     fn create_fixture(source: &Path, seed: &[u8; 32], public_key: &[u8; 32]) {

@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-test("the public domain renders the accessible construction page", async ({
+test("the canonical domain renders the complete accessible site", async ({
   browser,
 }) => {
   for (const viewport of [
@@ -22,28 +22,13 @@ test("the public domain renders the accessible construction page", async ({
     });
     await page.addInitScript({ content: AxeBuilder.source });
     await page.goto("https://evidencias.org.br/");
-
-    await expect(page).toHaveTitle("Evidências — em construção");
-    await expect(
-      page.getByRole("heading", { name: "Evidências", level: 1 }),
-    ).toBeVisible();
-    await expect(page.getByText("SITE EM CONSTRUÇÃO")).toBeVisible();
-    await expect(
-      page.getByRole("img", { name: /Placa animada/ }),
-    ).toBeVisible();
-    await expect(page.locator('a[href*="beta.evidencias.org.br"]')).toHaveCount(
-      0,
-    );
-    await expect(page.locator("html")).not.toContainText(
-      "beta.evidencias.org.br",
-    );
-    await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
-      "content",
-      "noindex, nofollow, noarchive, nosnippet",
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(
+      "Registre evidências digitais",
     );
     await expect(
-      page.getByRole("link", { name: "Política de privacidade" }),
-    ).toHaveAttribute("href", "/privacidade");
+      page.getByText("SITE EM CONSTRUÇÃO", { exact: true }),
+    ).toHaveCount(0);
+    await expect(page.locator(".home")).not.toContainText(/beta/i);
     expect(
       await page.evaluate(
         () =>
@@ -57,20 +42,19 @@ test("the public domain renders the accessible construction page", async ({
       }),
     );
     expect(result.violations).toEqual([]);
-
+    await page
+      .locator(".hero-actions")
+      .getByRole("button", { name: "Verificar evidência" })
+      .click();
+    await expect(page).toHaveURL("https://evidencias.org.br/validar");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+      "Valide um pacote de evidências",
+    );
     await page.getByRole("link", { name: "Política de privacidade" }).click();
     await expect(page).toHaveURL("https://evidencias.org.br/privacidade");
-    await expect(
-      page.getByRole("heading", { name: "Política de privacidade", level: 1 }),
-    ).toBeVisible();
-    await expect(page.locator('a[href*="beta.evidencias.org.br"]')).toHaveCount(
-      0,
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+      "Política de privacidade",
     );
-
-    const robotsResponse = await page.request.get(
-      "http://127.0.0.1:4174/robots.txt",
-    );
-    expect(await robotsResponse.text()).toBe("User-agent: *\nDisallow: /\n");
     await context.close();
   }
 });
@@ -98,7 +82,7 @@ test("Evidências presents the electoral project and separates capture from vali
   await expect(page.locator(".beta-notice")).toContainText(
     "Não guardamos uma cópia para recuperação no servidor.",
   );
-  await expect(page.locator(".extension-note")).toContainText("Versão 0.1.6");
+  await expect(page.locator(".extension-note")).toContainText("Versão 0.1.9");
   await expect(page.locator("main")).not.toContainText("30 dias");
   await page
     .locator(".hero-actions")
@@ -112,17 +96,17 @@ test("Evidências presents the electoral project and separates capture from vali
   await expect(page.locator(".home-hero")).toBeVisible();
 });
 
-test("beta download and keyboard installation instructions work", async ({
+test("extension download and keyboard installation instructions work", async ({
   page,
 }) => {
   for (const route of ["/"]) {
     await page.goto(route);
     const download = page.getByRole("link", {
-      name: "Baixar extensão beta · ZIP",
+      name: "Baixar extensão · ZIP",
     });
     await expect(download).toHaveAttribute(
       "href",
-      "https://github.com/pmarkun/chitaozinho/releases/download/v0.1.6/chitaozinho-extension-0.1.6.zip",
+      "https://github.com/pmarkun/chitaozinho/releases/download/v0.1.9/chitaozinho-extension-0.1.9.zip",
     );
     const instructions = page.locator(".extension-download summary");
     await instructions.focus();

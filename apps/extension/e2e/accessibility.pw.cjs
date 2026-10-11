@@ -26,7 +26,66 @@ const baseCapture = {
   captureFinished: false,
 };
 
-test("anonymous beta opens directly without requesting email", async ({
+test("capture requires separate consent and acceptance of the current terms", async ({
+  browser,
+}) => {
+  const page = await scenarioPage(
+    browser,
+    { authenticated: true, capture: null },
+    { width: 360, height: 420 },
+  );
+  await page.getByRole("button", { name: messages.newEvidence }).click();
+  const start = page.getByRole("button", {
+    name: messages.startCapture,
+    exact: true,
+  });
+  const consent = page.getByRole("checkbox", {
+    name: messages.captureConsent,
+    exact: true,
+  });
+  const terms = page.getByRole("checkbox", {
+    name: messages.termsAcceptance,
+    exact: true,
+  });
+  await expect(start).toBeDisabled();
+  await consent.check();
+  await expect(start).toBeDisabled();
+  await terms.check();
+  await expect(start).toBeEnabled();
+  await consent.uncheck();
+  await expect(start).toBeDisabled();
+  await consent.check();
+  await terms.uncheck();
+  await expect(start).toBeDisabled();
+  const [termsPage] = await Promise.all([
+    page.context().waitForEvent("page"),
+    page.getByRole("link", { name: messages.readTerms }).click(),
+  ]);
+  await expect(termsPage).toHaveTitle("Termos de Uso — Evidências");
+  await expect(termsPage.locator("main ol li")).toHaveCount(4);
+  await audit(termsPage, "offline terms");
+  await termsPage.close();
+  await terms.focus();
+  await page.keyboard.press("Space");
+  await expect(terms).toBeChecked();
+  await start.click();
+  expect(
+    await page.evaluate(() =>
+      globalThis.sentMessages.find(
+        (message) => message.type === "START_CAPTURE",
+      ),
+    ),
+  ).toMatchObject({ consent: true, termsVersion: "2026-10-01" });
+  await page.getByRole("button", { name: messages.newEvidence }).click();
+  await expect(
+    page.getByRole("checkbox", { name: messages.termsAcceptance, exact: true }),
+  ).not.toBeChecked();
+  await expect(start).toBeDisabled();
+  await audit(page, "terms acceptance in short popup");
+  await page.context().close();
+});
+
+test("anonymous capture opens directly without requesting email", async ({
   browser,
 }) => {
   test.skip(process.env.CHITAOZINHO_E2E_AUTH_MODE !== "anonymous");
@@ -89,6 +148,7 @@ test("login and authenticated navigation have no automatic WCAG violations", asy
 test("beta warning remains visible without horizontal overflow in a short popup", async ({
   browser,
 }) => {
+  test.skip(process.env.CHITAOZINHO_E2E_ENVIRONMENT === "production");
   const page = await scenarioPage(
     browser,
     { authenticated: false },
@@ -98,6 +158,26 @@ test("beta warning remains visible without horizontal overflow in a short popup"
   await expect(page.getByText(messages.betaRetention)).toBeVisible();
   await expect(page.getByText(messages.betaNoImmutability)).toBeVisible();
   await audit(page, "short beta login");
+  await page.context().close();
+});
+
+test("production keeps local-custody warnings without beta branding", async ({
+  browser,
+}) => {
+  test.skip(process.env.CHITAOZINHO_E2E_ENVIRONMENT !== "production");
+  const page = await scenarioPage(
+    browser,
+    { authenticated: false, capture: null },
+    { width: 360, height: 420 },
+  );
+  await expect(page.getByText(messages.betaTitle)).toHaveCount(0);
+  await expect(page.getByText(messages.betaRetention)).toHaveCount(0);
+  await expect(page.getByText(messages.hashOnlyNotice)).toBeVisible();
+  await expect(page.getByText(messages.betaNoImmutability)).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: messages.emailLabel }),
+  ).toHaveCount(0);
+  await audit(page, "short production popup");
   await page.context().close();
 });
 
@@ -256,6 +336,7 @@ async function scenarioPage(
   });
   await context.addInitScript(
     ({ localizedMessages, state }) => {
+      globalThis.sentMessages = [];
       globalThis.chrome = {
         i18n: {
           getUILanguage: () => "pt-BR",
@@ -263,6 +344,7 @@ async function scenarioPage(
         },
         runtime: {
           sendMessage: async (message) => {
+            globalThis.sentMessages.push(message);
             if (message.type === "GET_STATE") {
               return { ok: true, result: state.capture ?? null };
             }

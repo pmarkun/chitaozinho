@@ -17,6 +17,7 @@ const dirty = git([
   "--",
   "apps/extension",
   "packages/protocol-ts",
+  "packages/project-content",
   "pnpm-lock.yaml",
 ]);
 const buildIdentity = {
@@ -29,6 +30,8 @@ const buildIdentity = {
     resolve(extensionRoot, "offscreen.html"),
     resolve(extensionRoot, "microphone.html"),
     resolve(extensionRoot, "popup.html"),
+    resolve(extensionRoot, "terms.html"),
+    resolve(repositoryRoot, "packages/project-content/terms.json"),
     resolve(extensionRoot, "package.json"),
     resolve(repositoryRoot, "packages/protocol-ts/src"),
     resolve(repositoryRoot, "pnpm-lock.yaml"),
@@ -37,12 +40,11 @@ const buildIdentity = {
 const endpoints = {
   api: process.env.CHITAOZINHO_API_BASE_URL ?? "http://127.0.0.1:8000",
   verifier:
-    process.env.CHITAOZINHO_VERIFIER_URL ??
-    "https://beta.evidencias.org.br/validar",
+    process.env.CHITAOZINHO_VERIFIER_URL ?? "https://evidencias.org.br/validar",
   environment: process.env.CHITAOZINHO_ENVIRONMENT ?? "desenvolvimento",
   authMode:
     process.env.CHITAOZINHO_AUTH_MODE ??
-    (process.env.CHITAOZINHO_ENVIRONMENT === "beta"
+    (["beta", "production"].includes(process.env.CHITAOZINHO_ENVIRONMENT ?? "")
       ? "anonymous"
       : "development"),
 };
@@ -69,6 +71,7 @@ export default defineConfig({
         popup: resolve(import.meta.dirname, "popup.html"),
         offscreen: resolve(import.meta.dirname, "offscreen.html"),
         microphone: resolve(import.meta.dirname, "microphone.html"),
+        terms: resolve(import.meta.dirname, "terms.html"),
         background: resolve(import.meta.dirname, "src/background.ts"),
       },
       output: {

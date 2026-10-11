@@ -1,10 +1,32 @@
 # Changelog
 
+## 0.1.9 — 2026-10-10
+
+- Publica a aplicação completa em evidencias.org.br e redireciona beta e www com HTTP 308, preservando caminho e consulta.
+- Atualiza a extensão para o validador canônico, com autenticação anônima e sem identificação de beta.
+- Mantém guarda local, aviso de ausência de Object Lock e as políticas existentes de segurança e retenção.
+- Atualiza o CORS e prepara release estável assinada para a publicação na Chrome Web Store.
+- Atualiza source-map-js e Mako para corrigir GHSA-68fv-2mgg-jv7q e GHSA-5639-2j2p-m4mx, sem ignorar alertas de segurança.
+
 Mudanças relevantes do Chitãozinho são registradas aqui. As versões seguem
 [Semantic Versioning](https://semver.org/) e os artefatos publicados estão nas
 [releases do GitHub](https://github.com/pmarkun/chitaozinho/releases).
 
 ## Unreleased
+
+## 0.1.8 — 2026-10-01
+
+- Substitui a 0.1.7 após o check de segurança, preservando os créditos, logos
+  e Termos de Uso aprovados.
+- Atualiza GitPython para corrigir GHSA-59cr-6r3x-644w.
+
+## 0.1.7 — 2026-10-01
+
+- Atualiza os realizadores e a parceria com Conectas, com logos institucionais.
+- Publica os Termos de Uso no site e na página offline da extensão.
+- Exige aceite explícito da versão atual antes de cada nova captura e registra
+  a versão nos dados locais da coleta.
+- Incorpora correções de segurança do verificador já implantadas no beta.
 
 ## 0.1.6 — 2026-09-30
 

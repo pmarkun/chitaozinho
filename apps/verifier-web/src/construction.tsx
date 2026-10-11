@@ -2,6 +2,7 @@ import { useEffect } from "react";
 
 import "./construction.css";
 import { Privacy } from "./privacy";
+import { Terms } from "./terms";
 
 export function isConstructionHost(hostname: string): boolean {
   return (
@@ -81,6 +82,7 @@ export function Construction() {
       <footer className="construction-footer">
         <span>Evidências · desde 2026</span>
         <a href="/privacidade">Política de privacidade</a>
+        <a href="/termos-de-uso">Termos de Uso</a>
       </footer>
     </main>
   );
@@ -98,6 +100,25 @@ export function PublicPrivacy() {
         <a href="/">Evidências</a>
       </header>
       <Privacy />
+      <footer className="public-privacy-footer">
+        <strong>Evidências</strong>
+        <a href="/">Voltar ao início</a>
+      </footer>
+    </>
+  );
+}
+
+export function PublicTerms() {
+  usePublicSiteShell("Termos de Uso — Evidências", "#145c3d");
+  return (
+    <>
+      <a className="skip-link" href="#main-content">
+        Pular para o conteúdo
+      </a>
+      <header className="public-privacy-header">
+        <a href="/">Evidências</a>
+      </header>
+      <Terms />
       <footer className="public-privacy-footer">
         <strong>Evidências</strong>
         <a href="/">Voltar ao início</a>

@@ -16,6 +16,17 @@ limita entradas e memória; valida o conjunto exato de membros; recalcula hashes
 confere assinaturas, certificado operacional, revogações, cadeias, recibos e
 `capture_close`; e diferencia captura completa de ausências declaradas.
 
+Os verificadores rejeitam chaves JSON repetidas, inclusive nomes escapados e
+objetos internos de JSONL. Uma captura `complete` não pode declarar lacunas ou
+artefatos indisponíveis. Recibos precisam cobrir todas as entradas `artifact_part`,
+estar em ordem, usar um perfil de custódia consistente e corresponder à sessão,
+ao artefato, ao número da parte e ao hash da entrada correspondente.
+
+Na web, âncoras de confiança explicitamente informadas devem ser respeitadas.
+Certificado e lista de revogações são exigidos juntos. A ausência de recibos numa
+captura sem entradas de partes não comprova custódia. O modo `self_declared`
+confere autoconsistência, sem autenticar a origem do pacote.
+
 Complementos temporais são append-only e podem ser fornecidos sem alterar o ZIP:
 
 ```sh
