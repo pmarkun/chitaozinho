@@ -1,5 +1,6 @@
 const path = require("node:path");
 const authMode = process.env.CHITAOZINHO_E2E_AUTH_MODE ?? "magic_link";
+const environment = process.env.CHITAOZINHO_E2E_ENVIRONMENT ?? "beta";
 const port = process.env.CHITAOZINHO_EXTENSION_E2E_PORT ?? "4173";
 
 module.exports = {
@@ -15,8 +16,8 @@ module.exports = {
   webServer: {
     command:
       "CHITAOZINHO_API_BASE_URL=https://api.evidencias.org.br " +
-      "CHITAOZINHO_VERIFIER_URL=https://beta.evidencias.org.br/validar " +
-      `CHITAOZINHO_ENVIRONMENT=beta CHITAOZINHO_AUTH_MODE=${authMode} pnpm build && ` +
+      "CHITAOZINHO_VERIFIER_URL=https://evidencias.org.br/validar " +
+      `CHITAOZINHO_ENVIRONMENT=${environment} CHITAOZINHO_AUTH_MODE=${authMode} pnpm build && ` +
       `python -m http.server ${port} --bind 127.0.0.1 --directory dist`,
     cwd: __dirname,
     url: `http://127.0.0.1:${port}/popup.html`,

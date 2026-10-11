@@ -23,8 +23,9 @@ jobs:
       - name: Build release artifacts and SPDX SBOMs
         env:
           CHITAOZINHO_API_BASE_URL: https://api.evidencias.org.br
-          CHITAOZINHO_VERIFIER_URL: https://beta.evidencias.org.br/validar
-          CHITAOZINHO_ENVIRONMENT: beta
+          CHITAOZINHO_VERIFIER_URL: https://evidencias.org.br/validar
+          CHITAOZINHO_ENVIRONMENT: production
+          CHITAOZINHO_AUTH_MODE: anonymous
         run: nix develop --command ./scripts/build-release-artifacts dist/release
       - name: Sign every release artifact with GitHub OIDC
         shell: bash
@@ -47,6 +48,5 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" \
             --verify-tag \
             --generate-notes \
-            --prerelease \
             --title "Evidências ${GITHUB_REF_NAME}" \
             dist/release/*

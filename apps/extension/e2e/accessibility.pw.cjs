@@ -85,7 +85,7 @@ test("capture requires separate consent and acceptance of the current terms", as
   await page.context().close();
 });
 
-test("anonymous beta opens directly without requesting email", async ({
+test("anonymous capture opens directly without requesting email", async ({
   browser,
 }) => {
   test.skip(process.env.CHITAOZINHO_E2E_AUTH_MODE !== "anonymous");
@@ -148,6 +148,7 @@ test("login and authenticated navigation have no automatic WCAG violations", asy
 test("beta warning remains visible without horizontal overflow in a short popup", async ({
   browser,
 }) => {
+  test.skip(process.env.CHITAOZINHO_E2E_ENVIRONMENT === "production");
   const page = await scenarioPage(
     browser,
     { authenticated: false },
@@ -157,6 +158,26 @@ test("beta warning remains visible without horizontal overflow in a short popup"
   await expect(page.getByText(messages.betaRetention)).toBeVisible();
   await expect(page.getByText(messages.betaNoImmutability)).toBeVisible();
   await audit(page, "short beta login");
+  await page.context().close();
+});
+
+test("production keeps local-custody warnings without beta branding", async ({
+  browser,
+}) => {
+  test.skip(process.env.CHITAOZINHO_E2E_ENVIRONMENT !== "production");
+  const page = await scenarioPage(
+    browser,
+    { authenticated: false, capture: null },
+    { width: 360, height: 420 },
+  );
+  await expect(page.getByText(messages.betaTitle)).toHaveCount(0);
+  await expect(page.getByText(messages.betaRetention)).toHaveCount(0);
+  await expect(page.getByText(messages.hashOnlyNotice)).toBeVisible();
+  await expect(page.getByText(messages.betaNoImmutability)).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: messages.emailLabel }),
+  ).toHaveCount(0);
+  await audit(page, "short production popup");
   await page.context().close();
 });
 

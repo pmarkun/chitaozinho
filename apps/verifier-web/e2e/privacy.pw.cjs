@@ -136,7 +136,7 @@ for (const [name, engine] of Object.entries({ chromium, firefox, webkit })) {
   }
 }
 
-test("terms are readable on the public construction host", async ({ page }) => {
+test("terms are readable on the canonical public host", async ({ page }) => {
   await page.route("https://evidencias.org.br/**", async (route) => {
     const url = new URL(route.request().url());
     const response = await route.fetch({
@@ -147,11 +147,12 @@ test("terms are readable on the public construction host", async ({ page }) => {
   await page.goto("https://evidencias.org.br/termos-de-uso");
   await expect(page).toHaveTitle("Termos de Uso — Evidências");
   await expect(page.locator("main ol li")).toHaveCount(4);
-  await page.getByRole("link", { name: "Voltar ao início" }).click();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-    "Evidências",
+  await page.getByRole("button", { name: "Início", exact: true }).click();
+  await expect(page).toHaveURL("https://evidencias.org.br/");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(
+    "Registre evidências digitais",
   );
   await expect(
     page.getByText("SITE EM CONSTRUÇÃO", { exact: true }),
-  ).toBeVisible();
+  ).toHaveCount(0);
 });
