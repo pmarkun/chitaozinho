@@ -5,7 +5,7 @@ requires-python = ">=3.13"
 dependencies = []
 
 [tool.uv]
-constraint-dependencies = ["urllib3>=2.8.0", "gitpython>=3.1.62"]
+constraint-dependencies = ["urllib3>=2.8.0", "gitpython>=3.1.62", "mako>=1.4.2"]
 
 [tool.uv.workspace]
 members = [

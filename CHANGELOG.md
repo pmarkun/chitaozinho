@@ -6,6 +6,7 @@
 - Atualiza a extensão para o validador canônico, com autenticação anônima e sem identificação de beta.
 - Mantém guarda local, aviso de ausência de Object Lock e as políticas existentes de segurança e retenção.
 - Atualiza o CORS e prepara release estável assinada para a publicação na Chrome Web Store.
+- Atualiza source-map-js e Mako para corrigir GHSA-68fv-2mgg-jv7q e GHSA-5639-2j2p-m4mx, sem ignorar alertas de segurança.
 
 Mudanças relevantes do Chitãozinho são registradas aqui. As versões seguem
 [Semantic Versioning](https://semver.org/) e os artefatos publicados estão nas
