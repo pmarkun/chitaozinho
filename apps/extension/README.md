@@ -15,6 +15,13 @@ For the POC, open `chrome://extensions`, enable developer mode, choose
 The popup and manifest use Chrome's native locale selection, with pt-BR as the
 default and an equivalent English catalog.
 
+Starting a new capture requires separate capture consent and explicit acceptance
+of the current Terms of Use. `terms.html` includes the full approved Portuguese
+text offline, sourced from `packages/project-content/terms.json` along with the
+website. The background rejects missing/obsolete versions; the local signed
+`capture_started` event records acceptance and the terms version. Acceptance is
+reset for each new capture, without changing existing session formats.
+
 Capture records video and output audio from the selected Chrome tab, not the
 whole computer or microphone. An AudioContext restores local tab playback while
 MediaRecorder keeps the original audio/video stream. Playback resources and

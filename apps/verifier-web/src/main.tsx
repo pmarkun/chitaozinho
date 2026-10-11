@@ -8,25 +8,23 @@ import {
 } from "./validator";
 import "./styles.css";
 import { Privacy } from "./privacy";
-import {
-  Construction,
-  isConstructionHost,
-  PublicPrivacy,
-} from "./construction";
+import { Terms } from "./terms";
 
 const PROOF_API_BASE_URL =
   import.meta.env.VITE_PROOF_API_BASE_URL ?? "https://api.evidencias.org.br";
 
-type Page = "home" | "verify" | "methodology" | "privacy";
+type Page = "home" | "verify" | "methodology" | "privacy" | "terms";
 
 const routes: Record<Page, string> = {
   home: "/",
   verify: "/validar",
   methodology: "/metodologia",
   privacy: "/privacidade",
+  terms: "/termos-de-uso",
 };
 
 function pageFromPath(): Page {
+  if (location.pathname.startsWith("/termos-de-uso")) return "terms";
   if (location.pathname.startsWith("/privacidade")) return "privacy";
   if (location.pathname.startsWith("/validar")) return "verify";
   if (location.pathname.startsWith("/metodologia")) return "methodology";
@@ -34,16 +32,10 @@ function pageFromPath(): Page {
 }
 
 function App() {
-  if (isConstructionHost(location.hostname)) {
-    if (location.pathname.startsWith("/privacidade")) {
-      return <PublicPrivacy />;
-    }
-    return <Construction />;
-  }
-  return <BetaApp />;
+  return <SiteApp />;
 }
 
-function BetaApp() {
+function SiteApp() {
   const [page, setPage] = useState<Page>(pageFromPath);
 
   useEffect(() => {
@@ -59,7 +51,7 @@ function BetaApp() {
   }
 
   useEffect(() => {
-    document.title = `${page === "privacy" ? "Política de privacidade" : page === "verify" ? "Validar evidência" : page === "methodology" ? "Como funciona" : "Capture e verifique"} — Evidências`;
+    document.title = `${page === "terms" ? "Termos de Uso" : page === "privacy" ? "Política de privacidade" : page === "verify" ? "Validar evidência" : page === "methodology" ? "Como funciona" : "Capture e verifique"} — Evidências`;
     document.getElementById("main-content")?.focus({ preventScroll: true });
   }, [page]);
 
@@ -94,11 +86,13 @@ function BetaApp() {
       {page === "verify" && <Verifier />}
       {page === "methodology" && <Methodology navigate={navigate} />}
       {page === "privacy" && <Privacy />}
+      {page === "terms" && <Terms />}
       <footer>
         <div>
           <strong>Evidências</strong>
           <p>Registro e verificação de evidências digitais.</p>
           <a href="/privacidade">Política de privacidade</a>
+          <a href="/termos-de-uso">Termos de Uso</a>
         </div>
       </footer>
     </>
@@ -130,14 +124,14 @@ function ExtensionDownload() {
     <section className="extension-download" aria-labelledby="extension-heading">
       <h2 id="extension-heading">Quer capturar uma evidência?</h2>
       <p>
-        Baixe a extensão beta para Chrome 116 ou superior no computador. Para
-        validar um pacote nesta página, não é preciso instalar nada.
+        Baixe a extensão para Chrome 116 ou superior no computador. Para validar
+        um pacote nesta página, não é preciso instalar nada.
       </p>
       <a
         className="primary button"
-        href="https://github.com/pmarkun/chitaozinho/releases/download/v0.1.6/chitaozinho-extension-0.1.6.zip"
+        href="https://github.com/pmarkun/chitaozinho/releases/download/v0.1.9/chitaozinho-extension-0.1.9.zip"
       >
-        Baixar extensão beta · ZIP
+        Baixar extensão · ZIP
       </a>
       <details>
         <summary>Como instalar no Chrome</summary>
@@ -166,8 +160,8 @@ function ExtensionDownload() {
         </p>
       </details>
       <p className="extension-note">
-        Versão 0.1.6 · Beta para dados não críticos. Arquivos somente no seu
-        dispositivo; o servidor registra hashes, não uma cópia dos arquivos.
+        Versão 0.1.9 · Arquivos somente no seu dispositivo; o servidor registra
+        hashes, não uma cópia dos arquivos.
       </p>
     </section>
   );
@@ -178,13 +172,13 @@ function Home({ navigate }: { navigate: (page: Page) => void }) {
     <main id="main-content" tabIndex={-1} className="home">
       <section className="home-hero">
         <div>
-          <p className="eyebrow">Registro digital · Beta</p>
+          <p className="eyebrow">Registro digital</p>
           <h1>
             Registre evidências digitais para a integridade eleitoral.
             Compartilhe registros verificáveis.
           </h1>
           <p className="hero-copy">
-            Capture conteúdos da internet relacionados à eleição com seu
+            Capture conteúdos da internet relacionados às eleições com seu
             contexto e reúna arquivos, informações da coleta e assinaturas
             digitais em um único pacote. Compartilhe esse registro para que
             outras pessoas possam conferir a integridade do registro,
@@ -243,28 +237,29 @@ function Home({ navigate }: { navigate: (page: Page) => void }) {
           O que é
         </h2>
         <p>
-          Evidências é uma extensão gratuita para o navegador. Com ela, você
-          registra evidências digitais e compartilha registros verificáveis com
-          a finalidade de defender a integridade eleitoral e reunir registros
-          para apresentar às autoridades eleitorais, para que providências sejam
-          tomadas em caso de violações da legislação e regras eleitorais
-          brasileiras.
+          Evidências é uma extensão gratuita para Chrome no computador. Com ela,
+          você registra evidências digitais e compartilha registros verificáveis
+          com a finalidade de defender a integridade eleitoral e reunir
+          registros para apresentar às autoridades eleitorais competentes, para
+          que sejam tomadas providências cabíveis diante de possíveis violações
+          da legislação e regras eleitorais brasileiras.
         </p>
         <p>
           Ela captura o conteúdo da navegação que você escolhe registrar junto
           com o contexto: de onde veio e a sequência da navegação. Tudo vira um
           único pacote, com os arquivos, as informações da coleta e as
-          assinaturas digitais. Quem recebe esse pacote pode conferir se nada
+          assinaturas digitais. Quem recebe esse pacote pode conferir se algo
           foi alterado depois do registro.
         </p>
         <p>
           A ferramenta serve para documentar casos de violência política de
           gênero nos meios digitais e outros ilícitos eleitorais, como
-          desinformação, deepfakes e anúncios ilegais, conteúdo produzido por IA
-          sem identificação, etc. Foi pensada para candidaturas, mandatos,
-          movimentos sociais, organizações de sociedade civil, jornalistas e
-          pessoas comunicadoras, e para quem acompanha e apoia a defesa de um
-          debate público justo e democrático.
+          desinformação, deepfakes e anúncios ilegais, além de conteúdo
+          produzido por IA sem identificação e outras práticas vedadas. Ela foi
+          pensada como instrumento para candidaturas, mandatos, movimentos
+          sociais, organizações de sociedade civil, jornalistas e pessoas
+          comunicadoras, e para quem acompanha e apoia a defesa de um debate
+          público justo e democrático.
         </p>
       </section>
       <section className="home-about" aria-labelledby="quem-faz">
@@ -273,16 +268,65 @@ function Home({ navigate }: { navigate: (page: Page) => void }) {
           Quem faz
         </h2>
         <p>
-          Evidências é um projeto de código aberto, realizado pela CTRL+Z, com o
-          apoio de Conectas Direitos Humanos.
+          Evidências é um projeto de código aberto, realizado pela CTRL+Z,
+          Coding Rights, Instituto da Hora, Sleeping Giants e Neisser &amp;
+          Advogados Associados, em parceria com a Conectas Direitos Humanos.
         </p>
+        <ul className="organization-logos" aria-label="Realizadores">
+          <li>
+            <img src="/logos/ctrlz.png" alt="CTRL+Z" width="180" height="100" />
+          </li>
+          <li>
+            <img
+              src="/logos/coding-rights.jpg"
+              alt="Coding Rights"
+              width="180"
+              height="100"
+            />
+          </li>
+          <li>
+            <img
+              src="/logos/instituto-da-hora.png"
+              alt="Instituto da Hora"
+              width="180"
+              height="100"
+            />
+          </li>
+          <li>
+            <img
+              src="/logos/sleeping-giants.png"
+              alt="Sleeping Giants"
+              width="180"
+              height="100"
+            />
+          </li>
+          <li>
+            <img
+              src="/logos/neisser.png"
+              alt="Neisser & Advogados Associados"
+              width="180"
+              height="100"
+            />
+          </li>
+        </ul>
+        <p className="eyebrow">Parceria</p>
+        <ul className="organization-logos" aria-label="Parceira">
+          <li>
+            <img
+              src="/logos/conectas.png"
+              alt="Conectas Direitos Humanos"
+              width="180"
+              height="100"
+            />
+          </li>
+        </ul>
       </section>
       <section className="beta-notice" aria-labelledby="beta-heading">
         <h2 id="beta-heading">Antes de começar</h2>
         <div>
           <p>
-            Beta para dados não críticos. Os arquivos ficam no seu dispositivo.
-            Não guardamos uma cópia para recuperação no servidor.
+            Os arquivos ficam no seu dispositivo. Não guardamos uma cópia para
+            recuperação no servidor.
           </p>
           <p>
             Preserve o ZIP original em um local seguro e compartilhe-o apenas
@@ -606,7 +650,7 @@ function Methodology({ navigate }: { navigate: (page: Page) => void }) {
         <p>
           A metodologia combina observação do navegador, encadeamento
           criptográfico, recibos assinados, fontes externas de tempo e
-          verificação independente. Neste beta, os arquivos ficam no
+          verificação independente. Nesta versão, os arquivos ficam no
           dispositivo; o servidor registra hashes e provas técnicas, sem receber
           seu conteúdo.
         </p>
@@ -668,7 +712,7 @@ function Methodology({ navigate }: { navigate: (page: Page) => void }) {
           <span>04</span>
           <h2>Manifesto e assinaturas</h2>
           <p>
-            Ao finalizar, cliente e servidor assinam documentos que vinculam
+            Ao finalizar, extensão e servidor assinam documentos que vinculam
             sessão, artefatos, lacunas declaradas e identidade das versões de
             software utilizadas.
           </p>
@@ -677,18 +721,18 @@ function Methodology({ navigate }: { navigate: (page: Page) => void }) {
           <span>05</span>
           <h2>Provas de tempo</h2>
           <p>
-            O beta usa OpenTimestamps, com confirmação posterior no Bitcoin. Uma
-            prova pendente ainda não é uma confirmação. RFC 3161 é uma camada
-            prevista na arquitetura, não uma garantia deste beta.
+            O Evidências usa OpenTimestamps, com confirmação posterior no
+            Bitcoin. Uma prova pendente ainda não é uma confirmação. RFC 3161 é
+            uma camada prevista na arquitetura, não uma garantia desta versão.
           </p>
         </article>
         <article>
           <span>06</span>
           <h2>Preservação imutável</h2>
           <p>
-            Fora deste beta: Ceph com Object Lock pode impedir alteração ou
-            exclusão durante a retenção. O armazenamento atual não oferece essa
-            proteção.
+            Módulo opcional desativado: Ceph com Object Lock pode impedir
+            alteração ou exclusão durante a retenção. O armazenamento atual não
+            oferece essa proteção.
           </p>
         </article>
         <article>
@@ -778,11 +822,7 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </React.StrictMode>,
 );
-if (
-  import.meta.env.PROD &&
-  !isConstructionHost(location.hostname) &&
-  "serviceWorker" in navigator
-)
+if (import.meta.env.PROD && "serviceWorker" in navigator)
   window.addEventListener("load", () => {
     void navigator.serviceWorker.register("/sw.js");
   });

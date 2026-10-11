@@ -18,17 +18,21 @@
 		X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
 	}
 
-	@html path / /index.html /validar /metodologia /privacidade
+	@html path / /index.html /validar /metodologia /privacidade /termos-de-uso
 	header @html Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' https://api.evidencias.org.br; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
 
 	@serviceWorker path /sw.js
 	header @serviceWorker Cache-Control "no-cache, no-store, must-revalidate"
 
-	@legacyRoutes {
-		host evidencias.org.br www.evidencias.org.br
-		path /validar* /metodologia*
+	# Keep the old origin's worker reachable so installed offline caches retire.
+	@legacyHosts {
+		host beta.evidencias.org.br www.evidencias.org.br
+		not path /sw.js
 	}
-	redir @legacyRoutes https://beta.evidencias.org.br{uri} 308
+	redir @legacyHosts https://evidencias.org.br{uri} 308
+
+	@index path / /index.html
+	header @index Cache-Control "no-cache, must-revalidate"
 
 	handle /health {
 		respond "ok" 200

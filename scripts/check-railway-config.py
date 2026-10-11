@@ -120,6 +120,7 @@ def validate_graph(graph: dict[str, Any]) -> None:
             "/pnpm-workspace.yaml",
             "/apps/verifier-web/**",
             "/packages/protocol-ts/**",
+            "/packages/project-content/**",
             "/infra/railway/verifier-web.Caddyfile",
         },
     }
@@ -145,9 +146,9 @@ def validate_graph(graph: dict[str, Any]) -> None:
         if literal("CHITAOZINHO_OTS_ENABLED") != "true":
             raise ValueError("OpenTimestamps must remain enabled in beta")
         if literal("CHITAOZINHO_VERIFIER_BASE_URL") != (
-            "https://beta.evidencias.org.br"
+            "https://evidencias.org.br"
         ):
-            raise ValueError("backend CORS must target the beta verifier domain")
+            raise ValueError("backend CORS must target the canonical verifier domain")
         if literal("CHITAOZINHO_EMAIL_PROVIDER") != "resend":
             raise ValueError("beta email must use the Resend HTTP API")
 
