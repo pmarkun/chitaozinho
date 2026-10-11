@@ -1,4 +1,40 @@
-# Deploy do beta no Railway
+# Deploy no Railway
+
+## Domínio público de produção
+
+O site e o verificador usam `https://evidencias.org.br`. Os hosts antigos
+`beta.evidencias.org.br` e `www.evidencias.org.br` redirecionam permanentemente
+para esse domínio, preservando caminho e query string. A API permanece em
+`https://api.evidencias.org.br`.
+
+Essa promoção não recria a infraestrutura: o ambiente Railway continua chamado
+`staging`, com `CHITAOZINHO_ENV=beta` internamente. Esse perfil mantém as restrições
+do Railway e não promete Object Lock, WORM ou alta disponibilidade. Não troque
+essa variável por `production`: o perfil de backend com esse nome exige a
+infraestrutura Ceph/KMS que não está habilitada neste deploy.
+
+Antes de publicar:
+
+1. Valide CI e o build da extensão com `CHITAOZINHO_ENVIRONMENT=production`,
+   `CHITAOZINHO_AUTH_MODE=anonymous`, API canônica e verificador canônico.
+2. Publique os artefatos versionados e assinados antes de atualizar o link de
+   download do site. O ZIP de instalação manual inclui a chave pública; o ZIP
+   da Chrome Web Store deve omitir o campo `key`.
+3. Atualize somente `CHITAOZINHO_VERIFIER_BASE_URL` da API para o domínio canônico.
+   Mantenha os IDs autorizados da extensão instalada manualmente e adicione o ID
+   atribuído pela Store quando ele estiver confirmado; nunca use um curinga.
+4. Publique `verifier-web` e confira home, `/validar`, `/privacidade`,
+   `/termos-de-uso`, redirecionamentos, API `/readyz` e CORS. Valide também o
+   verificador aberto por uma extensão antiga através do redirecionamento.
+5. Confirme monitoramento externo dos domínios canônicos e os alertas de queda e
+   recuperação. A política anterior de não indexação foi preservada; publicação
+   não significa habilitar indexação em mecanismos de busca.
+
+Rollback: redeploye o commit anterior do site e restaure a URL anterior da API,
+se necessário. Não remova banco, Bucket, provas temporais ou volumes. Não há
+migração de dados nesta promoção.
+
+## Perfil de infraestrutura
 
 Este ambiente é um beta para dados não críticos. Desde a release 0.1.2, novas
 capturas usam guarda local: arquivos não são enviados ao servidor. Objetos

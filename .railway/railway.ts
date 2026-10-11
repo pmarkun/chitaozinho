@@ -69,7 +69,7 @@ export default defineRailway(() => {
     CHITAOZINHO_OTS_CALENDARS:
       "https://alice.btc.calendar.opentimestamps.org,https://bob.btc.calendar.opentimestamps.org,https://finney.calendar.eternitywall.com,https://ots.btc.catallaxy.com",
     CHITAOZINHO_PUBLIC_BASE_URL: "https://api.evidencias.org.br",
-    CHITAOZINHO_VERIFIER_BASE_URL: "https://beta.evidencias.org.br",
+    CHITAOZINHO_VERIFIER_BASE_URL: "https://evidencias.org.br",
     CHITAOZINHO_AUTH_MODE: "anonymous",
     CHITAOZINHO_AUTH_TOKEN_PEPPER: preserve(),
     CHITAOZINHO_EMAIL_PROVIDER: "resend",

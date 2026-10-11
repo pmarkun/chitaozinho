@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.9 — 2026-10-10
+
+- Publica a aplicação completa em evidencias.org.br e redireciona beta e www com HTTP 308, preservando caminho e consulta.
+- Atualiza a extensão para o validador canônico, com autenticação anônima e sem identificação de beta.
+- Mantém guarda local, aviso de ausência de Object Lock e as políticas existentes de segurança e retenção.
+- Atualiza o CORS e prepara release estável assinada para a publicação na Chrome Web Store.
+
 Mudanças relevantes do Chitãozinho são registradas aqui. As versões seguem
 [Semantic Versioning](https://semver.org/) e os artefatos publicados estão nas
 [releases do GitHub](https://github.com/pmarkun/chitaozinho/releases).

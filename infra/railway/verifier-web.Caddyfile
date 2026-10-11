@@ -24,11 +24,15 @@
 	@serviceWorker path /sw.js
 	header @serviceWorker Cache-Control "no-cache, no-store, must-revalidate"
 
-	@legacyRoutes {
-		host evidencias.org.br www.evidencias.org.br
-		path /validar* /metodologia*
+	# Keep the old origin's worker reachable so installed offline caches retire.
+	@legacyHosts {
+		host beta.evidencias.org.br www.evidencias.org.br
+		not path /sw.js
 	}
-	redir @legacyRoutes https://beta.evidencias.org.br{uri} 308
+	redir @legacyHosts https://evidencias.org.br{uri} 308
+
+	@index path / /index.html
+	header @index Cache-Control "no-cache, must-revalidate"
 
 	handle /health {
 		respond "ok" 200

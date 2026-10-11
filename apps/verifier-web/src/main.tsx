@@ -9,12 +9,6 @@ import {
 import "./styles.css";
 import { Privacy } from "./privacy";
 import { Terms } from "./terms";
-import {
-  Construction,
-  isConstructionHost,
-  PublicPrivacy,
-  PublicTerms,
-} from "./construction";
 
 const PROOF_API_BASE_URL =
   import.meta.env.VITE_PROOF_API_BASE_URL ?? "https://api.evidencias.org.br";
@@ -38,17 +32,10 @@ function pageFromPath(): Page {
 }
 
 function App() {
-  if (isConstructionHost(location.hostname)) {
-    if (location.pathname.startsWith("/termos-de-uso")) return <PublicTerms />;
-    if (location.pathname.startsWith("/privacidade")) {
-      return <PublicPrivacy />;
-    }
-    return <Construction />;
-  }
-  return <BetaApp />;
+  return <SiteApp />;
 }
 
-function BetaApp() {
+function SiteApp() {
   const [page, setPage] = useState<Page>(pageFromPath);
 
   useEffect(() => {
@@ -137,14 +124,14 @@ function ExtensionDownload() {
     <section className="extension-download" aria-labelledby="extension-heading">
       <h2 id="extension-heading">Quer capturar uma evidência?</h2>
       <p>
-        Baixe a extensão beta para Chrome 116 ou superior no computador. Para
-        validar um pacote nesta página, não é preciso instalar nada.
+        Baixe a extensão para Chrome 116 ou superior no computador. Para validar
+        um pacote nesta página, não é preciso instalar nada.
       </p>
       <a
         className="primary button"
-        href="https://github.com/pmarkun/chitaozinho/releases/download/v0.1.8/chitaozinho-extension-0.1.8.zip"
+        href="https://github.com/pmarkun/chitaozinho/releases/download/v0.1.9/chitaozinho-extension-0.1.9.zip"
       >
-        Baixar extensão beta · ZIP
+        Baixar extensão · ZIP
       </a>
       <details>
         <summary>Como instalar no Chrome</summary>
@@ -173,8 +160,8 @@ function ExtensionDownload() {
         </p>
       </details>
       <p className="extension-note">
-        Versão 0.1.8 · Beta para dados não críticos. Arquivos somente no seu
-        dispositivo; o servidor registra hashes, não uma cópia dos arquivos.
+        Versão 0.1.9 · Arquivos somente no seu dispositivo; o servidor registra
+        hashes, não uma cópia dos arquivos.
       </p>
     </section>
   );
@@ -185,7 +172,7 @@ function Home({ navigate }: { navigate: (page: Page) => void }) {
     <main id="main-content" tabIndex={-1} className="home">
       <section className="home-hero">
         <div>
-          <p className="eyebrow">Registro digital · Beta</p>
+          <p className="eyebrow">Registro digital</p>
           <h1>
             Registre evidências digitais para a integridade eleitoral.
             Compartilhe registros verificáveis.
@@ -338,8 +325,8 @@ function Home({ navigate }: { navigate: (page: Page) => void }) {
         <h2 id="beta-heading">Antes de começar</h2>
         <div>
           <p>
-            Beta para dados não críticos. Os arquivos ficam no seu dispositivo.
-            Não guardamos uma cópia para recuperação no servidor.
+            Os arquivos ficam no seu dispositivo. Não guardamos uma cópia para
+            recuperação no servidor.
           </p>
           <p>
             Preserve o ZIP original em um local seguro e compartilhe-o apenas
@@ -663,7 +650,7 @@ function Methodology({ navigate }: { navigate: (page: Page) => void }) {
         <p>
           A metodologia combina observação do navegador, encadeamento
           criptográfico, recibos assinados, fontes externas de tempo e
-          verificação independente. Neste beta, os arquivos ficam no
+          verificação independente. Nesta versão, os arquivos ficam no
           dispositivo; o servidor registra hashes e provas técnicas, sem receber
           seu conteúdo.
         </p>
@@ -734,18 +721,18 @@ function Methodology({ navigate }: { navigate: (page: Page) => void }) {
           <span>05</span>
           <h2>Provas de tempo</h2>
           <p>
-            O beta usa OpenTimestamps, com confirmação posterior no Bitcoin. Uma
-            prova pendente ainda não é uma confirmação. RFC 3161 é uma camada
-            prevista na arquitetura, não uma garantia deste beta.
+            O Evidências usa OpenTimestamps, com confirmação posterior no
+            Bitcoin. Uma prova pendente ainda não é uma confirmação. RFC 3161 é
+            uma camada prevista na arquitetura, não uma garantia desta versão.
           </p>
         </article>
         <article>
           <span>06</span>
           <h2>Preservação imutável</h2>
           <p>
-            Fora deste beta: Ceph com Object Lock pode impedir alteração ou
-            exclusão durante a retenção. O armazenamento atual não oferece essa
-            proteção.
+            Módulo opcional desativado: Ceph com Object Lock pode impedir
+            alteração ou exclusão durante a retenção. O armazenamento atual não
+            oferece essa proteção.
           </p>
         </article>
         <article>
@@ -835,11 +822,7 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </React.StrictMode>,
 );
-if (
-  import.meta.env.PROD &&
-  !isConstructionHost(location.hostname) &&
-  "serviceWorker" in navigator
-)
+if (import.meta.env.PROD && "serviceWorker" in navigator)
   window.addEventListener("load", () => {
     void navigator.serviceWorker.register("/sw.js");
   });

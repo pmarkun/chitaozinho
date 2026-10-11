@@ -177,11 +177,20 @@ function App() {
         )}
       </header>
 
-      {__CHITAOZINHO_ENDPOINTS__.environment === "beta" && (
-        <aside className="beta-notice" aria-label={t("betaTitle")}>
-          <strong>{t("betaTitle")}</strong>
+      {["beta", "production"].includes(
+        __CHITAOZINHO_ENDPOINTS__.environment,
+      ) && (
+        <aside className="beta-notice" aria-label={t("betaNoImmutability")}>
+          <strong>
+            {t(
+              __CHITAOZINHO_ENDPOINTS__.environment === "production"
+                ? "appName"
+                : "betaTitle",
+            )}
+          </strong>
           <span>
-            {capture?.evidenceMode === "hash_only"
+            {__CHITAOZINHO_ENDPOINTS__.environment === "production" ||
+            capture?.evidenceMode === "hash_only"
               ? t("hashOnlyNotice")
               : t("betaRetention")}
           </span>
